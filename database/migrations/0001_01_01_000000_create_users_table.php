@@ -8,44 +8,42 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('users', function (Blueprint $table) {
+        Schema::create('users', function (Blueprint $table): void {
             $table->id();
-            $table->string('name');
-            $table->string('email')->unique();
+            // E.164, identifiant de connexion — pas de mot de passe au MVP
+            $table->string('phone', 20)->unique();
+            $table->timestamp('phone_verified_at')->nullable();
+            // Optionnel : repli OTP et reçus de paiement (décision D7)
+            $table->string('email', 150)->nullable()->unique();
             $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
-            $table->rememberToken();
+            $table->string('full_name', 150)->nullable();
+            $table->enum('account_type', ['individual', 'company'])->default('individual');
+            $table->enum('kyc_status', ['none', 'pending', 'verified', 'rejected'])->default('none');
+            // Ancienneté du KYC : signal temporel public non antidatable
+            $table->timestamp('kyc_verified_at')->nullable();
+            // SHA-256 du n° de CNI — jamais la valeur en clair (Loi 2013-450)
+            $table->char('kyc_id_number_hash', 64)->nullable();
+            $table->json('kyc_ocr_payload')->nullable();
+            $table->string('locale', 5)->default('fr');
+            $table->enum('status', ['active', 'suspended', 'deleted'])->default('active');
+            $table->unsignedTinyInteger('free_assets_quota')->default(3);
             $table->timestamps();
+
+            $table->index('kyc_status', 'idx_users_kyc');
         });
 
-        Schema::create('password_reset_tokens', function (Blueprint $table) {
+        Schema::create('password_reset_tokens', function (Blueprint $table): void {
             $table->string('email')->primary();
             $table->string('token');
             $table->timestamp('created_at')->nullable();
         });
-
-        Schema::create('sessions', function (Blueprint $table) {
-            $table->string('id')->primary();
-            $table->foreignId('user_id')->nullable()->index();
-            $table->string('ip_address', 45)->nullable();
-            $table->text('user_agent')->nullable();
-            $table->longText('payload');
-            $table->integer('last_activity')->index();
-        });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('users');
         Schema::dropIfExists('password_reset_tokens');
-        Schema::dropIfExists('sessions');
+        Schema::dropIfExists('users');
     }
 };
