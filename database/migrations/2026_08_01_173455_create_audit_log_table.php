@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('entity_type', 40);
             $table->unsignedBigInteger('entity_id');
             $table->json('payload');
-            $table->char('payload_hash', 64);
+            $table->char('record_hash', 64);
             $table->char('prev_hash', 64);
             $table->char('chain_hash', 64);
             $table->timestamp('created_at')->useCurrent();

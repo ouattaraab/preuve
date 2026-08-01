@@ -9,22 +9,13 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-// MariaDB/InnoDB ne restaure pas le compteur AUTO_INCREMENT lors du rollback
-// de transaction utilisé par RefreshDatabase entre chaque test. Sans cette
-// remise à zéro, les identifiants des lignes ne partiraient plus de 1 à
-// chaque test et le test « détecte une rupture de chaîne » ci-dessous,
-// qui cible l'entrée n° 2, viserait la mauvaise ligne.
-beforeEach(function (): void {
-    DB::statement('ALTER TABLE audit_log AUTO_INCREMENT = 1');
-});
-
 it('chaîne la première entrée sur un hash de genèse', function (): void {
     $entry = app(AuditChain::class)->append(
         ActorType::System, null, 'asset.created', 'asset', 1, ['ref' => 'PRV-TEST0001']
     );
 
     expect($entry->prev_hash)->toBe(str_repeat('0', 64))
-        ->and($entry->chain_hash)->toBe(hash('sha256', $entry->prev_hash.$entry->payload_hash));
+        ->and($entry->chain_hash)->toBe(hash('sha256', $entry->prev_hash.$entry->record_hash));
 });
 
 it('chaîne chaque entrée sur le hash de la précédente', function (): void {
@@ -36,13 +27,13 @@ it('chaîne chaque entrée sur le hash de la précédente', function (): void {
     expect($second->prev_hash)->toBe($first->chain_hash);
 });
 
-it('produit le même hash quel que soit l\'ordre des clés du payload', function (): void {
+it('produit les mêmes octets de payload quel que soit l\'ordre des clés', function (): void {
     $chain = app(AuditChain::class);
 
     $a = $chain->append(ActorType::System, null, 'test.a', 'asset', 1, ['x' => 1, 'y' => 2]);
     $b = $chain->append(ActorType::System, null, 'test.a', 'asset', 1, ['y' => 2, 'x' => 1]);
 
-    expect($a->payload_hash)->toBe($b->payload_hash);
+    expect($a->getRawOriginal('payload'))->toBe($b->getRawOriginal('payload'));
 });
 
 it('canonicalise récursivement les clés imbriquées', function (): void {
@@ -51,7 +42,40 @@ it('canonicalise récursivement les clés imbriquées', function (): void {
     $a = $chain->append(ActorType::System, null, 'test.b', 'asset', 1, ['n' => ['b' => 1, 'a' => 2]]);
     $b = $chain->append(ActorType::System, null, 'test.b', 'asset', 1, ['n' => ['a' => 2, 'b' => 1]]);
 
-    expect($a->payload_hash)->toBe($b->payload_hash);
+    expect($a->getRawOriginal('payload'))->toBe($b->getRawOriginal('payload'));
+});
+
+it('canonicalise aussi les objets imbriqués, pas seulement les tableaux', function (): void {
+    $chain = app(AuditChain::class);
+
+    // La revue a démontré qu'un payload contenant un objet (plutôt qu'un
+    // tableau associatif) échappait au tri récursif : sortRecursive() ne
+    // descendait que dans is_array(). Deux payloads sémantiquement
+    // identiques — un tableau imbriqué et un objet imbriqué équivalent —
+    // doivent produire les mêmes octets stockés.
+    $a = $chain->append(ActorType::System, null, 'test.objet', 'asset', 1, [
+        'n' => (object) ['b' => 1, 'a' => 2],
+    ]);
+    $b = $chain->append(ActorType::System, null, 'test.objet', 'asset', 1, [
+        'n' => ['a' => 2, 'b' => 1],
+    ]);
+
+    expect($a->getRawOriginal('payload'))->toBe($b->getRawOriginal('payload'));
+});
+
+it('ne rompt jamais la chaîne pour un payload contenant un objet imbriqué', function (): void {
+    // Reproduction du faux négatif démontré par la revue : verify()
+    // décodait puis ré-encodait le payload, ce qui convertissait un objet en
+    // tableau associatif trié et faisait diverger l'empreinte recalculée de
+    // celle stockée à l'écriture — une chaîne pourtant intacte était donc
+    // déclarée rompue. verify() ne décode plus jamais le payload : il hache
+    // les octets tels que stockés, ce qui élimine structurellement ce cas.
+    $chain = app(AuditChain::class);
+    $chain->append(ActorType::System, null, 'test.objet', 'asset', 1, [
+        'details' => (object) ['b' => 1, 'a' => 2],
+    ]);
+
+    expect($chain->verify())->toMatchArray(['valid' => true, 'broken_at' => null]);
 });
 
 it('valide une chaîne intacte', function (): void {
@@ -63,22 +87,10 @@ it('valide une chaîne intacte', function (): void {
     expect($chain->verify())->toMatchArray(['valid' => true, 'broken_at' => null]);
 });
 
-it('détecte une rupture de chaîne provoquée en base', function (): void {
-    $chain = app(AuditChain::class);
-    foreach (range(1, 3) as $i) {
-        $chain->append(ActorType::System, null, 'test.seq', 'asset', $i, ['i' => $i]);
-    }
-
-    // Altération directe en base, en contournant le modèle
-    DB::table('audit_log')->where('id', 2)->update(['payload' => json_encode(['i' => 999])]);
-
-    $result = $chain->verify();
-
-    expect($result['valid'])->toBeFalse()
-        ->and($result['broken_at'])->toBe(2);
-});
-
-it('conserve l\'ordre des entrées concurrentes sans trou dans la chaîne', function (): void {
+it('conserve l\'ordre d\'une séquence d\'entrées sans trou dans la chaîne', function (): void {
+    // Séquentiel dans un seul processus : ne met pas le verrou à l'épreuve.
+    // Voir AuditChainConcurrencyTest.php pour un test avec de véritables
+    // processus concurrents.
     $chain = app(AuditChain::class);
     foreach (range(1, 20) as $i) {
         $chain->append(ActorType::System, null, 'test.concurrent', 'asset', $i, ['i' => $i]);

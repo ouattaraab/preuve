@@ -33,6 +33,6 @@ it('ne stocke jamais un code OTP en clair', function (): void {
 it('crée la table audit_log avec le chaînage SHA-256', function (): void {
     expect(Schema::hasColumns('audit_log', [
         'actor_type', 'actor_id', 'action', 'entity_type', 'entity_id',
-        'payload', 'payload_hash', 'prev_hash', 'chain_hash',
+        'payload', 'record_hash', 'prev_hash', 'chain_hash',
     ]))->toBeTrue();
 });

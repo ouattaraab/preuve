@@ -20,7 +20,7 @@ class AuditLog extends Model
 
     protected $fillable = [
         'actor_type', 'actor_id', 'action', 'entity_type', 'entity_id',
-        'payload', 'payload_hash', 'prev_hash', 'chain_hash', 'created_at',
+        'payload', 'record_hash', 'prev_hash', 'chain_hash', 'created_at',
     ];
 
     /** @return array<string, string> */
