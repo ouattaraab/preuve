@@ -45,7 +45,10 @@ L'hébergement mutualisé Hostinger ne permet ni processus résident, ni service
 | Secrets | `.env` placé au-dessus du document root | Pas de rotation automatisée |
 | Supervision des files | Table `failed_jobs` + écran admin « Supervision » | Pas de tableau Horizon |
 
-**Prérequis à vérifier** : le plan Hostinger doit fournir un accès SSH et un cron à la minute. Les plans Premium descendent rarement sous cinq minutes et n'offrent pas toujours SSH, ce qui dégraderait l'ensemble du tableau ci-dessus. Business ou Cloud conviennent.
+**Environnement vérifié le 01/08/2026** (détail : `docs/infrastructure/hostinger-audit.md`) : CloudLinux mutualisé, PHP 8.4, SSH et Composer disponibles, accès HTTPS sortant ouvert, aucun serveur Redis. Deux conséquences :
+
+- **Le moteur est MariaDB 11.8, pas MySQL 8.** La collation `utf8mb4_0900_ai_ci` du schéma de référence n'existe pas : on retient `utf8mb4_uca1400_ai_ci` et la connexion Laravel `mariadb`. Le pattern d'unicité active reste valide à l'identique — MariaDB traite aussi les `NULL` comme distincts dans un index unique. La CI et le poste de développement doivent tourner sur MariaDB 11.8 : valider sur un moteur et livrer sur un autre serait une faute.
+- **`crontab` n'existe pas en ligne de commande** : les tâches planifiées se créent depuis hPanel. La granularité minimale reste à confirmer ; si elle dépasse la minute, les files et l'expiration des jetons se dégradent d'autant.
 
 **Règle de conception contraignante** : tout le code s'écrit contre les abstractions Laravel (`Cache`, `Queue`, `Storage`), jamais contre une implémentation. La migration vers un VPS doit rester un changement de configuration, pas une réécriture.
 
@@ -348,7 +351,7 @@ Ces points n'empêchent pas de démarrer le lot 1, mais doivent être tranchés 
 
 | # | Point | Échéance |
 |---|---|---|
-| 1 | Plan Hostinger : SSH et cron à la minute confirmés ? | Avant le déploiement du lot 1 |
+| 1 | Granularité minimale du cron dans hPanel — SSH confirmé, cron restant à vérifier | Avant le déploiement du lot 1 |
 | 2 | Fournisseur SMS OTP : coût et fiabilité en Côte d'Ivoire | Avant le lot 2 |
 | 3 | Dossier ARTCI pour le traitement biométrique | Démarrage immédiat, en parallèle |
 | 4 | Politique de suppression de compte face à l'audit append-only | Avant le KYC |
