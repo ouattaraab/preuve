@@ -8,24 +8,35 @@
 .idea/
 .vscode/
 *.swp
+/.fleet
+/.nova
+/.zed
 
 # Environnement / secrets (jamais commités — Vault fait foi)
 .env
 .env.*
 !.env.example
+.env.backup
+.env.production
 *.pem
 *.key
 
-# Dépendances / build (à venir : Laravel, Flutter)
-/vendor/
-/node_modules/
-/public/build/
+# Laravel
+/.phpunit.cache
+/node_modules
+/public/build
 /public/hot
+/public/storage
 /storage/*.key
-/storage/framework/
-/storage/logs/
-/.phpunit.cache/
+/storage/pail
+/vendor/
+.phpactor.json
 .phpunit.result.cache
+Homestead.json
+Homestead.yaml
+npm-debug.log
+yarn-error.log
+/auth.json
 
 # Flutter
 .dart_tool/
