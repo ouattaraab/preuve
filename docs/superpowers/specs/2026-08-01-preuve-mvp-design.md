@@ -94,7 +94,7 @@ Contrôleurs fins, logique dans `app/Services/` :
 
 | Service | Responsabilité | Dépendances |
 |---|---|---|
-| `AuditChain` | Point de passage **unique** de toute action sensible. `append()` sous verrou court | Aucune |
+| `AuditChain` | Point de passage **unique** de toute action sensible. `append()` sous verrou court (§4.5) | Aucune |
 | `IdentifierNormalizer` | Normalisation, checksum VIN, Luhn IMEI, plaques, lots | Aucune |
 | `AssetRegistrationService` | Enregistrement en quatre gestes, unicité, F1/V-PRV | Normalizer, AuditChain, CategoryRegistry |
 | `CategoryRegistry` | Catégories et champs dynamiques, validation par catégorie, publication distante | Aucune |
@@ -111,6 +111,35 @@ Contrôleurs fins, logique dans `app/Services/` :
 | `PaymentService` | Paystack, PawaPay, webhooks idempotents | AuditChain |
 
 Chaque service s'utilise sans lire ses internes et se teste isolément.
+
+### 4.5 Formule de la chaîne d'audit — amendement du 01/08/2026
+
+Le schéma de référence v1.1 définissait `chain_hash = SHA-256(prev_hash || payload_hash)`, où `payload_hash` ne couvrait que la charge utile. Une revue a démontré que cette formule laisse `action`, `entity_type`, `entity_id`, `actor_type`, `actor_id` et `created_at` **hors de toute protection** : un accès direct à la base permet de réécrire « qui a fait quoi, sur quel bien, à quelle date » sans que la vérification le détecte. C'est précisément ce qui fait la valeur probante du dispositif.
+
+**Formule retenue :**
+
+```
+record_hash = SHA-256( json_canonique( toutes les colonnes métier de la ligne ) )
+chain_hash  = SHA-256( prev_hash || record_hash )
+```
+
+Les colonnes métier sont : `actor_type`, `actor_id`, `action`, `entity_type`, `entity_id`, `payload`, `created_at`. La colonne `payload_hash` du schéma v1.1 est renommée `record_hash`.
+
+**Deux règles de calcul, non négociables :**
+
+1. **Le payload entre dans l'empreinte sous sa forme d'octets stockée**, jamais décodé puis ré-encodé. Décoder pour ré-encoder rend l'empreinte dépendante de la version de PHP, de `serialize_precision`, et de la distinction entre objet et tableau associatif — trois sources de divergence qui feraient déclarer rompue une chaîne intacte, ou accepteraient une réécriture des octets.
+2. **`created_at` entre sous sa représentation textuelle stockée**, au format de la base, sans reformatage.
+
+Corollaire opérationnel : une empreinte doit rester reproductible des années plus tard par un tiers, avec des outils standards, à partir des seules colonnes de la ligne.
+
+### 4.6 Inaltérabilité du journal — défense en profondeur
+
+Les garde-fous applicatifs du modèle Eloquent ne couvrent que le chemin des instances : `AuditLog::query()->update()` et `->delete()` les contournent, ce qu'une revue a démontré. La protection descend donc au niveau de la base :
+
+- des déclencheurs MariaDB `BEFORE UPDATE` et `BEFORE DELETE` sur `audit_log`, qui lèvent une erreur SQL ;
+- un utilisateur de base applicatif **sans droit `UPDATE` ni `DELETE`** sur cette table, à configurer au déploiement.
+
+La protection cesse ainsi de dépendre du code applicatif — ce qui importe d'autant plus sur un hébergement mutualisé partagé avec d'autres sites.
 
 ### 4.4 Tâches planifiées
 
