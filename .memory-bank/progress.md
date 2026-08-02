@@ -28,7 +28,7 @@
 
 ## Jalon 4 — Lancement public (fin S13)
 - ⬜ EP-07 Offre flotte B2B (import Excel, dashboard, marquage masse, alertes, rôles)
-- ⬜ EP-08 Monétisation (rapport détaillé, guest checkout OTP, quotas, abonnements, webhooks idempotents)
+- 🟨 EP-08 Monétisation : ✅ ST-0801 rapport détaillé anonymisé, ST-0802 guest checkout OTP, ST-0803 notification anonyme, ST-0804 quota non bloquant, ST-0805 paliers de flotte, ST-0806 webhooks signés idempotents · ⬜ factures PDF, relances d'abonnement, suspension douce
 - ⬜ EP-09 Observabilité (anti-fraude, télémétrie CT-01/CT-02, sauvegardes/PRA)
 - ⬜ EP-10 (fin) Push FCM + SMS critique
 
@@ -39,6 +39,7 @@
 | 02/08/2026 | Socle des biens : companies, assets, unicité active ; asset_status_history + StatusTransitionService (matrice complète) ; base de dev MariaDB locale sans Docker | ST-0106, ST-0402, ST-0503, ST-0601, ST-0604, ST-0606, ST-0702 (socle des transitions) | 3 interdictions de la matrice confirmées par Aboubakar, consignées dans systemPatterns.md §1 |
 | 02/08/2026 | Authentification par OTP : Sanctum, OtpService, endpoints request/verify/me/logout | ST-0101, ST-0102 | Fournisseur SMS non arbitré → interface `OtpSender`, implémentation de développement qui refuse la production. `composer audit` : 3 avis sur laravel/framework, dont un « high », sans correctif sur la branche 11 |
 | 02/08/2026 | Enregistrement express : `AssetRegistrationService`, `POST /api/v1/assets`, `PublicAssetResource`, filtrage des champs sur le catalogue de catégories | ST-0201, ST-0203, ST-0204 | ST-0205 limitée à la journalisation de la tentative : la notification au détenteur attend la table `notifications` |
+| 02/08/2026 | EP-08 (cœur) : `payments`/`report_purchases`, rapport anonymisé, guest checkout OTP avant paiement, webhooks signés idempotents, quotas et paliers de flotte | ST-0801 à ST-0806 | Quota volontairement NON bloquant : un bien non enregistré est un bien non protégé |
 | 02/08/2026 | Relances du contradictoire (J+7, J+13) et passage en instruction au terme du délai | ST-0504 | Le silence ne ferme pas le dossier : il le fait instruire sur pièces, bien toujours gelé |
 | 02/08/2026 | EP-05 : `ClaimArbitrationService`, grille pondérée, 3 issues, appel par un autre agent, export empreint ; `TransferService::handOver()` extrait comme point de passage unique de la règle 3 | ST-0501 à ST-0506 | Matrice amendée : `V-ACT → V-LIT` par `arbitration`, sans quoi un appel ne pouvait aboutir à « non tranché » |
 | 02/08/2026 | EP-06 complet : `TransferService` (règle 3 : archivage + création en une transaction sous verrou), `AssetLifecycleService` (vol/levée/fin de vie), job d'expiration, endpoints | ST-0601 à ST-0606 | Le bien transféré repart en F1 : les justificatifs appuyaient la propriété du vendeur |
