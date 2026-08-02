@@ -15,6 +15,7 @@ Développement du socle en cours :
 - ✅ `asset_status_history` + `StatusTransitionService` : matrice des transitions verrouillée par une table de vérité écrite à la main dans les tests
 - ✅ ST-0101/ST-0102 : authentification par OTP (Sanctum), anti-brute-force par destination, `auth/otp/request|verify`, `auth/me`, `auth/logout`
 - ✅ ST-0201/ST-0203/ST-0204 : `AssetRegistrationService` + `POST /api/v1/assets` — F1/V-PRV, normalisation, doublon → fiche existante + réclamation, `PublicAssetResource` (point de passage unique de l'anonymat)
+- ✅ **EP-08 complet** : abonnements de flotte (relances échelonnées, suspension DOUCE en lecture seule), frais de dossier de réclamation annoncés et remboursables, décompte mensuel
 - ✅ **CT-01 mesuré sur volume** : 1 ms au 95e centile sur 200 000 biens et 1 M de consultations journalisées — `preuve:benchmark-lookup`, voir `docs/infrastructure/mesure-ct01.md`
 - ✅ ST-0404 : signaux temporels sur le verdict (ancienneté du bien et du compte, en TRANCHES, non antidatables, formulation factuelle)
 - ✅ **EP-09 (cœur)** : télémétrie CT-01/CT-02 (centiles, `lookups.duration_ms`), tableau anti-fraude, validation des comptes entreprise, sonde de santé publique — voir `docs/infrastructure/exploitation.md`
@@ -45,11 +46,10 @@ Développement du socle en cours :
 10. Colonnes d'horodatage métier en **DATETIME UTC** et non TIMESTAMP (`audit_log`, `asset_status_history`) : leur représentation textuelle est hachée ou rapprochée dans les exports, elle ne doit pas dépendre du fuseau de la session.
 
 ## Prochaines actions
-1. Fin d'EP-08 : factures conformes, relances d'abonnement, suspension douce en lecture seule ; frais de dossier de réclamation à brancher sur `PaymentPurpose::ClaimFee`
-2. ST-0705 : délégation aux collaborateurs d'un loueur (rôles admin/opérateur, actions tracées par acteur)
-3. ST-1003/ST-1004 : transports push FCM et SMS critique — la colonne `channel` est renseignée, aucun transport n'est branché
-4. ST-0904 : sauvegardes automatisées, PRA testé, mode lecture seule (documenté dans `docs/infrastructure/exploitation.md`, rien n'est en place)
-5. ST-0202 (OCR de carte grise à l'enregistrement) et ST-0206 (uploads différés avec reprise) — les deux derniers points d'EP-02
+1. ST-0705 : délégation aux collaborateurs d'un loueur (rôles admin/opérateur, actions tracées par acteur)
+2. ST-1003/ST-1004 : transports push FCM et SMS critique — la colonne `channel` est renseignée, aucun transport n'est branché
+3. ST-0904 : sauvegardes automatisées, PRA testé, mode lecture seule (documenté dans `docs/infrastructure/exploitation.md`, rien n'est en place)
+4. ST-0202 (OCR de carte grise à l'enregistrement) et ST-0206 (uploads différés avec reprise) — les deux derniers points d'EP-02
 
 ## Dette assumée, à reprendre
 - **CAPTCHA non implémenté** : le plafond de consultation répond 429 avec `captcha_required`, mais aucun fournisseur de défi n'est branché. Sans lui, un visiteur légitime derrière une adresse partagée (cybercafé, partage de connexion mobile) reste bloqué une heure.
@@ -61,7 +61,8 @@ Développement du socle en cours :
 - **Mode lecture seule absent** : la dégradation gracieuse fonctionne par service (consultation survit à une panne d'écriture), mais aucun interrupteur de maintenance n'existe.
 - **Import de flotte borné à 200 lignes par appel** : au-delà, le loueur découpe son fichier. Chaque enregistrement prend le verrou de la chaîne d'audit ; l'import devra passer en file quand Horizon sera en place.
 - **Quota d'enregistrement volontairement non bloquant** (ST-0804) : au-delà des 3 biens gratuits, l'enregistrement aboutit quand même et l'upsell est seulement proposé. Le revenu de ce poste repose donc sur la bonne volonté — le rendre bloquant est une décision produit, pas une correction technique.
-- **Frais de dossier de réclamation non prélevés** (2000/5000 FCFA prévus) : ils supposent EP-08. Le dépôt reste ouvert sans paiement — bloquer une victime sur un paiement indisponible fermerait son seul recours.
+- **Décompte mensuel ≠ facture fiscale** : le document produit porte le calcul mais pas les mentions exigibles en Côte d'Ivoire (régime, numéro de contribuable, TVA) — à faire valider par un comptable avant émission.
+- **Frais de dossier volontairement non bloquants** : le montant est annoncé et remboursable si la réclamation aboutit, mais son non-règlement n'empêche jamais le dépôt ni l'instruction. Rendre le paiement obligatoire est une décision produit.
 - **Transports FCM et SMS non branchés** (ST-1003, ST-1004, sprint 13) : la colonne `channel` dit par quel canal une notification DOIT partir, mais seules les notifications in-app sont réellement délivrées. Une alerte critique — tentative de doublon, vol — n'atteint donc pas encore un propriétaire qui n'ouvre pas l'application.
 - `AuditChainTransactionConcurrencyTest` exige que les 16 processus concurrents réussissent, alors que le rejet sous contention est le comportement voulu : sensible à la charge machine, il peut clignoter en CI.
 
