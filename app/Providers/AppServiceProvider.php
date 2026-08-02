@@ -16,6 +16,8 @@ use App\Services\Kyc\IdentityReader;
 use App\Services\Kyc\MindeeIdentityReader;
 use App\Services\Otp\ConfigurableOtpSender;
 use App\Services\Otp\OtpSender;
+use App\Services\Scan\DocumentReader;
+use App\Services\Scan\MindeeDocumentReader;
 use App\Services\Settings\SettingsRepository;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\Facades\Session;
@@ -46,6 +48,12 @@ class AppServiceProvider extends ServiceProvider
         // manuelle — la plateforme ne dépend jamais d'un tiers pour continuer
         // à vérifier des identités.
         $this->app->bind(IdentityReader::class, MindeeIdentityReader::class);
+
+        // Lecture des cartes grises et factures (ST-0202). Même compte Mindee,
+        // autre produit : sans clé, le scan rend une proposition vide et
+        // l'utilisateur saisit son identifiant — ce qu'il aurait fait de toute
+        // façon sans le scan.
+        $this->app->bind(DocumentReader::class, MindeeDocumentReader::class);
 
         // Transports hors application (ST-1003, ST-1004). Tous deux répondent
         // « non configuré » tant qu'aucune clé n'est renseignée : le centre de

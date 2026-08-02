@@ -91,6 +91,15 @@ return [
     'lookup_retention_months' => 12,
 
     /*
+    | Conservation des traces de scan (ST-0202). Bien plus courte que celle des
+    | consultations : ces lignes ne servent qu'à mesurer si le pré-remplissage
+    | fonctionne, et trois mois suffisent à trancher. Les garder un an
+    | reviendrait à conserver, pour rien, une trace de qui a photographié une
+    | carte grise et quand.
+    */
+    'scan_retention_days' => 90,
+
+    /*
     | Sauvegardes (ST-0904). `disk` doit pointer AILLEURS que la machine
     | sauvegardée : une sauvegarde qui vit sur le disque qu'elle sauvegarde ne
     | protège ni d'une panne, ni d'un effacement volontaire. Vide = sauvegarde

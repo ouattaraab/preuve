@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\Admin\SmsProviderController;
 use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\AssetDocumentController;
 use App\Http\Controllers\Api\V1\AssetLifecycleController;
+use App\Http\Controllers\Api\V1\AssetScanController;
 use App\Http\Controllers\Api\V1\ClaimController;
 use App\Http\Controllers\Api\V1\ConfigController;
 use App\Http\Controllers\Api\V1\DeviceTokenController;
@@ -83,6 +84,12 @@ Route::prefix('v1')->group(function (): void {
     // enregistrer peut attendre une heure, vérifier un bien avant de payer non.
     Route::middleware(['auth:sanctum', EnsurePlatformIsWritable::class])->group(function (): void {
         Route::post('assets', [AssetController::class, 'store']);
+
+        // Pré-remplissage par scan (ST-0202). Le plafond borne la dépense chez
+        // le fournisseur d'extraction, qui facture à l'appel : sans lui, un
+        // client en boucle épuiserait le quota de toute la plateforme.
+        Route::post('assets/scan', [AssetScanController::class, 'store'])
+            ->middleware('throttle:20,10');
 
         // Renforcement de la fiabilité APRÈS l'enregistrement (ST-0207) : c'est
         // ce qui permet au parcours initial de tenir en 90 secondes sans KYC.

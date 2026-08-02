@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\AuditChain;
 use App\Services\Kyc\MindeeIdentityReader;
+use App\Services\Scan\MindeeDocumentReader;
 use App\Services\Settings\SettingsRepository;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,6 +46,12 @@ final class KycProviderController extends Controller
             'configured' => is_string($cle) && $cle !== '',
             'api_key' => is_string($cle) && $cle !== '' ? self::MASQUE : null,
             'endpoint' => is_string($adresse) ? $adresse : null,
+            // Même clé, autre produit : le scan de carte grise (ST-0202) passe
+            // par le même compte. Séparer les clés laisserait la moitié des
+            // extractions tomber le jour d'une rotation, sans rien signaler.
+            'scan_endpoint' => is_string($scan = $this->settings->get(MindeeDocumentReader::ENDPOINT_SETTING))
+                ? $scan
+                : null,
             'fallback' => 'Sans clé, l\'extraction automatique n\'a pas lieu et chaque dossier est examiné '.
                 'manuellement par un agent. La vérification d\'identité reste possible.',
         ]);
@@ -55,6 +62,7 @@ final class KycProviderController extends Controller
         $request->validate([
             'api_key' => ['sometimes', 'nullable', 'string', 'max:255'],
             'endpoint' => ['sometimes', 'nullable', 'string', 'max:255', 'url'],
+            'scan_endpoint' => ['sometimes', 'nullable', 'string', 'max:255', 'url'],
         ]);
 
         $administrateur = $request->user();
@@ -84,6 +92,16 @@ final class KycProviderController extends Controller
             }
         }
 
+        if ($request->has('scan_endpoint')) {
+            $adresse = $request->string('scan_endpoint')->toString();
+
+            if ($adresse === '') {
+                $this->settings->forget(MindeeDocumentReader::ENDPOINT_SETTING);
+            } else {
+                $this->settings->set(MindeeDocumentReader::ENDPOINT_SETTING, $adresse, $administrateurId);
+            }
+        }
+
         // Changer le lecteur de pièces d'identité est une action sensible : il
         // voit passer chaque CNI déposée sur la plateforme.
         $this->auditChain->append(
@@ -96,6 +114,7 @@ final class KycProviderController extends Controller
             ['fields' => array_values(array_filter([
                 $request->has('api_key') ? 'api_key' : null,
                 $request->has('endpoint') ? 'endpoint' : null,
+                $request->has('scan_endpoint') ? 'scan_endpoint' : null,
             ]))],
         );
 

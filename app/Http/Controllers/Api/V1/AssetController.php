@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\PublicAssetResource;
 use App\Models\User;
 use App\Services\AssetRegistrationService;
+use App\Services\AssetScanService;
 use App\Services\CategoryRegistry;
 use App\Services\QuotaService;
 use Illuminate\Http\JsonResponse;
@@ -27,6 +28,7 @@ final class AssetController extends Controller
         private readonly AssetRegistrationService $registration,
         private readonly CategoryRegistry $categories,
         private readonly QuotaService $quotas,
+        private readonly AssetScanService $scans,
     ) {}
 
     public function store(Request $request): JsonResponse
@@ -38,6 +40,9 @@ final class AssetController extends Controller
             // médian). Facultatif : un client hors ligne qui rejoue sa file
             // d'envois différés ne mesurerait rien de comparable (CT-05).
             'client_elapsed_ms' => ['sometimes', 'integer', 'min:0'],
+            // Scan ayant pré-rempli le formulaire (ST-0202). Facultatif : la
+            // saisie manuelle reste le chemin nominal.
+            'scan_id' => ['sometimes', 'integer', 'min:1'],
         ]);
 
         $categorie = $request->string('category')->toString();
@@ -72,6 +77,18 @@ final class AssetController extends Controller
         }
 
         $chrono = $request->has('client_elapsed_ms') ? (int) $request->integer('client_elapsed_ms') : null;
+
+        // Constaté AVANT l'enregistrement, et donc quelle qu'en soit l'issue :
+        // un doublon refusé signifie que la lecture était bonne, et ne le
+        // compter qu'en cas de succès fausserait la mesure dans le sens qui
+        // arrange (ST-0202, « taux de pré-remplissage mesuré »).
+        if ($request->has('scan_id')) {
+            $identifiantSoumis = $attributs[$this->categories->canonicalFieldKey($categorie)] ?? null;
+
+            if (is_string($identifiantSoumis)) {
+                $this->scans->recordUse((int) $request->integer('scan_id'), $proprietaire, $identifiantSoumis);
+            }
+        }
 
         try {
             $bien = $this->registration->register(

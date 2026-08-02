@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\ScanOutcome;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -52,6 +53,61 @@ final class TelemetryService
             'ct01_lookup' => $this->lookupLatency($depuis),
             'ct02_registration' => $this->registrationDuration($depuis),
             'report_conversion' => $this->reportConversion($depuis),
+            'scan_prefill' => $this->scanPrefill($depuis),
+        ];
+    }
+
+    /**
+     * Efficacité du pré-remplissage par scan (ST-0202).
+     *
+     * DEUX TAUX, ET ILS NE DISENT PAS LA MÊME CHOSE. Le premier mesure combien
+     * de scans produisent une proposition ; le second, combien de propositions
+     * survivent intactes jusqu'à la soumission. Un scan qui lit toujours
+     * quelque chose mais se trompe une fois sur trois est pire qu'un scan qui
+     * n'ose rien : l'utilisateur ne relit pas dix-sept caractères, il valide.
+     * C'est le second taux qui doit décider du maintien de la fonction.
+     *
+     * @return array{scans: int, proposed: int, accepted: int, corrected: int, abandoned: int, prefill_rate: float|null, accuracy_rate: float|null}
+     */
+    public function scanPrefill(Carbon $depuis): array
+    {
+        $lignes = DB::table('document_scans')
+            ->where('created_at', '>=', $depuis->format('Y-m-d H:i:s'))
+            ->get(['proposed_hash', 'outcome']);
+
+        $total = $lignes->count();
+        $proposes = 0;
+        $acceptes = 0;
+        $corriges = 0;
+
+        foreach ($lignes as $ligne) {
+            $hash = $ligne->proposed_hash ?? null;
+            $issue = $ligne->outcome ?? null;
+
+            if (is_string($hash) && $hash !== '') {
+                $proposes++;
+            }
+
+            if ($issue === ScanOutcome::Accepted->value) {
+                $acceptes++;
+            } elseif ($issue === ScanOutcome::Corrected->value) {
+                $corriges++;
+            }
+        }
+
+        $utilises = $acceptes + $corriges;
+
+        return [
+            'scans' => $total,
+            'proposed' => $proposes,
+            'accepted' => $acceptes,
+            'corrected' => $corriges,
+            // Un scan qui n'aboutit à aucune soumission est un abandon, pas un
+            // succès : le compter à part est ce qui empêche de se féliciter
+            // d'une extraction que personne n'a utilisée.
+            'abandoned' => $total - $utilises,
+            'prefill_rate' => $total === 0 ? null : round($proposes / $total, 3),
+            'accuracy_rate' => $utilises === 0 ? null : round($acceptes / $utilises, 3),
         ];
     }
 
