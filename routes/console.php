@@ -31,6 +31,10 @@ Schedule::command('preuve:promote-provisional')->hourlyAt(5)->withoutOverlapping
 // des visites.
 Schedule::command('preuve:aggregate-lookups')->hourlyAt(20)->withoutOverlapping();
 
+// Détection des pics de consultation (ST-0405) : le signal arrive avant la
+// transaction, seul moment où il a encore une valeur.
+Schedule::command('preuve:detect-lookup-spikes')->hourlyAt(35)->withoutOverlapping();
+
 // Ancrage quotidien du hash de tête hors de la plateforme (ST-0106).
 // SANS LUI, LA CHAÎNE N'EST PAS OPPOSABLE : son algorithme est public et sans
 // secret, donc reproductible par quiconque peut écrire en base. La commande

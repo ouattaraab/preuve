@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\KycController;
 use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OtpAuthController;
+use App\Http\Controllers\Api\V1\WatchAlertController;
 use App\Http\Middleware\EnsureUserHasBackOfficeAccess;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
@@ -58,6 +59,11 @@ Route::prefix('v1')->group(function (): void {
         // documenter, réclamer ou transférer (ST-0103, CT-06).
         Route::get('kyc', [KycController::class, 'show']);
         Route::post('kyc', [KycController::class, 'store']);
+
+        // Veille sur un identifiant que l'on a soi-même enregistré (ST-0403).
+        Route::get('watch-alerts', [WatchAlertController::class, 'index']);
+        Route::post('watch-alerts', [WatchAlertController::class, 'store']);
+        Route::delete('watch-alerts/{identifier}', [WatchAlertController::class, 'destroy']);
 
         Route::get('notifications', [NotificationController::class, 'index']);
         Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead']);

@@ -35,6 +35,24 @@ return [
         'max_requests_per_hour' => 5,
     ],
 
+    /*
+    | Détection des pics de consultation (ST-0405). Un pic signale qu'un bien
+    | est montré à plusieurs acheteurs : revente en cours, ou tentative de
+    | vente par quelqu'un qui n'en est pas propriétaire.
+    |
+    | Le seuil est délibérément modeste : sur ce marché, un bien consulté cinq
+    | fois en une journée sort déjà de l'ordinaire. Trop haut, l'alerte
+    | n'arrive qu'après la vente ; trop bas, elle devient du bruit et finit
+    | désactivée.
+    */
+    'lookup_spike' => [
+        'threshold' => (int) env('PREUVE_SPIKE_THRESHOLD', 5),
+        'window_hours' => (int) env('PREUVE_SPIKE_WINDOW_HOURS', 24),
+        // Délai minimal entre deux alertes sur un même bien : sans lui, un
+        // pic durable produirait une alerte à chaque passage du job.
+        'cooldown_hours' => (int) env('PREUVE_SPIKE_COOLDOWN_HOURS', 24),
+    ],
+
     // Conservation des consultations : politique déclarée à l'ARTCI
     'lookup_retention_months' => 12,
 
