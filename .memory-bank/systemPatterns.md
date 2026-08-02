@@ -62,7 +62,13 @@ Décision : écart ≥ 20 pts → transfert ou maintien ; < 20 pts → **« liti
 - Respect des préférences utilisateur (opt-out par type, SMS réservé au critique).
 
 ## 6. Chaîne d'audit (AuditChain::append)
-`chain_hash = SHA-256(prev_hash || payload_hash)` — lecture du dernier `chain_hash` sous verrou pour garantir la continuité. Table append-only, sans FK. Job quotidien : ancrage du hash de tête en externe (e-mail horodaté + stockage séparé).
+`record_hash = SHA-256(forme canonique de TOUTES les colonnes métier)` puis `chain_hash = SHA-256(prev_hash || record_hash)`.
+
+Amendé le 01/08/2026 : la formule d'origine ne hachait que la charge utile, laissant l'acteur, l'action, l'entité et l'horodatage réécrivables sans détection — démontré en revue. Le payload entre sous sa forme d'octets stockée, jamais décodé puis ré-encodé, et `created_at` en `DATETIME` avec fuseau épinglé à UTC : sinon l'empreinte dépendrait de la version de PHP ou du fuseau de la session.
+
+Écritures concurrentes sérialisées par **verrou nommé** — le motif `ORDER BY id DESC LIMIT 1 FOR UPDATE` produit des interblocages en cascade par verrous d'intervalle. Table append-only, sans FK, protégée par des déclencheurs MariaDB `BEFORE UPDATE`/`BEFORE DELETE`.
+
+Job quotidien : ancrage du hash de tête en externe (e-mail horodaté + stockage séparé). **Tant que cet ancrage n'existe pas, la chaîne n'est pas opposable** : l'algorithme est public et sans secret, donc quiconque a le droit `INSERT` peut forger une chaîne cohérente.
 
 ## 7. Accès au rapport détaillé
 Chemin unique : paiement validé → `report_purchases` (access_token CHAR(40), expiration 30 j, compteur d'accès). Invité : `payments.buyer_name/email/phone` obligatoires (CHECK en base) + OTP téléphone AVANT paiement. Après achat : proposer la conversion en compte.
