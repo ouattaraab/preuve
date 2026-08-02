@@ -72,6 +72,27 @@ Schedule::command('preuve:backup-documents --verify')
     ->weeklyOn(0, '04:30')
     ->withoutOverlapping();
 
+/*
+ * Réconciliation du bucket et de la base, le 1er du mois (ST-0904).
+ *
+ * Mensuelle et non hebdomadaire : elle LISTE le bucket entier, ce que les
+ * autres commandes évitent délibérément. Passée trop souvent, elle coûterait
+ * plus qu'elle ne rapporte — les divergences qu'elle attrape s'installent sur
+ * des semaines, pas sur des heures.
+ *
+ * Son rapport est ÉCRIT SUR DISQUE, et c'est indispensable : elle est la seule
+ * commande qui voit les pièces orphelines, et elle sort en échec dès qu'il y en
+ * a. Sans trace, un passage mensuel finirait dans /dev/null et la seule
+ * détection possible de ces pièces n'aurait jamais lieu — exactement le défaut
+ * silencieux qu'elle existe pour lever.
+ *
+ * Elle ne prend aucun verrou d'audit : elle ne fait que lire, d'où l'absence de
+ * `withoutOverlapping()` ailleurs systématique.
+ */
+Schedule::command('preuve:reconcile-documents')
+    ->monthlyOn(1, '05:00')
+    ->appendOutputTo(storage_path('logs/reconciliation-documents.log'));
+
 // Politique ARTCI : aucune consultation conservée au-delà de 12 mois
 // (ST-0304). Aux heures creuses, la table pouvant être volumineuse.
 Schedule::command('preuve:purge-lookups')->dailyAt('03:20');

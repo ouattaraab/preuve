@@ -7,6 +7,7 @@ namespace App\Console\Commands;
 use App\Services\DocumentInventory;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 /**
  * Réconciliation du bucket et de la base après un sinistre partiel (ST-0904).
@@ -80,6 +81,19 @@ final class ReconcileDocuments extends Command
             $balayes = [$prefixe];
         }
 
+        // Sonde d'accès avant tout travail. Sans elle, un bucket non configuré
+        // — le cas d'une installation neuve — fait remonter une trace
+        // d'exception du pilote de stockage. Dans un rapport mensuel, cela se
+        // lit comme une plateforme cassée plutôt que comme un réglage absent.
+        if (! $this->accessible($cible)) {
+            $this->components->error(
+                "Le disque de documents « {$cible} » est injoignable : vérifiez sa configuration ".
+                '(preuve.documents.disk et les identifiants du stockage objet).'
+            );
+
+            return self::FAILURE;
+        }
+
         // Les clés attendues sont tenues en mémoire : une comparaison par
         // requête coûterait un aller-retour par objet du bucket. À deux cent
         // mille pièces, cet ensemble pèse une dizaine de mégaoctets — tenable,
@@ -87,6 +101,7 @@ final class ReconcileDocuments extends Command
         $attendues = [];
         $manquantesRecuperables = [];
         $manquantesPerdues = [];
+        $indeterminees = [];
         $presentes = 0;
         $horsPrefixe = 0;
 
@@ -105,10 +120,19 @@ final class ReconcileDocuments extends Command
                 continue;
             }
 
+            if ($sauvegarde === null) {
+                // Sans disque de sauvegarde, on ne peut RIEN dire de la
+                // récupérabilité. Tout classer en perte définitive ferait
+                // annoncer un désastre là où il n'y a qu'un réglage manquant.
+                $indeterminees[] = $objet['label'].' → '.$objet['ref'];
+
+                continue;
+            }
+
             // Récupérable ou perdue : la conduite à tenir n'est pas la même, et
             // un rapport qui confondrait les deux ferait chercher longtemps.
-            $recuperable = $sauvegarde !== null
-                && Storage::disk($sauvegarde)->exists($this->inventaire->backupPath($objet['sha']));
+            $recuperable = Storage::disk($sauvegarde)
+                ->exists($this->inventaire->backupPath($objet['sha']));
 
             if ($recuperable) {
                 $manquantesRecuperables[] = $objet['label'].' → '.$objet['ref'];
@@ -165,17 +189,40 @@ final class ReconcileDocuments extends Command
             'PERTE DÉFINITIVE : ces biens portent une décision dont le justificatif n\'existe plus.',
         );
 
+        $this->lister(
+            $indeterminees,
+            'Attendue par la base, absente du bucket — sort inconnu',
+            'Aucun disque de sauvegarde configuré (preuve.backup.disk) : impossible de dire si ces pièces '.
+            'sont récupérables. Configurez-le avant de conclure à une perte.',
+        );
+
         if ($orphelins !== []) {
             $this->rapporterOrphelins($orphelins, $cible);
         }
 
-        if ($manquantesRecuperables === [] && $manquantesPerdues === [] && $orphelins === []) {
+        if ($manquantesRecuperables === [] && $manquantesPerdues === []
+            && $indeterminees === [] && $orphelins === []) {
             $this->components->info('Le bucket et la base concordent.');
 
             return self::SUCCESS;
         }
 
         return self::FAILURE;
+    }
+
+    /**
+     * Le disque répond-il ? Une seule tentative de listage suffit à distinguer
+     * un stockage mal configuré d'un bucket réellement vide.
+     */
+    private function accessible(string $disque): bool
+    {
+        try {
+            Storage::disk($disque)->files();
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     /**

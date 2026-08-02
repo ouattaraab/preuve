@@ -236,6 +236,34 @@ it('ne prend pas pour un orphelin ce qui n\'est pas une pièce', function (): vo
         ->and(Artisan::output())->toContain('concordent');
 });
 
+it('dit qu\'un disque est injoignable plutôt que de laisser remonter une trace', function (): void {
+    // Constaté en planifiant : sans bucket configuré — le cas d'une
+    // installation neuve — le pilote de stockage lève, et dans un rapport
+    // mensuel une trace d'exception se lit comme une plateforme cassée plutôt
+    // que comme un réglage absent.
+    Config::set('preuve.documents.disk', 'disque-inexistant');
+
+    expect(Artisan::call('preuve:reconcile-documents'))->toBe(1)
+        ->and(Artisan::output())->toContain('injoignable');
+});
+
+it('ne conclut pas à la perte quand aucune sauvegarde n\'est configurée', function (): void {
+    // Sans disque de sauvegarde, on ne peut RIEN dire de la récupérabilité.
+    // Tout classer en perte définitive ferait annoncer un désastre là où il n'y
+    // a qu'un réglage manquant.
+    $document = pieceSinistre('pièce dont le sort est inconnu');
+    Storage::disk('bucket')->delete($document->file_ref);
+
+    Config::set('preuve.backup.disk', null);
+
+    $code = Artisan::call('preuve:reconcile-documents');
+    $sortie = Artisan::output();
+
+    expect($code)->toBe(1)
+        ->and($sortie)->toContain('sort inconnu')
+        ->and($sortie)->not->toContain('PERTE DÉFINITIVE');
+});
+
 it('refuse un préfixe qui ne porte aucune pièce', function (): void {
     expect(Artisan::call('preuve:reconcile-documents', ['--prefix' => 'anchors']))->toBe(1)
         ->and(Artisan::output())->toContain('Préfixe inconnu');
