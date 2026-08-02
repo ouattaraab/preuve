@@ -77,6 +77,27 @@ final class CategoryRegistry
     }
 
     /**
+     * Clés des champs déclarés par la catégorie.
+     *
+     * Sert à ne retenir d'une soumission que les champs prévus : la colonne
+     * `attributes` est un JSON libre côté base, et tout ce qui y entrerait sans
+     * filtre y resterait — charge arbitraire stockée aux frais de la
+     * plateforme, et données personnelles jamais déclarées.
+     *
+     * @return list<string>
+     */
+    public function fieldKeys(string $categoryKey): array
+    {
+        $cles = [];
+
+        foreach ($this->findOrFail($categoryKey)->fields as $field) {
+            $cles[] = $field->key;
+        }
+
+        return $cles;
+    }
+
+    /**
      * Clé du champ extrait vers assets.identifier_normalized.
      *
      * Sans identifiant canonique, la règle « un identifiant = un

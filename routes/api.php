@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\ConfigController;
 use App\Http\Controllers\Api\V1\OtpAuthController;
 use Illuminate\Support\Facades\Route;
@@ -23,5 +24,10 @@ Route::prefix('v1')->group(function (): void {
             Route::get('me', [OtpAuthController::class, 'me']);
             Route::post('logout', [OtpAuthController::class, 'logout']);
         });
+    });
+
+    // Toute écriture exige un compte authentifié (règle métier absolue n° 2).
+    Route::middleware('auth:sanctum')->group(function (): void {
+        Route::post('assets', [AssetController::class, 'store']);
     });
 });
