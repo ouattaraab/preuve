@@ -29,6 +29,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property string|null $kyc_id_number_hash
  * @property string $locale
  * @property string $status
+ * @property Carbon|null $created_at
  * @property array<string, bool>|null $notification_preferences
  */
 class User extends Authenticatable
