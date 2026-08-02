@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Services\DocumentInventory;
+use App\Services\OpsReporter;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -51,8 +52,10 @@ final class ReconcileDocuments extends Command
 
     protected $description = 'Confronte le bucket et la base après un sinistre partiel';
 
-    public function __construct(private readonly DocumentInventory $inventaire)
-    {
+    public function __construct(
+        private readonly DocumentInventory $inventaire,
+        private readonly OpsReporter $rapports,
+    ) {
         parent::__construct();
     }
 
@@ -86,10 +89,13 @@ final class ReconcileDocuments extends Command
         // d'exception du pilote de stockage. Dans un rapport mensuel, cela se
         // lit comme une plateforme cassée plutôt que comme un réglage absent.
         if (! $this->accessible($cible)) {
-            $this->components->error(
-                "Le disque de documents « {$cible} » est injoignable : vérifiez sa configuration ".
-                '(preuve.documents.disk et les identifiants du stockage objet).'
-            );
+            $message = "Le disque de documents « {$cible} » est injoignable : vérifiez sa configuration ".
+                '(preuve.documents.disk et les identifiants du stockage objet).';
+
+            $this->components->error($message);
+            // Expédié aussi : une réconciliation qui n'a rien pu examiner est
+            // le cas où le silence tromperait le plus.
+            $this->rapports->send($this->titre(), $message, true, $this->journal());
 
             return self::FAILURE;
         }
@@ -200,14 +206,99 @@ final class ReconcileDocuments extends Command
             $this->rapporterOrphelins($orphelins, $cible);
         }
 
-        if ($manquantesRecuperables === [] && $manquantesPerdues === []
-            && $indeterminees === [] && $orphelins === []) {
-            $this->components->info('Le bucket et la base concordent.');
+        $sain = $manquantesRecuperables === [] && $manquantesPerdues === []
+            && $indeterminees === [] && $orphelins === [];
 
-            return self::SUCCESS;
+        if ($sain) {
+            $this->components->info('Le bucket et la base concordent.');
         }
 
-        return self::FAILURE;
+        // Expédié dans les DEUX cas : un rapport qui n'arriverait qu'en cas
+        // d'anomalie serait indistinguable d'une tâche qui a cessé de tourner,
+        // et le silence se lirait comme « rien à signaler ».
+        $this->rapports->send($this->titre(), $this->synthese(
+            $sain,
+            count($attendues),
+            $presentes,
+            $objetsBucket,
+            $balayes,
+            $manquantesRecuperables,
+            $manquantesPerdues,
+            $indeterminees,
+            $orphelins,
+        ), ! $sain, $this->journal());
+
+        return $sain ? self::SUCCESS : self::FAILURE;
+    }
+
+    private function titre(): string
+    {
+        return 'Réconciliation du bucket et de la base';
+    }
+
+    private function journal(): string
+    {
+        return storage_path('logs/reconciliation-documents.log');
+    }
+
+    /**
+     * Synthèse expédiée par courriel. Reprend les compteurs et les entrées,
+     * jamais le contenu des pièces : une messagerie traverse des relais que la
+     * plateforme ne maîtrise pas.
+     *
+     * @param  list<string>  $balayes
+     * @param  list<string>  $recuperables
+     * @param  list<string>  $perdues
+     * @param  list<string>  $indeterminees
+     * @param  list<string>  $orphelins
+     */
+    private function synthese(
+        bool $sain,
+        int $attendues,
+        int $presentes,
+        int $objetsBucket,
+        array $balayes,
+        array $recuperables,
+        array $perdues,
+        array $indeterminees,
+        array $orphelins,
+    ): string {
+        $lignes = [
+            'Pièces attendues par la base : '.$attendues,
+            'Présentes sur le bucket : '.$presentes,
+            'Objets trouvés sur le bucket : '.$objetsBucket,
+            'Préfixes balayés : '.implode(', ', $balayes),
+        ];
+
+        if ($sain) {
+            $lignes[] = '';
+            $lignes[] = 'Le bucket et la base concordent.';
+
+            return implode(PHP_EOL, $lignes);
+        }
+
+        foreach ([
+            'Absentes du bucket, PRÉSENTES dans la sauvegarde (remontables)' => $recuperables,
+            'Absentes du bucket ET de la sauvegarde (PERTE DÉFINITIVE)' => $perdues,
+            'Absentes du bucket, sort inconnu (aucune sauvegarde configurée)' => $indeterminees,
+            'Sur le bucket, plus rien ne les référence (orphelines)' => $orphelins,
+        ] as $titre => $entrees) {
+            if ($entrees === []) {
+                continue;
+            }
+
+            $lignes[] = '';
+            $lignes[] = count($entrees).' — '.$titre;
+
+            foreach ($entrees as $entree) {
+                $lignes[] = '  '.$entree;
+            }
+        }
+
+        $lignes[] = '';
+        $lignes[] = 'Rien n\'a été supprimé : ces constats appellent une décision humaine.';
+
+        return implode(PHP_EOL, $lignes);
     }
 
     /**

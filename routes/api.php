@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\Admin\DocumentReviewController;
 use App\Http\Controllers\Api\V1\Admin\KycProviderController;
 use App\Http\Controllers\Api\V1\Admin\KycReviewController;
 use App\Http\Controllers\Api\V1\Admin\ObservabilityController;
+use App\Http\Controllers\Api\V1\Admin\OpsRecipientController;
 use App\Http\Controllers\Api\V1\Admin\PlatformStateController;
 use App\Http\Controllers\Api\V1\Admin\PushProviderController;
 use App\Http\Controllers\Api\V1\Admin\SmsProviderController;
@@ -202,5 +203,10 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('kyc-provider', [KycProviderController::class, 'show']);
         Route::put('kyc-provider', [KycProviderController::class, 'update']);
+
+        // Destinataire des rapports d'exploitation (ST-0904). Une adresse
+        // périmée est un contrôle qui cesse d'exister sans que rien ne le dise.
+        Route::get('ops-recipient', [OpsRecipientController::class, 'show']);
+        Route::put('ops-recipient', [OpsRecipientController::class, 'update']);
     });
 });

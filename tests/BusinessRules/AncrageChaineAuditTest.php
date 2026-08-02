@@ -78,6 +78,23 @@ it('publie l\'empreinte de tête par courrier', function (): void {
     });
 });
 
+it('rend le constat en texte lisible, sans entités HTML', function (): void {
+    // Le constat contient des apostrophes (« chaîne d'audit », « Date
+    // d'ancrage ») et Blade échappe en HTML par défaut : le lecteur voyait
+    // « d&#039;audit ». C'est une pièce destinée à être archivée, relue des
+    // mois plus tard et peut-être imprimée pour être versée à un dossier.
+    configurerAncrageMail();
+    ecrireAudit();
+
+    app(AuditAnchorService::class)->anchor();
+
+    Mail::assertSent(AuditAnchorMail::class, function (AuditAnchorMail $mail): bool {
+        $rendu = $mail->render();
+
+        return str_contains($rendu, "chaîne d'audit") && ! str_contains($rendu, '&#039;');
+    });
+});
+
 it('dépose l\'empreinte sur le stockage séparé', function (): void {
     configurerAncrageStockage();
     ecrireAudit();
