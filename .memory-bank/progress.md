@@ -29,7 +29,7 @@
 ## Jalon 4 — Lancement public (fin S13)
 - 🟨 EP-07 Offre flotte B2B : ✅ ST-0701 import CSV (partiel, borné, rapport d'erreurs), ST-0702 marquage en masse, ST-0703 tableau de bord, ST-0704 alertes remontées · ⬜ ST-0705 délégation aux collaborateurs
 - 🟨 EP-08 Monétisation : ✅ ST-0801 rapport détaillé anonymisé, ST-0802 guest checkout OTP, ST-0803 notification anonyme, ST-0804 quota non bloquant, ST-0805 paliers de flotte, ST-0806 webhooks signés idempotents · ⬜ factures PDF, relances d'abonnement, suspension douce
-- ⬜ EP-09 Observabilité (anti-fraude, télémétrie CT-01/CT-02, sauvegardes/PRA)
+- 🟨 EP-09 : ✅ ST-0901 (validation entreprises, actions tracées), ST-0902 anti-fraude, ST-0903 télémétrie CT-01/CT-02, sonde de santé · ⬜ ST-0904 sauvegardes/PRA à mettre en place (documenté)
 - ⬜ EP-10 (fin) Push FCM + SMS critique
 
 ## Journal des sessions
@@ -39,6 +39,7 @@
 | 02/08/2026 | Socle des biens : companies, assets, unicité active ; asset_status_history + StatusTransitionService (matrice complète) ; base de dev MariaDB locale sans Docker | ST-0106, ST-0402, ST-0503, ST-0601, ST-0604, ST-0606, ST-0702 (socle des transitions) | 3 interdictions de la matrice confirmées par Aboubakar, consignées dans systemPatterns.md §1 |
 | 02/08/2026 | Authentification par OTP : Sanctum, OtpService, endpoints request/verify/me/logout | ST-0101, ST-0102 | Fournisseur SMS non arbitré → interface `OtpSender`, implémentation de développement qui refuse la production. `composer audit` : 3 avis sur laravel/framework, dont un « high », sans correctif sur la branche 11 |
 | 02/08/2026 | Enregistrement express : `AssetRegistrationService`, `POST /api/v1/assets`, `PublicAssetResource`, filtrage des champs sur le catalogue de catégories | ST-0201, ST-0203, ST-0204 | ST-0205 limitée à la journalisation de la tentative : la notification au détenteur attend la table `notifications` |
+| 02/08/2026 | EP-09 (cœur) : `TelemetryService` (centiles), `FraudSignalsService`, validation des entreprises, sonde de santé publique, doc d'exploitation | ST-0901 à ST-0903 | Mesure CT-01 côté serveur : ne couvre pas la latence 3G, seule part maîtrisée |
 | 02/08/2026 | EP-07 (cœur) : `FleetService`, import CSV partiellement abouti et borné, marquage en masse, tableau de bord | ST-0701 à ST-0704 | Import borné à 200 lignes : chaque ligne prend le verrou d'audit |
 | 02/08/2026 | EP-08 (cœur) : `payments`/`report_purchases`, rapport anonymisé, guest checkout OTP avant paiement, webhooks signés idempotents, quotas et paliers de flotte | ST-0801 à ST-0806 | Quota volontairement NON bloquant : un bien non enregistré est un bien non protégé |
 | 02/08/2026 | Relances du contradictoire (J+7, J+13) et passage en instruction au terme du délai | ST-0504 | Le silence ne ferme pas le dossier : il le fait instruire sur pièces, bien toujours gelé |

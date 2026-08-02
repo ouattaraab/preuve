@@ -15,6 +15,7 @@ Développement du socle en cours :
 - ✅ `asset_status_history` + `StatusTransitionService` : matrice des transitions verrouillée par une table de vérité écrite à la main dans les tests
 - ✅ ST-0101/ST-0102 : authentification par OTP (Sanctum), anti-brute-force par destination, `auth/otp/request|verify`, `auth/me`, `auth/logout`
 - ✅ ST-0201/ST-0203/ST-0204 : `AssetRegistrationService` + `POST /api/v1/assets` — F1/V-PRV, normalisation, doublon → fiche existante + réclamation, `PublicAssetResource` (point de passage unique de l'anonymat)
+- ✅ **EP-09 (cœur)** : télémétrie CT-01/CT-02 (centiles, `lookups.duration_ms`), tableau anti-fraude, validation des comptes entreprise, sonde de santé publique — voir `docs/infrastructure/exploitation.md`
 - ✅ **EP-07 (cœur)** : import CSV borné et partiellement abouti, marquage « En location » en masse, tableau de bord flotte (alertes en tête, consultations agrégées)
 - ✅ **EP-08 (cœur)** : `payments`/`report_purchases`, rapport détaillé anonymisé (nombre de détenteurs et dates, jamais les identités), guest checkout OTP avant paiement, webhooks signés et idempotents, quotas non bloquants et paliers de flotte
 - ✅ **EP-05 Réclamation & arbitrage** : `claims`/`claim_evidences`, recevabilité large, gel immédiat, grille 40/25/15/10/5/5, seuil de 20 points, 3 issues, appel unique par un autre agent, export empreint remis aux deux parties, relances J+7/J+13 puis instruction sur pièces
@@ -42,7 +43,8 @@ Développement du socle en cours :
 10. Colonnes d'horodatage métier en **DATETIME UTC** et non TIMESTAMP (`audit_log`, `asset_status_history`) : leur représentation textuelle est hachée ou rapprochée dans les exports, elle ne doit pas dépendre du fuseau de la session.
 
 ## Prochaines actions
-1. ST-0404 : signaux temporels sur le verdict (ancienneté de l'enregistrement et du compte déclarant) — les données existent, l'exposition manque
+1. **Mesurer CT-01 sur volume réel** : l'instrumentation existe désormais (`GET /api/v1/admin/telemetry`), la mesure sur jeu volumineux reste à faire
+2. ST-0404 : signaux temporels sur le verdict (ancienneté de l'enregistrement et du compte déclarant) — les données existent, l'exposition manque
 3. Vérification CT-01 (< 1 s P95 en 3G) sur données volumineuses : les index sont posés, la mesure reste à faire
 
 ## Dette assumée, à reprendre
@@ -50,6 +52,8 @@ Développement du socle en cours :
 - **Envoi SMS synchrone** (10 s de délai d'attente) : à basculer sur la file `notifications` quand Horizon sera en place.
 - **Ancrage à configurer avant toute mise en production** : sans adresse d'archivage ni disque séparé renseignés dans l'espace administrateur, le job quotidien sort en échec et la chaîne reste non opposable. Rien n'est opposable non plus avant le premier ancrage.
 - **Vivacité du selfie appréciée à l'œil** : aucun fournisseur de détection de vivacité n'est retenu (ST-0103 mentionne « liveness »). La colonne `liveness_score` existe et reste nulle ; un agent juge la concordance sur l'image. Une photo de photo peut donc passer.
+- **Sauvegardes et PRA non mis en place** : `docs/infrastructure/exploitation.md` décrit ce qui doit exister (sauvegarde chiffrée quotidienne, restauration testée, vérification de la chaîne après restauration), rien n'est encore automatisé.
+- **Mode lecture seule absent** : la dégradation gracieuse fonctionne par service (consultation survit à une panne d'écriture), mais aucun interrupteur de maintenance n'existe.
 - **Import de flotte borné à 200 lignes par appel** : au-delà, le loueur découpe son fichier. Chaque enregistrement prend le verrou de la chaîne d'audit ; l'import devra passer en file quand Horizon sera en place.
 - **Quota d'enregistrement volontairement non bloquant** (ST-0804) : au-delà des 3 biens gratuits, l'enregistrement aboutit quand même et l'upsell est seulement proposé. Le revenu de ce poste repose donc sur la bonne volonté — le rendre bloquant est une décision produit, pas une correction technique.
 - **Frais de dossier de réclamation non prélevés** (2000/5000 FCFA prévus) : ils supposent EP-08. Le dépôt reste ouvert sans paiement — bloquer une victime sur un paiement indisponible fermerait son seul recours.
