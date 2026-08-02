@@ -36,3 +36,15 @@ it('crée la table audit_log avec le chaînage SHA-256', function (): void {
         'payload', 'record_hash', 'prev_hash', 'chain_hash',
     ]))->toBeTrue();
 });
+
+it('stocke created_at en DATETIME, jamais en TIMESTAMP', function (): void {
+    // Un TIMESTAMP restitue sa représentation textuelle selon `time_zone` de
+    // la session : la chaîne d'audit (§4.5 de la spec) hache cette
+    // représentation, qui deviendrait donc dépendante du fuseau du client.
+    // Cette assertion inspecte le type réel de la colonne en base — elle ne
+    // dépend pas d'un migrate:fresh et détecte donc aussi une dérive de
+    // schéma sur un environnement déjà migré (une revue a démontré qu'un
+    // ALTER TABLE ... MODIFY created_at TIMESTAMP direct en base, suivi d'un
+    // migrate normal, ne serait jamais rattrapé : « Nothing to migrate »).
+    expect(Schema::getColumnType('audit_log', 'created_at'))->toBe('datetime');
+});

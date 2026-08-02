@@ -5,10 +5,28 @@ declare(strict_types=1);
 use App\Enums\ActorType;
 use App\Models\AuditLog;
 use App\Services\AuditChain;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
-uses(RefreshDatabase::class);
+/**
+ * N'utilise pas RefreshDatabase : append()/transaction() vérifient désormais
+ * DB::transactionLevel() pour refuser de s'exécuter depuis une transaction
+ * englobante (round 3 de correction) — or RefreshDatabase enveloppe chaque
+ * test dans sa propre transaction de test, ce qui ferait échouer tous les
+ * appels directs à append() ci-dessous avec le nouveau garde-fou (faux
+ * positif : ce n'est pas une transaction métier englobante, seulement
+ * l'isolation du test). La table est donc réinitialisée explicitement par
+ * TRUNCATE, comme AuditChainConcurrencyTest.php et AuditChainDbIntegrityTest.php.
+ */
+beforeEach(function (): void {
+    if (! Schema::hasTable('audit_log')) {
+        Artisan::call('migrate', ['--force' => true]);
+    }
+
+    DB::statement('TRUNCATE TABLE audit_log');
+});
+afterEach(fn () => DB::statement('TRUNCATE TABLE audit_log'));
 
 it('chaîne la première entrée sur un hash de genèse', function (): void {
     $entry = app(AuditChain::class)->append(
