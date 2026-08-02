@@ -4,10 +4,12 @@
 > Statuts : ⬜ à faire · 🟨 en cours · ✅ terminé · ❌ bloqué (avec raison)
 
 ## Jalon 1 — Fondations (fin S3)
-- ⬜ Repo Laravel 11 + CI + docker-compose (MySQL 8, Redis, MinIO)
-- ⬜ Migrations 14 tables conformes au schéma v1.1 + seeders 6 états de démo
+- ✅ Repo Laravel 11 + CI (Pest, Larastan, Pint) ; base locale MariaDB sans Docker (`docs/infrastructure/dev-local-mariadb.md`)
+- 🟨 Migrations conformes au schéma v1.1 : users, otp_codes, sessions, audit_log, asset_categories, category_fields, companies, assets, asset_status_history (9/14) — seeders 6 états à faire
 - ⬜ ST-0101/0102 Auth OTP (request/verify, anti-brute-force, Sanctum)
-- ⬜ ST-0106 AuditChain + ancrage quotidien + tests de continuité
+- 🟨 ST-0106 AuditChain + tests de continuité ✅ — job d'ancrage quotidien ⬜ (**sans lui, la chaîne n'est pas opposable**)
+- ✅ Règle 3 — unicité active `(identifier_normalized, active_flag)` verrouillée par test
+- ✅ Règle 6 — `StatusTransitionService` : matrice verrouillée par table de vérité, historique + audit dans la même transaction
 - ⬜ ST-0103 KYC Mindee (CNI + liveness, CNI hashée)
 - ⬜ ST-0104 Comptes entreprise (RCCM, validation back-office)
 - ⬜ ST-0105 Droits Loi 2013-450 · ST-0107 Préférences notifications
@@ -33,3 +35,4 @@
 | Date | Travail réalisé | Stories touchées | Notes / décisions |
 |---|---|---|---|
 | 01/08/2026 | Cadrage BMAD complet (brief, PRD, schéma v1.1, backlog, prototypes, Memory Bank) | — | Développement non démarré ; questions ouvertes dans activeContext.md |
+| 02/08/2026 | Socle des biens : companies, assets, unicité active ; asset_status_history + StatusTransitionService (matrice complète) ; base de dev MariaDB locale sans Docker | ST-0106, ST-0402, ST-0503, ST-0601, ST-0604, ST-0606, ST-0702 (socle des transitions) | 3 interdictions de la matrice décidées faute de source explicite — à confirmer (voir activeContext.md) |

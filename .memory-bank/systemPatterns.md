@@ -21,12 +21,48 @@
 | V-FDV | Hors d'usage | gris |
 
 ### Transitions autorisées (toute autre = exception levée)
-- `V-PRV → V-ACT` : automatique J+30 sans réclamation recevable (job planifié)
-- `V-ACT|V-PRV|V-LOC → V-LIT` : UNIQUEMENT recevabilité d'une réclamation
-- `V-LIT → V-ACT | transfert forcé | V-LIT maintenu` : UNIQUEMENT décision d'arbitrage motivée
-- `* → V-VOL` : par le détenteur (OTP) ; levée par le MÊME détenteur (OTP), journalisée
-- `V-VTE → V-ACT (nouveau détenteur)` : double OTP vendeur+acheteur ; expiration J+7 → retour état antérieur
-- Toute transition → ligne dans `asset_status_history` + entrée `AuditChain`
+La matrice porte DEUX dimensions : le couple (statut d'origine, statut d'arrivée)
+ET l'origine de la transition. Un même couple accepté pour un déclencheur est
+refusé pour un autre. Implémentation : `StatusTransitionService::MATRIX`,
+verrouillée par la table de vérité réécrite à la main dans
+`tests/BusinessRules/MatriceTransitionsTest.php`.
+
+| Depuis | Vers | Déclencheurs recevables |
+|---|---|---|
+| V-PRV | V-ACT | `system` (bascule automatique J+30 sans réclamation recevable) |
+| V-PRV | V-LOC / V-VOL / V-FDV | `owner` |
+| V-PRV | V-LIT | `claim` |
+| V-ACT | V-LOC / V-VOL / V-FDV | `owner` |
+| V-ACT | V-VTE | `transfer` |
+| V-ACT | V-LIT | `claim` |
+| V-LOC | V-ACT (démarquage) / V-VOL / V-FDV | `owner` |
+| V-LOC | V-VTE | `transfer` |
+| V-LOC | V-LIT | `claim` |
+| V-VTE | V-ACT | `transfer` (double OTP), `owner` (annulation), `system` (expiration J+7) |
+| V-VTE | V-PRV / V-LOC | `owner`, `system` — retour au statut antérieur |
+| V-VTE | V-VOL | `owner` |
+| V-VTE | V-LIT | `claim` |
+| V-VOL | V-ACT | `owner` — levée par le MÊME détenteur (OTP), journalisée |
+| V-VOL | V-LIT | `claim` |
+| V-LIT | V-ACT | `arbitration` UNIQUEMENT — décision motivée |
+| V-LIT | V-LIT | `arbitration` — maintien « litige non tranché » (écart < 20 pts), journalisé |
+| V-FDV | V-ACT | `backoffice` UNIQUEMENT — libération de l'identifiant (ST-0606) |
+
+Trois interdictions confirmées par Aboubakar le 02/08/2026 — ce sont des
+décisions, pas des oublis :
+1. `V-PRV → V-VTE` INTERDIT : un bien fraîchement enregistré ne peut pas partir
+   en transfert, sinon la fenêtre de contestation de 30 jours perd son objet.
+2. `V-VOL → V-FDV` INTERDIT : il faut d'abord lever le vol, sinon une
+   déclaration de vol s'efface derrière une fin de vie.
+3. `V-LIT` ne mène nulle part hors arbitrage : ni vol, ni transfert, ni fin de
+   vie tant que la propriété est contestée.
+
+Le transfert forcé décidé en arbitrage n'est pas une transition de statut mais
+un changement de détenteur : archivage de l'actif et création du nouveau dans
+la même transaction (voir §2).
+
+Toute transition → ligne dans `asset_status_history` + entrée `AuditChain`,
+dans la MÊME transaction (`AuditChain::transaction()`).
 
 ## 2. Unicité active (pattern MySQL)
 ```
