@@ -4,44 +4,56 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\KycStatus;
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 /**
+ * Fabrique de comptes.
+ *
+ * Reprise du squelette Laravel, qui produisait des `name`, `password` et
+ * `remember_token` — trois colonnes qui n'existent pas ici : PREUVE
+ * s'authentifie par téléphone et code OTP, sans mot de passe au MVP. La
+ * fabrique d'origine échouait donc à la première utilisation.
+ *
  * @extends Factory<User>
  */
 class UserFactory extends Factory
 {
-    /**
-     * The current password being used by the factory.
-     */
-    protected static ?string $password;
-
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> */
     public function definition(): array
     {
         return [
-            'name' => fake()->name(),
-            'email' => fake()->unique()->safeEmail(),
-            'email_verified_at' => now(),
-            'password' => static::$password ??= Hash::make('password'),
-            'remember_token' => Str::random(10),
+            // Format ivoirien à dix chiffres, préfixé E.164 comme le fait
+            // OtpService à la normalisation.
+            'phone' => '+2250'.fake()->numerify('#########'),
+            'phone_verified_at' => now(),
+            'full_name' => fake()->name(),
+            'account_type' => 'individual',
+            'role' => UserRole::User,
+            'kyc_status' => KycStatus::None->value,
+            'locale' => 'fr',
+            'status' => 'active',
         ];
     }
 
-    /**
-     * Indicate that the model's email address should be unverified.
-     */
-    public function unverified(): static
+    /** Compte dont l'identité a été vérifiée : débloque F2, réclamation et transfert. */
+    public function kycVerified(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'email_verified_at' => null,
+        return $this->state(fn (array $attributes): array => [
+            'kyc_status' => KycStatus::Verified->value,
+            'kyc_verified_at' => now()->subMonths(2),
         ]);
+    }
+
+    public function agent(): static
+    {
+        return $this->state(fn (array $attributes): array => ['role' => UserRole::Agent]);
+    }
+
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes): array => ['role' => UserRole::Admin]);
     }
 }
