@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
  * @property string $ip_hash
  * @property int|null $user_id
  * @property string $source
+ * @property int|null $duration_ms
  * @property Carbon $created_at
  */
 class Lookup extends Model
@@ -24,7 +25,7 @@ class Lookup extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'identifier_normalized', 'found_asset_id', 'ip_hash', 'user_id', 'source', 'created_at',
+        'identifier_normalized', 'found_asset_id', 'ip_hash', 'user_id', 'source', 'duration_ms', 'created_at',
     ];
 
     /**

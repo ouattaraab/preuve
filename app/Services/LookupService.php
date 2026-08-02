@@ -50,6 +50,10 @@ final class LookupService
 
     public function lookup(string $identifier, string $ip, ?User $consultant = null, string $source = 'app'): LookupResult
     {
+        // Chronomètre serveur : CT-01 promet moins d'une seconde au 95e
+        // centile, et une promesse non mesurée n'est qu'une intention.
+        $debut = hrtime(true);
+
         $normalise = $this->normalizer->normalize($identifier);
 
         // Une saisie inexploitable ne consomme pas le quota et n'entre pas au
@@ -66,7 +70,7 @@ final class LookupService
 
         $bien = $this->findActive($normalise, $identifier);
 
-        $this->journal($normalise, $bien, $empreinte, $consultant, $source);
+        $this->journal($normalise, $bien, $empreinte, $consultant, $source, $debut);
 
         return $bien === null ? LookupResult::unknown() : LookupResult::found($bien);
     }
@@ -127,13 +131,20 @@ final class LookupService
         string $empreinte,
         ?User $consultant,
         string $source,
+        int $debut,
     ): void {
+        // Plafonné à la capacité de la colonne : une valeur aberrante — une
+        // requête restée bloquée une minute — ne doit pas faire échouer
+        // l'écriture du journal, qui sert aussi au plafond anti-profilage.
+        $duree = min(65535, (int) round((hrtime(true) - $debut) / 1_000_000));
+
         Lookup::create([
             'identifier_normalized' => $normalise,
             'found_asset_id' => $bien?->id,
             'ip_hash' => $empreinte,
             'user_id' => $consultant?->id,
             'source' => $source === 'web' ? 'web' : 'app',
+            'duration_ms' => $duree,
             'created_at' => now()->format('Y-m-d H:i:s'),
         ]);
     }

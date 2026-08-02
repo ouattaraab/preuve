@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Admin\AuditAnchorController;
 use App\Http\Controllers\Api\V1\Admin\ClaimReviewController;
+use App\Http\Controllers\Api\V1\Admin\CompanyValidationController;
 use App\Http\Controllers\Api\V1\Admin\DocumentReviewController;
 use App\Http\Controllers\Api\V1\Admin\KycProviderController;
 use App\Http\Controllers\Api\V1\Admin\KycReviewController;
+use App\Http\Controllers\Api\V1\Admin\ObservabilityController;
 use App\Http\Controllers\Api\V1\Admin\SmsProviderController;
 use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\AssetDocumentController;
@@ -14,6 +16,7 @@ use App\Http\Controllers\Api\V1\AssetLifecycleController;
 use App\Http\Controllers\Api\V1\ClaimController;
 use App\Http\Controllers\Api\V1\ConfigController;
 use App\Http\Controllers\Api\V1\FleetController;
+use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\KycController;
 use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\NotificationController;
@@ -28,6 +31,10 @@ use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
+    // Sonde de supervision : sans authentification, pour rester interrogeable
+    // le jour où l'authentification elle-même est en panne (ST-0904).
+    Route::get('health', [HealthController::class, 'show']);
+
     // Publique : l'application doit pouvoir se configurer avant toute connexion
     Route::get('config/categories', [ConfigController::class, 'categories']);
 
@@ -125,6 +132,14 @@ Route::prefix('v1')->group(function (): void {
         ->group(function (): void {
             Route::get('kyc', [KycReviewController::class, 'index']);
             Route::post('kyc/{submission}/review', [KycReviewController::class, 'review']);
+
+            // Observabilité : promesses produit tenues ou non, et par où
+            // commencer les contrôles (ST-0902, ST-0903).
+            Route::get('telemetry', [ObservabilityController::class, 'telemetry']);
+            Route::get('fraud-signals', [ObservabilityController::class, 'fraud']);
+
+            Route::get('companies', [CompanyValidationController::class, 'index']);
+            Route::post('companies/{company}/validate', [CompanyValidationController::class, 'validateCompany']);
 
             Route::get('claims', [ClaimReviewController::class, 'index']);
             Route::get('claims/{claim}', [ClaimReviewController::class, 'show']);
