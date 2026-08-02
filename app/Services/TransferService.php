@@ -226,6 +226,72 @@ final class TransferService
         return array_values($chaine);
     }
 
+    /**
+     * Change le détenteur d'un bien : archive l'enregistrement courant et en
+     * crée un nouveau au nom du repreneur, DANS LA MÊME TRANSACTION et sous
+     * verrou de ligne (règle métier absolue n° 3).
+     *
+     * Public parce que l'arbitrage d'une réclamation opère le même changement
+     * de main, sur décision d'un agent plutôt que par double confirmation. Un
+     * second chemin qui réimplémenterait l'archivage finirait par diverger de
+     * celui-ci — et c'est précisément la règle qu'on ne peut pas se permettre
+     * de voir diverger.
+     *
+     * @param  int  $repreneurId  compte qui reçoit le bien
+     */
+    public function handOver(
+        Asset $bien,
+        int $repreneurId,
+        TriggerType $declencheur,
+        ?int $acteurId,
+        string $motif,
+    ): Asset {
+        $maintenant = now();
+
+        $ancien = Asset::whereKey($bien->id)->lockForUpdate()->firstOrFail();
+
+        if ($ancien->active_flag === null) {
+            throw new DomainException('Cet enregistrement a déjà été archivé.');
+        }
+
+        // Archivage d'abord : l'index unique (identifier_normalized,
+        // active_flag) interdirait sinon l'insertion du nouvel actif.
+        $ancien->forceFill(['active_flag' => null])->save();
+
+        $nouveau = Asset::create([
+            'public_ref' => $this->generatePublicRef(),
+            'owner_user_id' => $repreneurId,
+            'company_id' => null,
+            'previous_asset_id' => $ancien->id,
+            'asset_category_key' => $ancien->asset_category_key,
+            'identifier_type' => $ancien->identifier_type,
+            'identifier_raw' => $ancien->identifier_raw,
+            'identifier_normalized' => $ancien->identifier_normalized,
+            'active_flag' => 1,
+            'attributes' => $ancien->getAttribute('attributes'),
+            // Repart en « Déclaré, non vérifié » : les justificatifs
+            // appuyaient la propriété du détenteur précédent, pas celle du
+            // repreneur.
+            'trust_level' => TrustLevel::Declared,
+            'life_status' => LifeStatus::Active,
+            'provisional_until' => null,
+            'registered_at' => $maintenant,
+        ]);
+
+        AssetStatusHistory::create([
+            'asset_id' => $nouveau->id,
+            'from_status' => null,
+            'to_status' => LifeStatus::Active,
+            'to_trust' => TrustLevel::Declared,
+            'trigger_type' => $declencheur,
+            'actor_user_id' => $acteurId,
+            'reason' => $motif,
+            'created_at' => $maintenant->format('Y-m-d H:i:s'),
+        ]);
+
+        return $nouveau;
+    }
+
     private function completeIfReady(Transfer $transfert): Transfer
     {
         if (! $transfert->bothConfirmed()) {
@@ -248,57 +314,21 @@ final class TransferService
         }
 
         return $this->auditChain->transaction(function () use ($transfert, $acheteurId): array {
-            // Verrou de ligne sur l'enregistrement cédé : deux finalisations
-            // concurrentes ne doivent pas produire deux actifs pour un même
-            // identifiant.
-            $ancien = Asset::whereKey($transfert->asset_id)->lockForUpdate()->firstOrFail();
+            $ancien = Asset::whereKey($transfert->asset_id)->firstOrFail();
 
-            if ($ancien->active_flag === null) {
-                throw new DomainException('Cet enregistrement a déjà été archivé.');
-            }
-
-            $maintenant = now();
-
-            // Archivage d'abord : l'index unique (identifier_normalized,
-            // active_flag) interdirait sinon l'insertion du nouvel actif.
-            $ancien->forceFill(['active_flag' => null])->save();
-
-            $nouveau = Asset::create([
-                'public_ref' => $this->generatePublicRef(),
-                'owner_user_id' => $acheteurId,
-                'company_id' => null,
-                'previous_asset_id' => $ancien->id,
-                'asset_category_key' => $ancien->asset_category_key,
-                'identifier_type' => $ancien->identifier_type,
-                'identifier_raw' => $ancien->identifier_raw,
-                'identifier_normalized' => $ancien->identifier_normalized,
-                'active_flag' => 1,
-                'attributes' => $ancien->getAttribute('attributes'),
-                // Repart en « Déclaré, non vérifié » : les justificatifs
-                // appuyaient la propriété du vendeur, pas celle de l'acheteur.
-                'trust_level' => TrustLevel::Declared,
-                // Pas de fenêtre de contestation : le transfert est lui-même
-                // la preuve du changement de main, et il a été doublement
-                // confirmé.
-                'life_status' => LifeStatus::Active,
-                'provisional_until' => null,
-                'registered_at' => $maintenant,
-            ]);
-
-            AssetStatusHistory::create([
-                'asset_id' => $nouveau->id,
-                'from_status' => null,
-                'to_status' => LifeStatus::Active,
-                'to_trust' => TrustLevel::Declared,
-                'trigger_type' => TriggerType::Transfer,
-                'actor_user_id' => $acheteurId,
-                'reason' => 'Enregistrement né du transfert #'.$transfert->id,
-                'created_at' => $maintenant->format('Y-m-d H:i:s'),
-            ]);
+            // Point de passage unique de la règle 3, partagé avec le transfert
+            // forcé prononcé en arbitrage.
+            $nouveau = $this->handOver(
+                $ancien,
+                $acheteurId,
+                TriggerType::Transfer,
+                $acheteurId,
+                'Enregistrement né du transfert #'.$transfert->id,
+            );
 
             $transfert->forceFill([
                 'status' => TransferStatus::Completed,
-                'completed_at' => $maintenant,
+                'completed_at' => now(),
                 'created_asset_id' => $nouveau->id,
             ])->save();
 

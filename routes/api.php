@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Admin\AuditAnchorController;
+use App\Http\Controllers\Api\V1\Admin\ClaimReviewController;
 use App\Http\Controllers\Api\V1\Admin\DocumentReviewController;
 use App\Http\Controllers\Api\V1\Admin\KycProviderController;
 use App\Http\Controllers\Api\V1\Admin\KycReviewController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\Api\V1\Admin\SmsProviderController;
 use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\AssetDocumentController;
 use App\Http\Controllers\Api\V1\AssetLifecycleController;
+use App\Http\Controllers\Api\V1\ClaimController;
 use App\Http\Controllers\Api\V1\ConfigController;
 use App\Http\Controllers\Api\V1\KycController;
 use App\Http\Controllers\Api\V1\LookupController;
@@ -77,6 +79,14 @@ Route::prefix('v1')->group(function (): void {
         Route::post('transfers/{transfer}/confirm', [TransferController::class, 'confirm']);
         Route::delete('transfers/{transfer}', [TransferController::class, 'destroy']);
 
+        // Réclamation : seul recours d'une victime dont le bien a été
+        // enregistré par un tiers (EP-05).
+        Route::post('assets/{asset}/claims', [ClaimController::class, 'store']);
+        Route::post('claims/{claim}/evidences', [ClaimController::class, 'addEvidence']);
+        Route::post('claims/{claim}/submit', [ClaimController::class, 'submit']);
+        Route::get('claims/{claim}', [ClaimController::class, 'show']);
+        Route::post('claims/{claim}/appeal', [ClaimController::class, 'appeal']);
+
         Route::get('notifications', [NotificationController::class, 'index']);
         Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
         Route::post('notifications/{notification}/read', [NotificationController::class, 'markAsRead']);
@@ -90,6 +100,12 @@ Route::prefix('v1')->group(function (): void {
         ->group(function (): void {
             Route::get('kyc', [KycReviewController::class, 'index']);
             Route::post('kyc/{submission}/review', [KycReviewController::class, 'review']);
+
+            Route::get('claims', [ClaimReviewController::class, 'index']);
+            Route::get('claims/{claim}', [ClaimReviewController::class, 'show']);
+            Route::post('claims/{claim}/admissibility', [ClaimReviewController::class, 'admissibility']);
+            Route::post('claims/{claim}/decide', [ClaimReviewController::class, 'decide']);
+            Route::post('claim-evidences/{evidence}/discard', [ClaimReviewController::class, 'discardEvidence']);
 
             Route::get('documents', [DocumentReviewController::class, 'index']);
             Route::post('documents/{document}/review', [DocumentReviewController::class, 'review']);

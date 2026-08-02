@@ -34,7 +34,7 @@ verrouillée par la table de vérité réécrite à la main dans
 | V-PRV | V-LIT | `claim` |
 | V-ACT | V-LOC / V-VOL / V-FDV | `owner` |
 | V-ACT | V-VTE | `transfer` |
-| V-ACT | V-LIT | `claim` |
+| V-ACT | V-LIT | `claim`, `arbitration` — l'appel qui réforme un maintien doit pouvoir regeler (ajouté le 02/08/2026 : sans cela un appel ne pourrait jamais aboutir à « litige non tranché ») |
 | V-LOC | V-ACT (démarquage) / V-VOL / V-FDV | `owner` |
 | V-LOC | V-VTE | `transfer` |
 | V-LOC | V-LIT | `claim` |

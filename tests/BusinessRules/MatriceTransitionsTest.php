@@ -47,7 +47,10 @@ function matriceAttendue(): array
             'V-LOC' => ['owner'],
             'V-VTE' => ['transfer'],    // ST-0601 : initiation du transfert
             'V-VOL' => ['owner'],
-            'V-LIT' => ['claim'],
+            // `arbitration` : une décision de maintien libère le bien, et
+            // l'appel qui la réforme doit pouvoir le regeler (ajouté le
+            // 02/08/2026, voir systemPatterns.md §1)
+            'V-LIT' => ['claim', 'arbitration'],
             'V-FDV' => ['owner'],
         ],
         'V-LOC' => [

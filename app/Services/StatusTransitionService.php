@@ -65,7 +65,12 @@ final class StatusTransitionService
             'V-LOC' => ['owner'],
             'V-VTE' => ['transfer'],
             'V-VOL' => ['owner'],
-            'V-LIT' => ['claim'],
+            // `arbitration` en plus de `claim` : une première décision de
+            // maintien libère le bien, et l'appel qui la réforme doit pouvoir
+            // le regeler. Sans cette entrée, un appel ne pourrait jamais
+            // aboutir à « litige non tranché » — l'issue même que le recours
+            // existe pour rendre possible.
+            'V-LIT' => ['claim', 'arbitration'],
             'V-FDV' => ['owner'],
         ],
         'V-LOC' => [
