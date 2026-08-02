@@ -13,6 +13,7 @@ Développement du socle en cours :
 - ✅ Catégories de biens dynamiques servies par configuration distante (décision D6)
 - ✅ Tables `companies` et `assets` + unicité active `(identifier_normalized, active_flag)` verrouillée par test
 - ✅ `asset_status_history` + `StatusTransitionService` : matrice des transitions verrouillée par une table de vérité écrite à la main dans les tests
+- ✅ ST-0101/ST-0102 : authentification par OTP (Sanctum), anti-brute-force par destination, `auth/otp/request|verify`, `auth/me`, `auth/logout`
 
 ## Décisions récentes (à ne pas rediscuter)
 1. Backend **Laravel 11 + MariaDB** (pas PostgreSQL) — unicité via `(identifier_normalized, active_flag)`.
@@ -26,14 +27,14 @@ Développement du socle en cours :
 9. Colonnes d'horodatage métier en **DATETIME UTC** et non TIMESTAMP (`audit_log`, `asset_status_history`) : leur représentation textuelle est hachée ou rapprochée dans les exports, elle ne doit pas dépendre du fuseau de la session.
 
 ## Prochaines actions (Sprint 1 — EP-01 Fondations)
-1. ST-0101/ST-0102 : auth OTP complète (request/verify, anti-brute-force, Sanctum)
+1. `AssetRegistrationService` : enregistrement en 4 gestes, F1/V-PRV, tentative de doublon → fiche existante + parcours réclamation
 2. `TrustLevelEngine` (F1/F2/F3) et `asset_documents` — renforcement du niveau de fiabilité
-3. `AssetRegistrationService` : enregistrement en 4 gestes, F1/V-PRV, tentative de doublon → fiche existante + parcours réclamation
-4. Job `AnchorAuditHead` (ancrage quotidien externe du hash de tête) — **tant qu'il n'existe pas, la chaîne n'est pas opposable**
-5. Seeders de démo : 6 biens couvrant les 6 états
+3. Job `AnchorAuditHead` (ancrage quotidien externe du hash de tête) — **tant qu'il n'existe pas, la chaîne n'est pas opposable**
+4. Seeders de démo : 6 biens couvrant les 6 états
 
 ## Questions ouvertes (à trancher avec Aboubakar)
+- **Laravel 11 n'a plus de correctif de sécurité** : `composer audit` remonte 3 avis sur laravel/framework, dont un « high » (injection CRLF dans la règle de validation `email`, utilisée au guest checkout), corrigés seulement en 12.60+/13.10+. Monter de version contredit la stack verrouillée — décision à prendre.
+- **Fournisseur SMS OTP** : bloquant pour toute démo réelle. `OtpSender` est prêt, `LogOtpSender` refuse la production.
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
-- Fournisseur SMS OTP (coût/fiabilité CI) — candidat à benchmarker
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)
 - Tarif exact rapport détaillé (500 vs 1000 FCFA) et paliers abonnement flotte
