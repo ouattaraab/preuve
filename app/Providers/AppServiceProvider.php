@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Extensions\PreuveSessionHandler;
+use App\Services\Audit\MailAnchorChannel;
+use App\Services\Audit\StorageAnchorChannel;
+use App\Services\AuditAnchorService;
 use App\Services\Kyc\IdentityReader;
 use App\Services\Kyc\MindeeIdentityReader;
 use App\Services\Otp\ConfigurableOtpSender;
@@ -39,6 +42,14 @@ class AppServiceProvider extends ServiceProvider
         // manuelle — la plateforme ne dépend jamais d'un tiers pour continuer
         // à vérifier des identités.
         $this->app->bind(IdentityReader::class, MindeeIdentityReader::class);
+
+        // Canaux d'ancrage de la chaîne d'audit. L'ordre n'a pas
+        // d'importance : un seul canal qui aboutit suffit à rendre l'ancrage
+        // opposable, et tous sont tentés à chaque passage.
+        $this->app->singleton(AuditAnchorService::class, fn (Container $app): AuditAnchorService => new AuditAnchorService([
+            $app->make(MailAnchorChannel::class),
+            $app->make(StorageAnchorChannel::class),
+        ]));
     }
 
     /**

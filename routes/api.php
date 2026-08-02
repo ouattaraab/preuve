@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Admin\AuditAnchorController;
 use App\Http\Controllers\Api\V1\Admin\DocumentReviewController;
 use App\Http\Controllers\Api\V1\Admin\KycProviderController;
 use App\Http\Controllers\Api\V1\Admin\KycReviewController;
@@ -83,6 +84,10 @@ Route::prefix('v1')->group(function (): void {
         Route::get('sms-provider', [SmsProviderController::class, 'show']);
         Route::put('sms-provider', [SmsProviderController::class, 'update']);
         Route::post('sms-provider/test', [SmsProviderController::class, 'test']);
+
+        Route::get('audit-anchor', [AuditAnchorController::class, 'show']);
+        Route::put('audit-anchor', [AuditAnchorController::class, 'update']);
+        Route::get('audit-anchor/verify', [AuditAnchorController::class, 'verify']);
 
         Route::get('kyc-provider', [KycProviderController::class, 'show']);
         Route::put('kyc-provider', [KycProviderController::class, 'update']);
