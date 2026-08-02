@@ -15,6 +15,7 @@ Développement du socle en cours :
 - ✅ `asset_status_history` + `StatusTransitionService` : matrice des transitions verrouillée par une table de vérité écrite à la main dans les tests
 - ✅ ST-0101/ST-0102 : authentification par OTP (Sanctum), anti-brute-force par destination, `auth/otp/request|verify`, `auth/me`, `auth/logout`
 - ✅ ST-0201/ST-0203/ST-0204 : `AssetRegistrationService` + `POST /api/v1/assets` — F1/V-PRV, normalisation, doublon → fiche existante + réclamation, `PublicAssetResource` (point de passage unique de l'anonymat)
+- ✅ **EP-06 Transferts** : `transfers`, double OTP, archivage + création dans la MÊME transaction (règle 3), expiration J+7, chaîne des détenteurs · vol en un geste, levée par le déclarant, fin de vie
 - ✅ Jeu de démonstration (`DemoSeeder`) : 7 statuts, 3 niveaux de fiabilité, comptes particulier/loueur/agent/admin — n'écrit rien dans la chaîne d'audit
 - ✅ ST-0403/ST-0405 : `watch_alerts` + `WatchAlertService` (veille réservée au détenteur actuel OU passé), `preuve:detect-lookup-spikes` (seuil configurable, alerte agrégée et anonyme, silence anti-répétition)
 - ✅ ST-0402 : `preuve:promote-provisional` — bascule V-PRV → V-ACT au terme des 30 jours, bornée, notifiée ; planification durcie (`withoutOverlapping`, minutes décalées)
@@ -37,10 +38,9 @@ Développement du socle en cours :
 9. Colonnes d'horodatage métier en **DATETIME UTC** et non TIMESTAMP (`audit_log`, `asset_status_history`) : leur représentation textuelle est hachée ou rapprochée dans les exports, elle ne doit pas dépendre du fuseau de la session.
 
 ## Prochaines actions
-1. **EP-06 Transferts** (ST-0601 à ST-0606) : table `transfers`, double OTP vendeur/acheteur, archivage + création du nouvel actif dans la MÊME transaction (règle 3), expiration J+7, déclaration de vol en un geste, fin de vie. Toutes les transitions correspondantes sont déjà dans la matrice.
-2. **EP-05 Réclamation & arbitrage** (ST-0501 à ST-0506) : tables `claims` et `claim_evidences`. C'est le seul chemin vers « Litige en cours » — sans lui, `V-LIT` reste inatteignable en conditions réelles, comme F2 l'était avant le KYC.
-3. ST-0404 : signaux temporels sur le verdict (ancienneté de l'enregistrement et du compte déclarant) — les données existent, l'exposition manque
-4. Vérification CT-01 (< 1 s P95 en 3G) sur données volumineuses : les index sont posés, la mesure reste à faire
+1. **EP-05 Réclamation & arbitrage** (ST-0501 à ST-0506) : tables `claims` et `claim_evidences`. C'est le seul chemin vers « Litige en cours » — sans lui, `V-LIT` reste inatteignable en conditions réelles, comme F2 l'était avant le KYC.
+2. ST-0404 : signaux temporels sur le verdict (ancienneté de l'enregistrement et du compte déclarant) — les données existent, l'exposition manque
+3. Vérification CT-01 (< 1 s P95 en 3G) sur données volumineuses : les index sont posés, la mesure reste à faire
 
 ## Dette assumée, à reprendre
 - **CAPTCHA non implémenté** : le plafond de consultation répond 429 avec `captcha_required`, mais aucun fournisseur de défi n'est branché. Sans lui, un visiteur légitime derrière une adresse partagée (cybercafé, partage de connexion mobile) reste bloqué une heure.
