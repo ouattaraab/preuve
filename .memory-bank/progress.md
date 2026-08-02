@@ -22,7 +22,7 @@
 
 ## Jalon 3 — Bêta fermée (fin S10)
 - 🟨 ST-0901 Back-office : socle posé (rôles `user`/`agent`/`admin`, middleware, réglages chiffrés, configuration de la passerelle SMS)
-- ✅ EP-05 Réclamation & arbitrage (ST-0501 à ST-0506) : dépôt KYC, recevabilité auto ou manuelle, gel V-LIT immédiat, contradictoire J+15, grille pondérée, 3 issues, appel unique, export empreint · ⬜ relances J+7/J+13, frais de dossier (EP-08)
+- ✅ EP-05 Réclamation & arbitrage (ST-0501 à ST-0506) : dépôt KYC, recevabilité auto ou manuelle, gel V-LIT immédiat, contradictoire J+15, grille pondérée, 3 issues, appel unique, export empreint · ✅ relances J+7/J+13 + instruction sur pièces au terme · ⬜ frais de dossier (EP-08)
 - ✅ EP-06 Transferts (ST-0601 à ST-0606) : double OTP, archivage + création en une transaction, expiration J+7 planifiée, chaîne des détenteurs, vol en un geste, levée, fin de vie
 - ⬜ ST-0901 Back-office admin de base
 
@@ -39,6 +39,7 @@
 | 02/08/2026 | Socle des biens : companies, assets, unicité active ; asset_status_history + StatusTransitionService (matrice complète) ; base de dev MariaDB locale sans Docker | ST-0106, ST-0402, ST-0503, ST-0601, ST-0604, ST-0606, ST-0702 (socle des transitions) | 3 interdictions de la matrice confirmées par Aboubakar, consignées dans systemPatterns.md §1 |
 | 02/08/2026 | Authentification par OTP : Sanctum, OtpService, endpoints request/verify/me/logout | ST-0101, ST-0102 | Fournisseur SMS non arbitré → interface `OtpSender`, implémentation de développement qui refuse la production. `composer audit` : 3 avis sur laravel/framework, dont un « high », sans correctif sur la branche 11 |
 | 02/08/2026 | Enregistrement express : `AssetRegistrationService`, `POST /api/v1/assets`, `PublicAssetResource`, filtrage des champs sur le catalogue de catégories | ST-0201, ST-0203, ST-0204 | ST-0205 limitée à la journalisation de la tentative : la notification au détenteur attend la table `notifications` |
+| 02/08/2026 | Relances du contradictoire (J+7, J+13) et passage en instruction au terme du délai | ST-0504 | Le silence ne ferme pas le dossier : il le fait instruire sur pièces, bien toujours gelé |
 | 02/08/2026 | EP-05 : `ClaimArbitrationService`, grille pondérée, 3 issues, appel par un autre agent, export empreint ; `TransferService::handOver()` extrait comme point de passage unique de la règle 3 | ST-0501 à ST-0506 | Matrice amendée : `V-ACT → V-LIT` par `arbitration`, sans quoi un appel ne pouvait aboutir à « non tranché » |
 | 02/08/2026 | EP-06 complet : `TransferService` (règle 3 : archivage + création en une transaction sous verrou), `AssetLifecycleService` (vol/levée/fin de vie), job d'expiration, endpoints | ST-0601 à ST-0606 | Le bien transféré repart en F1 : les justificatifs appuyaient la propriété du vendeur |
 | 02/08/2026 | `DemoSeeder` : 7 statuts, 3 niveaux, comptes de démo ; correction de la fabrique et du seeder du squelette Laravel (colonnes inexistantes) | jalon S7 | Le seeder n'écrit pas dans la chaîne d'audit : y mettre des actions fictives fabriquerait de fausses preuves |
