@@ -2,12 +2,15 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Admin\DocumentReviewController;
 use App\Http\Controllers\Api\V1\Admin\SmsProviderController;
 use App\Http\Controllers\Api\V1\AssetController;
+use App\Http\Controllers\Api\V1\AssetDocumentController;
 use App\Http\Controllers\Api\V1\ConfigController;
 use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OtpAuthController;
+use App\Http\Middleware\EnsureUserHasBackOfficeAccess;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
 
@@ -42,6 +45,11 @@ Route::prefix('v1')->group(function (): void {
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('assets', [AssetController::class, 'store']);
 
+        // Renforcement de la fiabilité APRÈS l'enregistrement (ST-0207) : c'est
+        // ce qui permet au parcours initial de tenir en 90 secondes sans KYC.
+        Route::post('assets/{asset}/documents', [AssetDocumentController::class, 'store']);
+        Route::get('assets/{asset}/trust', [AssetDocumentController::class, 'trust']);
+
         Route::get('notifications', [NotificationController::class, 'index']);
         Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
         Route::post('notifications/{notification}/read', [NotificationController::class, 'markAsRead']);
@@ -49,7 +57,17 @@ Route::prefix('v1')->group(function (): void {
         Route::put('notification-preferences', [NotificationController::class, 'updatePreferences']);
     });
 
-    // Espace administrateur : configuration de la plateforme en exploitation.
+    // Back-office d'instruction : agents ET administrateurs. Revoir un
+    // justificatif n'est pas configurer la plateforme.
+    Route::prefix('admin')->middleware(['auth:sanctum', EnsureUserHasBackOfficeAccess::class])
+        ->group(function (): void {
+            Route::get('documents', [DocumentReviewController::class, 'index']);
+            Route::post('documents/{document}/review', [DocumentReviewController::class, 'review']);
+            Route::post('assets/{asset}/verify', [DocumentReviewController::class, 'verify']);
+        });
+
+    // Configuration de la plateforme : administrateurs seulement. Un agent n'a
+    // aucune raison de pouvoir rerouter les SMS.
     Route::prefix('admin')->middleware(['auth:sanctum', EnsureUserIsAdmin::class])->group(function (): void {
         Route::get('sms-provider', [SmsProviderController::class, 'show']);
         Route::put('sms-provider', [SmsProviderController::class, 'update']);

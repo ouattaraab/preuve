@@ -46,6 +46,17 @@ class User extends Authenticatable
         'kyc_id_number_hash', 'kyc_ocr_payload',
     ];
 
+    /**
+     * Reprend le défaut de la colonne : une instance fraîchement créée n'a pas
+     * relu la base, et `role` y serait nul en mémoire — un test de rôle sur
+     * null échouerait au lieu de refuser proprement l'accès.
+     *
+     * @var array<string, string>
+     */
+    protected $attributes = [
+        'role' => 'user',
+    ];
+
     /** @return array<string, string> */
     protected function casts(): array
     {
