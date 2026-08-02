@@ -17,7 +17,7 @@
 ## Jalon 2 — Alpha interne (fin S7) : démo aux 5 loueurs pilotes
 - 🟨 EP-02 Enregistrement express : ✅ ST-0201 (4 gestes, F1/V-PRV, télémétrie CT-02), ST-0203 (normalisation, détection de type), ST-0204 (unicité, collision → fiche + réclamation) · ✅ ST-0205 (tentative journalisée + détenteur alerté anonymement), ST-0207 (dépôt + jauge), ST-0208 (file de revue, motif obligatoire) · ⬜ ST-0202 OCR Mindee, ST-0206 uploads différés
 - ✅ EP-03 Consultation 2 clics : ST-0301 (champ unique, détection auto), ST-0302 (verdict 6 états + couleur), ST-0303 (inconnu ≠ rassurant), ST-0304 (journal, IP salée, purge 12 mois), ST-0305 (10/h anonymes — CAPTCHA à brancher côté client), ST-0306 (consultation par `public_ref`)
-- 🟨 EP-04 Confiance graduée : ✅ ST-0401 moteur F1-F3 versionné · ✅ ST-0402 job J+30 · ✅ ST-0403 veille, ST-0405 pics · ⬜ ST-0404 signaux temporels
+- 🟨 EP-04 Confiance graduée : ✅ ST-0401 moteur F1-F3 versionné · ✅ ST-0402 job J+30 · ✅ ST-0403 veille, ST-0405 pics · ✅ ST-0404 signaux temporels
 - ✅ EP-10 (partiel) ST-1001 centre in-app (fil, badge, marquage lu) + ST-1002 agrégation horaire anonyme · ✅ ST-0107 préférences (types critiques non désactivables) · ⬜ ST-1003 push FCM, ST-1004 SMS critique (S13)
 
 ## Jalon 3 — Bêta fermée (fin S10)
@@ -39,6 +39,7 @@
 | 02/08/2026 | Socle des biens : companies, assets, unicité active ; asset_status_history + StatusTransitionService (matrice complète) ; base de dev MariaDB locale sans Docker | ST-0106, ST-0402, ST-0503, ST-0601, ST-0604, ST-0606, ST-0702 (socle des transitions) | 3 interdictions de la matrice confirmées par Aboubakar, consignées dans systemPatterns.md §1 |
 | 02/08/2026 | Authentification par OTP : Sanctum, OtpService, endpoints request/verify/me/logout | ST-0101, ST-0102 | Fournisseur SMS non arbitré → interface `OtpSender`, implémentation de développement qui refuse la production. `composer audit` : 3 avis sur laravel/framework, dont un « high », sans correctif sur la branche 11 |
 | 02/08/2026 | Enregistrement express : `AssetRegistrationService`, `POST /api/v1/assets`, `PublicAssetResource`, filtrage des champs sur le catalogue de catégories | ST-0201, ST-0203, ST-0204 | ST-0205 limitée à la journalisation de la tentative : la notification au détenteur attend la table `notifications` |
+| 02/08/2026 | ST-0404 : `AgeBracket`, signaux temporels sur le verdict public | ST-0404 | Tranches et non dates : une date exacte de création de compte aiderait à identifier le déclarant |
 | 02/08/2026 | EP-09 (cœur) : `TelemetryService` (centiles), `FraudSignalsService`, validation des entreprises, sonde de santé publique, doc d'exploitation | ST-0901 à ST-0903 | Mesure CT-01 côté serveur : ne couvre pas la latence 3G, seule part maîtrisée |
 | 02/08/2026 | EP-07 (cœur) : `FleetService`, import CSV partiellement abouti et borné, marquage en masse, tableau de bord | ST-0701 à ST-0704 | Import borné à 200 lignes : chaque ligne prend le verrou d'audit |
 | 02/08/2026 | EP-08 (cœur) : `payments`/`report_purchases`, rapport anonymisé, guest checkout OTP avant paiement, webhooks signés idempotents, quotas et paliers de flotte | ST-0801 à ST-0806 | Quota volontairement NON bloquant : un bien non enregistré est un bien non protégé |
