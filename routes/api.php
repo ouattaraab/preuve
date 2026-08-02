@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\AssetDocumentController;
 use App\Http\Controllers\Api\V1\AssetLifecycleController;
 use App\Http\Controllers\Api\V1\ClaimController;
 use App\Http\Controllers\Api\V1\ConfigController;
+use App\Http\Controllers\Api\V1\FleetController;
 use App\Http\Controllers\Api\V1\KycController;
 use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\NotificationController;
@@ -104,6 +105,12 @@ Route::prefix('v1')->group(function (): void {
         Route::post('claims/{claim}/appeal', [ClaimController::class, 'appeal']);
 
         Route::get('quota', [QuotaController::class, 'show']);
+
+        // Offre flotte B2B (ST-0701 à ST-0703). Import borné : chaque
+        // enregistrement prend le verrou de la chaîne d'audit.
+        Route::get('fleet/{company}/dashboard', [FleetController::class, 'dashboard']);
+        Route::post('fleet/{company}/import', [FleetController::class, 'import']);
+        Route::post('fleet/{company}/rented', [FleetController::class, 'markRented']);
 
         Route::get('notifications', [NotificationController::class, 'index']);
         Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
