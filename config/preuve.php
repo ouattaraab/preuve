@@ -120,4 +120,19 @@ return [
         // photographiée y tient largement.
         'max_kb' => (int) env('PREUVE_DOCUMENTS_MAX_KB', 8192),
     ],
+
+    /*
+    | Envois différés (ST-0206). Le disque de travail reçoit des fichiers
+    | INCOMPLETS, morceau par morceau : il doit être local, car on y ajoute des
+    | octets en place — ce qu'un stockage objet ne permet pas. Les pièces
+    | constituées partent ensuite sur le bucket chiffré ci-dessus, et le
+    | fichier de travail est effacé.
+    */
+    'uploads' => [
+        'staging_disk' => env('PREUVE_UPLOADS_STAGING_DISK', 'local'),
+        // Au-delà, un envoi abandonné n'a plus de chance d'être repris et
+        // n'occupe plus que de la place. Deux jours laissent le temps de
+        // retrouver du réseau.
+        'session_ttl_hours' => (int) env('PREUVE_UPLOADS_TTL_HOURS', 48),
+    ],
 ];

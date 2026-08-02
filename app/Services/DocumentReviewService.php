@@ -11,6 +11,7 @@ use App\Enums\NotificationType;
 use App\Models\Asset;
 use App\Models\AssetDocument;
 use App\Models\User;
+use Illuminate\Http\File;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
@@ -46,7 +47,33 @@ final class DocumentReviewService
      */
     public function submit(Asset $bien, User $deposant, DocumentType $type, UploadedFile $fichier): AssetDocument
     {
-        $chemin = $fichier->store('assets/'.$bien->id, $this->disk());
+        return $this->store($bien, $deposant, $type, $fichier);
+    }
+
+    /**
+     * Dépose une pièce déjà constituée sur le disque de travail, à l'issue d'un
+     * envoi différé (ST-0206).
+     *
+     * Passe par le MÊME chemin que le dépôt direct : sans quoi une pièce
+     * arrivée en morceaux pourrait échapper au bucket chiffré ou à l'empreinte
+     * figée au dépôt, selon la route empruntée.
+     */
+    public function submitFromPath(
+        Asset $bien,
+        User $deposant,
+        DocumentType $type,
+        string $cheminLocal,
+    ): AssetDocument {
+        return $this->store($bien, $deposant, $type, new File($cheminLocal));
+    }
+
+    private function store(
+        Asset $bien,
+        User $deposant,
+        DocumentType $type,
+        File|UploadedFile $fichier,
+    ): AssetDocument {
+        $chemin = Storage::disk($this->disk())->putFile('assets/'.$bien->id, $fichier);
 
         if (! is_string($chemin) || $chemin === '') {
             throw new InvalidArgumentException(
@@ -54,7 +81,8 @@ final class DocumentReviewService
             );
         }
 
-        $empreinte = hash_file('sha256', $fichier->getRealPath());
+        $reel = $fichier->getRealPath();
+        $empreinte = $reel === false ? false : hash_file('sha256', $reel);
 
         return AssetDocument::create([
             'asset_id' => $bien->id,

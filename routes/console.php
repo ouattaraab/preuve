@@ -62,3 +62,8 @@ Schedule::command('preuve:backup')->dailyAt('01:30')->withoutOverlapping();
 // Politique ARTCI : aucune consultation conservée au-delà de 12 mois
 // (ST-0304). Aux heures creuses, la table pouvant être volumineuse.
 Schedule::command('preuve:purge-lookups')->dailyAt('03:20');
+
+// Envois différés abandonnés (ST-0206). Plus fréquent que les autres purges :
+// ce sont des fichiers, sur le disque de travail que partagent les sessions et
+// le cache — laissés à eux-mêmes, ils le remplissent.
+Schedule::command('preuve:purge-uploads')->hourly()->at(40)->withoutOverlapping();

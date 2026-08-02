@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\V1\PaymentWebhookController;
 use App\Http\Controllers\Api\V1\QuotaController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\TransferController;
+use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\WatchAlertController;
 use App\Http\Middleware\EnsurePlatformIsWritable;
 use App\Http\Middleware\EnsureUserHasBackOfficeAccess;
@@ -95,6 +96,13 @@ Route::prefix('v1')->group(function (): void {
         // ce qui permet au parcours initial de tenir en 90 secondes sans KYC.
         Route::post('assets/{asset}/documents', [AssetDocumentController::class, 'store']);
         Route::get('assets/{asset}/trust', [AssetDocumentController::class, 'trust']);
+
+        // Envois différés avec reprise (ST-0206, CT-05). Le bien existe déjà :
+        // l'enregistrement ne dépend jamais de la qualité du réseau au moment
+        // où l'on en a besoin.
+        Route::post('uploads', [UploadController::class, 'store']);
+        Route::get('uploads/{uuid}', [UploadController::class, 'show']);
+        Route::patch('uploads/{uuid}', [UploadController::class, 'append']);
 
         // Vérification d'identité : friction assumée, exigée seulement pour
         // documenter, réclamer ou transférer (ST-0103, CT-06).
