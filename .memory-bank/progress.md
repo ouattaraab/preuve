@@ -15,7 +15,7 @@
 - ⬜ ST-0105 Droits Loi 2013-450 · ST-0107 Préférences notifications
 
 ## Jalon 2 — Alpha interne (fin S7) : démo aux 5 loueurs pilotes
-- ⬜ EP-02 Enregistrement express (4 gestes, OCR, unicité, uploads différés, renforcement F2/F3)
+- 🟨 EP-02 Enregistrement express : ✅ ST-0201 (4 gestes, F1/V-PRV, télémétrie CT-02), ST-0203 (normalisation, détection de type), ST-0204 (unicité, collision → fiche + réclamation) · ⬜ ST-0202 OCR Mindee, ST-0205 notification au détenteur, ST-0206 uploads différés, ST-0207/0208 renforcement F2/F3
 - ⬜ EP-03 Consultation 2 clics (lookup < 1 s, verdict 6 états, rate limit, pages SEO)
 - ⬜ EP-04 Confiance graduée (moteur F1-F3, V-PRV J+30, veille, signaux temporels)
 - ⬜ EP-10 (partiel) Centre de notifications in-app + agrégation horaire des consultations
@@ -37,3 +37,4 @@
 | 01/08/2026 | Cadrage BMAD complet (brief, PRD, schéma v1.1, backlog, prototypes, Memory Bank) | — | Développement non démarré ; questions ouvertes dans activeContext.md |
 | 02/08/2026 | Socle des biens : companies, assets, unicité active ; asset_status_history + StatusTransitionService (matrice complète) ; base de dev MariaDB locale sans Docker | ST-0106, ST-0402, ST-0503, ST-0601, ST-0604, ST-0606, ST-0702 (socle des transitions) | 3 interdictions de la matrice confirmées par Aboubakar, consignées dans systemPatterns.md §1 |
 | 02/08/2026 | Authentification par OTP : Sanctum, OtpService, endpoints request/verify/me/logout | ST-0101, ST-0102 | Fournisseur SMS non arbitré → interface `OtpSender`, implémentation de développement qui refuse la production. `composer audit` : 3 avis sur laravel/framework, dont un « high », sans correctif sur la branche 11 |
+| 02/08/2026 | Enregistrement express : `AssetRegistrationService`, `POST /api/v1/assets`, `PublicAssetResource`, filtrage des champs sur le catalogue de catégories | ST-0201, ST-0203, ST-0204 | ST-0205 limitée à la journalisation de la tentative : la notification au détenteur attend la table `notifications` |

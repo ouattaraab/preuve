@@ -14,6 +14,7 @@ Développement du socle en cours :
 - ✅ Tables `companies` et `assets` + unicité active `(identifier_normalized, active_flag)` verrouillée par test
 - ✅ `asset_status_history` + `StatusTransitionService` : matrice des transitions verrouillée par une table de vérité écrite à la main dans les tests
 - ✅ ST-0101/ST-0102 : authentification par OTP (Sanctum), anti-brute-force par destination, `auth/otp/request|verify`, `auth/me`, `auth/logout`
+- ✅ ST-0201/ST-0203/ST-0204 : `AssetRegistrationService` + `POST /api/v1/assets` — F1/V-PRV, normalisation, doublon → fiche existante + réclamation, `PublicAssetResource` (point de passage unique de l'anonymat)
 
 ## Décisions récentes (à ne pas rediscuter)
 1. Backend **Laravel 11 + MariaDB** (pas PostgreSQL) — unicité via `(identifier_normalized, active_flag)`.
@@ -26,11 +27,13 @@ Développement du socle en cours :
 8. **Matrice des transitions** : 3 interdictions confirmées le 02/08/2026 — `V-PRV → V-VTE`, `V-VOL → V-FDV`, et toute sortie de `V-LIT` hors arbitrage. Détail et justification dans systemPatterns.md §1.
 9. Colonnes d'horodatage métier en **DATETIME UTC** et non TIMESTAMP (`audit_log`, `asset_status_history`) : leur représentation textuelle est hachée ou rapprochée dans les exports, elle ne doit pas dépendre du fuseau de la session.
 
-## Prochaines actions (Sprint 1 — EP-01 Fondations)
-1. `AssetRegistrationService` : enregistrement en 4 gestes, F1/V-PRV, tentative de doublon → fiche existante + parcours réclamation
-2. `TrustLevelEngine` (F1/F2/F3) et `asset_documents` — renforcement du niveau de fiabilité
-3. Job `AnchorAuditHead` (ancrage quotidien externe du hash de tête) — **tant qu'il n'existe pas, la chaîne n'est pas opposable**
-4. Seeders de démo : 6 biens couvrant les 6 états
+## Prochaines actions
+1. EP-03 `LookupService` + `GET /api/v1/lookup/{identifier}` : consultation publique SANS auth, < 1 s P95, rate limit Redis/base, `lookups.ip_hash` salé quotidien
+2. Table `notifications` + `NotificationService` → débloque ST-0205 (alerte `duplicate_attempt` au détenteur, aujourd'hui seulement journalisée)
+3. `TrustLevelEngine` (F1/F2/F3) et `asset_documents` — renforcement du niveau de fiabilité
+4. Job `AnchorAuditHead` (ancrage quotidien externe du hash de tête) — **tant qu'il n'existe pas, la chaîne n'est pas opposable**
+5. Job `PromoteProvisionalAssets` : V-PRV → V-ACT à J+30 (la matrice l'autorise déjà, le job manque)
+6. Seeders de démo : 6 biens couvrant les 6 états
 
 ## Questions ouvertes (à trancher avec Aboubakar)
 - **Laravel 11 n'a plus de correctif de sécurité** : `composer audit` remonte 3 avis sur laravel/framework, dont un « high » (injection CRLF dans la règle de validation `email`, utilisée au guest checkout), corrigés seulement en 12.60+/13.10+. Monter de version contredit la stack verrouillée — décision à prendre.
