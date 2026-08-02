@@ -31,6 +31,11 @@ Schedule::command('preuve:promote-provisional')->hourlyAt(5)->withoutOverlapping
 // des visites.
 Schedule::command('preuve:aggregate-lookups')->hourlyAt(20)->withoutOverlapping();
 
+// Clôture des transferts non confirmés à J+7 (ST-0601) : un transfert laissé
+// ouvert maintiendrait le bien en « Transfert en cours », donc averti aux
+// acheteurs, indéfiniment.
+Schedule::command('preuve:expire-transfers')->hourlyAt(50)->withoutOverlapping();
+
 // Détection des pics de consultation (ST-0405) : le signal arrive avant la
 // transaction, seul moment où il a encore une valeur.
 Schedule::command('preuve:detect-lookup-spikes')->hourlyAt(35)->withoutOverlapping();

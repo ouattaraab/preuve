@@ -16,6 +16,7 @@ use Illuminate\Support\Carbon;
  * @property string $public_ref
  * @property int $owner_user_id
  * @property int|null $company_id
+ * @property int|null $previous_asset_id
  * @property string $asset_category_key
  * @property string $identifier_type
  * @property string $identifier_raw
@@ -34,7 +35,7 @@ use Illuminate\Support\Carbon;
 class Asset extends Model
 {
     protected $fillable = [
-        'public_ref', 'owner_user_id', 'company_id', 'asset_category_key',
+        'public_ref', 'owner_user_id', 'company_id', 'previous_asset_id', 'asset_category_key',
         'identifier_type', 'identifier_raw', 'identifier_normalized', 'active_flag',
         'attributes', 'trust_level', 'life_status', 'provisional_until',
         'stolen_declared_at', 'stolen_consolidated', 'spike_alerted_at', 'registered_at',

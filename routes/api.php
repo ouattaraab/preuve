@@ -9,11 +9,13 @@ use App\Http\Controllers\Api\V1\Admin\KycReviewController;
 use App\Http\Controllers\Api\V1\Admin\SmsProviderController;
 use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\AssetDocumentController;
+use App\Http\Controllers\Api\V1\AssetLifecycleController;
 use App\Http\Controllers\Api\V1\ConfigController;
 use App\Http\Controllers\Api\V1\KycController;
 use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OtpAuthController;
+use App\Http\Controllers\Api\V1\TransferController;
 use App\Http\Controllers\Api\V1\WatchAlertController;
 use App\Http\Middleware\EnsureUserHasBackOfficeAccess;
 use App\Http\Middleware\EnsureUserIsAdmin;
@@ -64,6 +66,16 @@ Route::prefix('v1')->group(function (): void {
         Route::get('watch-alerts', [WatchAlertController::class, 'index']);
         Route::post('watch-alerts', [WatchAlertController::class, 'store']);
         Route::delete('watch-alerts/{identifier}', [WatchAlertController::class, 'destroy']);
+
+        // Cycle de vie du bien : vol en un geste, levée, fin de vie (EP-06).
+        Route::post('assets/{asset}/stolen', [AssetLifecycleController::class, 'declareStolen']);
+        Route::delete('assets/{asset}/stolen', [AssetLifecycleController::class, 'clearStolen']);
+        Route::post('assets/{asset}/end-of-life', [AssetLifecycleController::class, 'declareEndOfLife']);
+
+        // Transferts de propriété à double validation (ST-0601 à ST-0603).
+        Route::post('assets/{asset}/transfer', [TransferController::class, 'store']);
+        Route::post('transfers/{transfer}/confirm', [TransferController::class, 'confirm']);
+        Route::delete('transfers/{transfer}', [TransferController::class, 'destroy']);
 
         Route::get('notifications', [NotificationController::class, 'index']);
         Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
