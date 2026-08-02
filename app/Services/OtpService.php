@@ -58,6 +58,7 @@ final class OtpService
         string $destination,
         OtpPurpose $purpose,
         OtpChannel $channel = OtpChannel::Sms,
+        ?string $deliverTo = null,
     ): OtpCode {
         $destination = $this->normalizeDestination($destination);
 
@@ -86,7 +87,12 @@ final class OtpService
             'expires_at' => now()->addMinutes($this->ttlMinutes()),
         ]);
 
-        $this->sender->send($destination, $code, $purpose);
+        // L'IDENTITÉ ET L'ADRESSE DE LIVRAISON SONT DEUX CHOSES. Verrouillage,
+        // plafond de rythme et empreinte du code portent tous sur
+        // `$destination` — le téléphone, qui identifie le compte. Les faire
+        // porter sur l'adresse de livraison permettrait de contourner un
+        // verrouillage en changeant simplement d'adresse.
+        $this->sender->send($deliverTo ?? $destination, $code, $purpose);
 
         return $challenge;
     }
@@ -294,6 +300,18 @@ final class OtpService
     private function codeLength(): int
     {
         return $this->configInt('preuve.otp.length', 6);
+    }
+
+    /**
+     * Durée de vie annoncée au client.
+     *
+     * Rendue par le service et non calculée sur un code émis : la réponse à une
+     * demande de code doit être identique qu'un code soit parti ou non, sans
+     * quoi la seule variation du délai annoncé dirait si le compte existe.
+     */
+    public function ttlSeconds(): int
+    {
+        return $this->ttlMinutes() * 60;
     }
 
     private function ttlMinutes(): int
