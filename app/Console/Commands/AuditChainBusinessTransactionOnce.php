@@ -25,6 +25,15 @@ final class AuditChainBusinessTransactionOnce extends Command
 
     public function handle(AuditChain $chain): int
     {
+        if (! app()->environment(['local', 'testing'])) {
+            $this->components->error(
+                'Commande réservée aux tests de concurrence : elle écrit une vraie entrée dans une '.
+                "chaîne d'audit inaltérable et refuse de s'exécuter hors des environnements local/testing."
+            );
+
+            return self::FAILURE;
+        }
+
         $entityId = (int) $this->argument('entityId');
 
         $chain->transaction(function () use ($entityId): array {

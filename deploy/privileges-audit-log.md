@@ -58,6 +58,14 @@ profondeur elle-même.
 
 ## Instructions SQL — à exécuter au déploiement
 
+**Préalable impératif : cette procédure s'exécute après `php artisan migrate`, jamais avant.** Chaque
+`GRANT` ci-dessous cible une table précise ; accorder un privilège sur une table qui n'existe pas
+encore échoue avec `ERROR 1146 (42S02): Table 'preuve.xxx' doesn't exist`. Sur une base neuve, lancer
+d'abord les migrations, puis cette procédure — jamais l'inverse. Elle doit ensuite être **rejouée
+après toute migration qui ajoute une table** : une table métier créée après ce déploiement initial
+n'a par défaut aucun privilège pour l'utilisateur applicatif tant qu'une ligne `GRANT` ne lui est pas
+ajoutée ici et réexécutée.
+
 Remplacer `'preuve_app'@'%'` par l'utilisateur applicatif réel utilisé par la connexion Laravel
 `mariadb` (`DB_USERNAME` en production) et l'hôte depuis lequel il se connecte. Remplacer
 `'mot-de-passe-fort'` par un secret généré, jamais celui-ci.

@@ -60,6 +60,21 @@ use stdClass;
  *   transaction qui englobe travail métier et écriture d'audit, et n'est
  *   relâché qu'après son COMMIT.
  *
+ * Conséquence permanente pour les tests : append() ET transaction() refusent
+ * toutes deux de s'exécuter depuis une transaction déjà ouverte (voir
+ * ci-dessus) — or le trait RefreshDatabase de Laravel enveloppe chaque test
+ * dans sa propre transaction, annulée (ROLLBACK) en fin de test. Un test qui
+ * utiliserait RefreshDatabase tout en appelant append() ou transaction()
+ * échouerait donc systématiquement sur ce garde-fou, pour un faux positif :
+ * ce n'est pas une transaction métier englobante, seulement l'isolation du
+ * test. RefreshDatabase est donc inutilisable pour tout test qui exerce une
+ * action métier auditée ; la table doit être réinitialisée explicitement
+ * (migration si elle est absente, puis TRUNCATE TABLE audit_log avant et
+ * après chaque test), comme le pratiquent déjà tests/Feature/AuditChainTest.php,
+ * tests/Feature/AuditChainConcurrencyTest.php,
+ * tests/Feature/AuditChainTransactionConcurrencyTest.php et
+ * tests/BusinessRules/ChaineAuditInalterableTest.php.
+ *
  * L'inaltérabilité ne repose pas uniquement sur cette classe : des
  * déclencheurs MariaDB (§4.6 de la spec) interdisent tout UPDATE/DELETE sur
  * audit_log au niveau du moteur, quel que soit le chemin de code emprunté.
@@ -143,6 +158,34 @@ final class AuditChain
      * paramètres de l'entrée d'audit à écrire dans la même transaction —
      * l'identifiant de l'entité concernée n'est souvent connu qu'une fois ce
      * travail exécuté (ex. l'identifiant d'un nouvel actif créé).
+     *
+     * ATTENTION — le travail métier confié à $work doit rester court. Le
+     * verrou nommé englobe tout le temps d'exécution de $work : toute autre
+     * action métier auditée, même sans aucun rapport avec celle-ci, attend
+     * derrière le même verrou pendant ce temps. Une revue a mesuré, avec une
+     * barrière de départ commune : 8 processus dont le travail métier dure
+     * 300 ms → 8 sur 8 réussissent ; 16 processus à 300 ms → 5 sur 16
+     * seulement, les 11 autres rejetés faute d'obtenir le verrou dans le
+     * délai imparti (LOCK_TIMEOUT_SECONDS, 5 s). La règle est linéaire :
+     * concurrence servie ≈ délai du verrou ÷ durée du travail métier, soit
+     * environ 16 actions simultanées servies à 300 ms de travail métier
+     * chacune, et seulement 5 à une seconde. C'est sûr — la transaction est
+     * annulée, aucune entrée n'est perdue, aucune fourche — mais c'est un
+     * plafond de disponibilité, pas une simple lenteur : au-delà, des actions
+     * métier sans aucun rapport entre elles se rejettent mutuellement. Tout
+     * ce qui peut être fait avant ou après $work — préparer des données,
+     * valider une saisie, appeler un service externe — doit l'être en dehors
+     * du callback, jamais à l'intérieur.
+     *
+     * ATTENTION — aucun effet de bord non transactionnel dans $work. Sur
+     * interblocage avec un écrivain d'une autre table, `DB::transaction()`
+     * rejoue le callback en entier (jusqu'à TRANSACTION_ATTEMPTS fois) : le
+     * travail métier s'exécute donc, lui aussi, plusieurs fois. Sans
+     * conséquence pour une simple insertion (rejouable sans risque), mais
+     * dangereux dès que $work déclenche un effet qui n'est pas annulé par un
+     * ROLLBACK — un appel à une passerelle de paiement, un envoi de SMS, un
+     * dépôt de fichier sur un stockage objet : rejoué, un paiement serait
+     * débité deux fois, un SMS envoyé deux fois, un fichier déposé deux fois.
      *
      * @template TReturn
      *
