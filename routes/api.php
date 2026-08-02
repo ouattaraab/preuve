@@ -119,6 +119,12 @@ Route::prefix('v1')->group(function (): void {
         Route::post('fleet/{company}/import', [FleetController::class, 'import']);
         Route::post('fleet/{company}/rented', [FleetController::class, 'markRented']);
 
+        // Délégation aux collaborateurs (ST-0705) : déléguer sans partager son
+        // compte, et garder une traçabilité par acteur qui vaut quelque chose.
+        Route::get('fleet/{company}/members', [FleetController::class, 'members']);
+        Route::post('fleet/{company}/members', [FleetController::class, 'invite']);
+        Route::delete('fleet/{company}/members/{member}', [FleetController::class, 'revoke']);
+
         Route::get('notifications', [NotificationController::class, 'index']);
         Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
         Route::post('notifications/{notification}/read', [NotificationController::class, 'markAsRead']);
