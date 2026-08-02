@@ -21,7 +21,13 @@ return new class extends Migration
             $table->char('record_hash', 64);
             $table->char('prev_hash', 64);
             $table->char('chain_hash', 64);
-            $table->timestamp('created_at')->useCurrent();
+            // DATETIME (pas TIMESTAMP) : un TIMESTAMP restitue sa
+            // représentation textuelle selon le fuseau de la session
+            // (`time_zone`), ce qui rendrait l'empreinte de la chaîne (§4.5
+            // de la spec, qui hache cette représentation textuelle) instable
+            // selon le client ou le fuseau système de l'hébergeur. Un
+            // DATETIME ne subit aucune conversion de fuseau.
+            $table->dateTime('created_at')->useCurrent();
 
             $table->unique('chain_hash', 'uq_audit_chain');
             $table->index(['entity_type', 'entity_id', 'created_at'], 'idx_audit_entity');

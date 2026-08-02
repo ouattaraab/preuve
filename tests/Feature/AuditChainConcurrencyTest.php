@@ -7,11 +7,12 @@ use App\Services\AuditChain;
 use Illuminate\Process\Pool;
 use Illuminate\Process\ProcessPoolResults;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Process;
 
 /**
- * Un bouclage séquentiel de 20 append() dans un seul processus PHP (voir
+ * Un bouclage séquentiel de append() dans un seul processus PHP (voir
  * AuditChainTest.php) ne met jamais le verrou de AuditChain::append() à
  * l'épreuve : rien ne s'y exécute jamais en parallèle. Le scénario
  * irréparable — deux entrées chaînées sur le même prédécesseur — ne peut être
@@ -27,30 +28,35 @@ use Illuminate\Support\Facades\Process;
  * n'est pas bloqué par le déclencheur d'inaltérabilité (BEFORE DELETE), et ne
  * fait donc pas partie de ce que ce fichier cherche à vérifier.
  *
- * Constat expérimental ayant guidé ce test : sous forte contention réelle,
- * MariaDB détecte des interblocages sur le verrou de lecture
- * ("SELECT ... FOR UPDATE") et annule certaines transactions — y compris sur
- * une table déjà peuplée, pas seulement sur une table vide. Sans réessai, la
- * plupart des append() concurrents échouaient purement et simplement (aucune
- * fourche, mais aucune écriture non plus). AuditChain::append() relance donc
- * désormais sa transaction (DB::transaction avec 25 essais) : la transaction
- * étant courte (une lecture, une insertion), un réessai est sûr et peu
- * coûteux.
+ * Ce fichier n'utilisant pas RefreshDatabase, rien ne déclenche jamais les
+ * migrations pour lui : sur une base vierge (CI, `php artisan db:wipe`), et
+ * comme Pest trie ce fichier avant AuditChainTest.php (qui migre via
+ * RefreshDatabase), TRUNCATE échouait avec « Table ... doesn't exist ».
+ * `Artisan::call('migrate')` (idempotent) avant chaque TRUNCATE garantit que
+ * la table existe, quel que soit l'ordre d'exécution des fichiers ou l'état
+ * de la base.
  *
- * Nombre de workers retenu ici (6) : à 10 workers réellement concurrents, un
- * échec résiduel de processus (jamais une fourche) subsistait encore de
- * façon intermittente pendant le développement de ce test — sa fréquence
- * s'est révélée sensible à la charge CPU globale de la machine (de ~1 échec
- * sur 10 exécutions du scénario sous forte charge, à 0 sur 20 une fois la
- * charge retombée). Avec 6 workers, 0 échec sur 20 exécutions consécutives
- * du scénario le plus contentieux (table vide) pendant le développement.
- * Ce test reste donc un vrai test de concurrence (fourche = 2 workers qui se
- * chaînent sur le même prédécesseur, détectable dès qu'au moins 2 processus
- * se disputent réellement le verrou) tout en restant stable dans cet
- * environnement. Voir task-5-report.md pour la recommandation sur le
- * comportement à 10+ workers.
+ * Mécanisme de sérialisation : AuditChain::append() sérialise désormais les
+ * écritures concurrentes avec un verrou nommé MariaDB (GET_LOCK), après
+ * qu'une mesure a montré que le motif précédent (verrou de ligne sur la
+ * dernière entrée + reprise sur interblocage) produisait un interblocage
+ * garanti entre écritures concurrentes plutôt qu'une contention absorbable
+ * par des essais — un nombre d'essais devenait alors un plafond dur
+ * d'écritures servies, pas une marge de sécurité (voir la docstring de
+ * AuditChain::append() et task-5-report.md pour le détail des mesures).
+ *
+ * Nombre de workers retenu ici (20) : au-delà de « au moins deux processus se
+ * disputent réellement le verrou » (le strict minimum pour mettre en évidence
+ * une fourche), une charge plus élevée garde une marge d'observation utile
+ * sur le mécanisme de sérialisation lui-même. Mesuré pendant le
+ * développement de ce correctif : 12, 24 et 32 processus réellement
+ * concurrents, 3 essais chacun → succès total à chaque fois (aucune entrée
+ * perdue, aucune fourche).
  */
-beforeEach(fn () => DB::statement('TRUNCATE TABLE audit_log'));
+beforeEach(function (): void {
+    Artisan::call('migrate', ['--force' => true]);
+    DB::statement('TRUNCATE TABLE audit_log');
+});
 afterEach(fn () => DB::statement('TRUNCATE TABLE audit_log'));
 
 $lancerAppendsConcurrents = function (int $workers): ProcessPoolResults {
@@ -72,6 +78,15 @@ $assertConcurrenceReussie = function (ProcessPoolResults $results, int $expected
             ->toBeTrue("le worker {$key} a échoué :\n".$result->errorOutput());
     });
 
+    // Ce qui compte vraiment : aucune entrée d'audit perdue. Un worker qui
+    // réussirait à s'exécuter (exit code 0) sans que sa ligne soit écrite ne
+    // serait pas détecté par la seule assertion ->successful() ci-dessus.
+    $actualCount = DB::table('audit_log')->count();
+    expect($actualCount)->toBe(
+        $expectedCount,
+        "nombre de lignes écrites ({$actualCount}) différent du nombre de processus lancés ({$expectedCount}) : au moins une entrée d'audit a été perdue."
+    );
+
     $verification = app(AuditChain::class)->verify();
 
     expect($verification['valid'])->toBeTrue()
@@ -79,25 +94,26 @@ $assertConcurrenceReussie = function (ProcessPoolResults $results, int $expected
 
     $prevHashes = DB::table('audit_log')->orderBy('id')->pluck('prev_hash');
 
-    expect(DB::table('audit_log')->count())->toBe($expectedCount)
-        ->and($prevHashes->count())->toBe($prevHashes->unique()->count());
+    expect($prevHashes->count())->toBe($prevHashes->unique()->count());
 };
 
-it('ne produit jamais de fourche sous écriture concurrente réelle, table déjà peuplée', function () use ($lancerAppendsConcurrents, $assertConcurrenceReussie): void {
+it('ne perd aucune entrée et ne produit jamais de fourche sous écriture concurrente réelle, table déjà peuplée', function () use ($lancerAppendsConcurrents, $assertConcurrenceReussie): void {
     app(AuditChain::class)->append(ActorType::System, null, 'test.seed', 'asset', 0, ['seed' => true]);
 
-    $workers = 6;
+    $workers = 20;
     $results = $lancerAppendsConcurrents($workers);
 
     $assertConcurrenceReussie($results, $workers + 1);
 })->group('concurrency');
 
-it('ne produit jamais de fourche sous écriture concurrente réelle, table vide au départ', function () use ($lancerAppendsConcurrents, $assertConcurrenceReussie): void {
+it('ne perd aucune entrée et ne produit jamais de fourche sous écriture concurrente réelle, table vide au départ', function () use ($lancerAppendsConcurrents, $assertConcurrenceReussie): void {
     // Cas signalé explicitement par la revue : sur une table vide, InnoDB ne
     // pose que des verrous d'intervalle (gap locks) sur la première ligne à
     // venir, un terrain plus propice à l'interblocage qu'à la sérialisation
-    // propre qu'on observe une fois la table peuplée.
-    $workers = 6;
+    // propre qu'on observe une fois la table peuplée — c'est exactement ce
+    // scénario que le verrou nommé sérialise désormais explicitement, sans
+    // dépendre du comportement de verrouillage d'InnoDB sur une cible mobile.
+    $workers = 20;
     $results = $lancerAppendsConcurrents($workers);
 
     $assertConcurrenceReussie($results, $workers);

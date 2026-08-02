@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\ActorType;
 use App\Services\AuditChain;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -23,8 +24,19 @@ use Illuminate\Support\Facades\DB;
  * transaction serait rompue par ce commit implicite, exactement le défaut
  * relevé sur l'ancien contournement d'AUTO_INCREMENT). Chaque test
  * réinitialise donc explicitement la table par TRUNCATE.
+ *
+ * Ce fichier n'utilise pas RefreshDatabase, donc rien ne déclenche jamais
+ * les migrations pour lui : sur une base vierge (CI, `php artisan db:wipe`),
+ * et comme Pest trie les fichiers avant AuditChainTest.php (qui migre via
+ * RefreshDatabase), TRUNCATE échouait ici avec « Table ... doesn't exist ».
+ * `Artisan::call('migrate')` est idempotent (aucun effet si déjà à jour) :
+ * l'appeler avant chaque TRUNCATE garantit que la table existe, quel que
+ * soit l'ordre d'exécution des fichiers de test ou l'état de la base.
  */
-beforeEach(fn () => DB::statement('TRUNCATE TABLE audit_log'));
+beforeEach(function (): void {
+    Artisan::call('migrate', ['--force' => true]);
+    DB::statement('TRUNCATE TABLE audit_log');
+});
 afterEach(fn () => DB::statement('TRUNCATE TABLE audit_log'));
 
 it('détecte une entrée forgée insérée directement en base', function (): void {

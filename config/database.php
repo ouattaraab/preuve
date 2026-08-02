@@ -78,6 +78,15 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => 'InnoDB',
+            // Épinglé indépendamment du fuseau système de l'hébergeur (qui
+            // vaut SYSTEM par défaut et n'est garanti nulle part) : la chaîne
+            // d'audit (§4.5 de la spec) hache la représentation textuelle de
+            // `created_at`, qui doit donc être stable quel que soit le
+            // fuseau de la session — restauration de sauvegarde sur un
+            // serveur d'un autre fuseau, changement de fuseau système par
+            // l'hébergeur, ou client d'audit tiers connecté avec sa propre
+            // session.
+            'timezone' => '+00:00',
         ],
 
         'pgsql' => [

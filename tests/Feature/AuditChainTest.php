@@ -6,6 +6,7 @@ use App\Enums\ActorType;
 use App\Models\AuditLog;
 use App\Services\AuditChain;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -74,6 +75,34 @@ it('ne rompt jamais la chaîne pour un payload contenant un objet imbriqué', fu
     $chain->append(ActorType::System, null, 'test.objet', 'asset', 1, [
         'details' => (object) ['b' => 1, 'a' => 2],
     ]);
+
+    expect($chain->verify())->toMatchArray(['valid' => true, 'broken_at' => null]);
+});
+
+it('reste valide quel que soit le fuseau horaire de la session de vérification', function (): void {
+    // La revue a démontré qu'une TIMESTAMP restitue sa représentation
+    // textuelle selon `time_zone` de la session (SYSTEM par défaut, épinglé
+    // nulle part) : hacher cette représentation rendait l'empreinte
+    // dépendante du fuseau du client — exactement ce que le corollaire de
+    // §4.5 interdit (reproductible des années plus tard, par un tiers).
+    // `created_at` est désormais un DATETIME (immunisé) et la connexion
+    // `mariadb` épingle sa session sur +00:00 (config/database.php) : ce
+    // test verrouille cette propriété en changeant réellement le fuseau de
+    // la session en cours d'exécution.
+    $chain = app(AuditChain::class);
+    foreach (range(1, 5) as $i) {
+        $chain->append(ActorType::System, null, 'test.fuseau', 'asset', $i, ['i' => $i]);
+    }
+
+    expect($chain->verify())->toMatchArray(['valid' => true, 'broken_at' => null]);
+
+    DB::statement("SET SESSION time_zone = '+05:00'");
+
+    try {
+        expect($chain->verify())->toMatchArray(['valid' => true, 'broken_at' => null]);
+    } finally {
+        DB::statement("SET SESSION time_zone = '+00:00'");
+    }
 
     expect($chain->verify())->toMatchArray(['valid' => true, 'broken_at' => null]);
 });

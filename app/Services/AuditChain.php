@@ -8,6 +8,7 @@ use App\Enums\ActorType;
 use App\Models\AuditLog;
 use Illuminate\Support\Facades\DB;
 use JsonException;
+use RuntimeException;
 use stdClass;
 
 /**
@@ -28,15 +29,22 @@ use stdClass;
  * aller-retour par json_decode()/json_encode() rendrait l'empreinte
  * dépendante de la version de PHP et de la distinction objet/tableau. Même
  * règle pour `created_at` : sa représentation textuelle stockée, sans
- * reformatage.
+ * reformatage — colonne DATETIME (pas TIMESTAMP) et connexion `mariadb`
+ * épinglée sur +00:00 (config/database.php), pour que cette représentation
+ * ne dépende jamais du fuseau de la session qui écrit ou qui vérifie.
  *
- * Le dernier chain_hash est lu sous verrou pour garantir la continuité même
- * sous écriture concurrente. Le verrou est court par construction : la
- * transaction ne contient qu'une lecture et une insertion (l'empreinte est
+ * Les écritures concurrentes sont sérialisées par un verrou nommé MariaDB
+ * (GET_LOCK, voir LOCK_NAME) plutôt que par une reprise sur interblocage : le
+ * motif "ORDER BY id DESC LIMIT 1 FOR UPDATE" verrouille une cible mobile, ce
+ * qui produit un interblocage garanti entre écritures concurrentes plutôt
+ * qu'une simple contention absorbable par des essais supplémentaires (mesuré
+ * lors de la correction de ce défaut — voir task-5-report.md). Le dernier
+ * chain_hash est ensuite lu sous verrou de ligne, à l'intérieur d'une
+ * transaction courte (une lecture et une insertion ; l'empreinte est
  * calculée avant l'ouverture de la transaction, et la relecture de la ligne
  * insérée se fait après sa fermeture). Ne jamais appeler append() depuis une
- * transaction englobante : cela allongerait la durée du verrou d'écriture
- * sur audit_log bien au-delà du temps d'une seule insertion.
+ * transaction englobante : cela allongerait la durée du verrou nommé et du
+ * verrou de ligne bien au-delà du temps d'une seule insertion.
  *
  * L'inaltérabilité ne repose pas uniquement sur cette classe : des
  * déclencheurs MariaDB (§4.6 de la spec) interdisent tout UPDATE/DELETE sur
@@ -45,6 +53,34 @@ use stdClass;
 final class AuditChain
 {
     private const GENESIS_HASH = '0000000000000000000000000000000000000000000000000000000000000000';
+
+    /**
+     * Nom du verrou nommé MariaDB (GET_LOCK) qui sérialise les écritures.
+     * Préfixé par l'application : l'hébergement cible est un mutualisé où le
+     * verrou est global au serveur de base, pas à la seule base `preuve` —
+     * un nom générique ("append", "audit"...) entrerait en collision avec un
+     * autre site hébergé sur le même serveur MariaDB.
+     */
+    private const LOCK_NAME = 'preuve:audit_log:append_chain';
+
+    /**
+     * Délai d'attente du verrou nommé, en secondes. Volontairement court :
+     * si l'écriture d'audit ne peut pas être sérialisée rapidement, mieux
+     * vaut échouer explicitement (l'appelant sait alors que l'action n'a pas
+     * été journalisée) que de bloquer la requête PHP jusqu'à la limite de
+     * temps d'exécution d'un hébergement mutualisé.
+     */
+    private const LOCK_TIMEOUT_SECONDS = 5;
+
+    /**
+     * Nombre d'essais de la transaction elle-même — modeste, car la
+     * sérialisation vient du verrou nommé ci-dessus, pas de la reprise :
+     * une fois le verrou obtenu, la transaction (une lecture, une
+     * insertion) n'est plus en concurrence avec aucune autre écriture
+     * d'audit. Cette petite marge n'absorbe qu'un aléa transitoire (ex. une
+     * micro-coupure de connexion), jamais une contention réelle.
+     */
+    private const TRANSACTION_ATTEMPTS = 3;
 
     /**
      * @param  array<string, mixed>  $payload
@@ -74,35 +110,62 @@ final class AuditChain
 
         $recordHash = $this->computeRecordHash($columns);
 
-        // Sous écriture concurrente réelle, MariaDB peut détecter un
-        // interblocage entre deux transactions qui se disputent le verrou de
-        // lecture ci-dessous — y compris sur une table déjà peuplée, pas
-        // seulement sur une table vide. Constaté expérimentalement
-        // (tests/Feature/AuditChainConcurrencyTest.php) : sans réessai, la
-        // plupart des append() lancés en parallèle échouaient en cascade ;
-        // avec 5 à 10 essais, un échec résiduel subsistait encore environ une
-        // fois sur dix sous forte contention (10 processus concurrents). La
-        // transaction est courte (une lecture + une insertion), ce qui rend
-        // un réessai sûr et peu coûteux : Laravel relance tout le bloc depuis
-        // le début en cas d'interblocage. 25 essais se sont montrés stables
-        // sur 25 exécutions consécutives du scénario le plus contentieux
-        // pendant le développement de ce correctif.
-        $id = DB::transaction(function () use ($columns, $recordHash): int {
-            $previousChainHash = DB::table('audit_log')
-                ->orderByDesc('id')
-                ->lockForUpdate()
-                ->value('chain_hash');
+        // Le motif initialement retenu ("ORDER BY id DESC LIMIT 1 ... FOR
+        // UPDATE" + reprise sur interblocage) a été mesuré défaillant : sur
+        // une cible mobile (la dernière ligne), ce verrou d'intervalle entre
+        // en conflit avec les verrous d'intention d'insertion des autres
+        // transactions concurrentes. La mesure montrait qu'à chaque tour,
+        // exactement une transaction gagnait et toutes les autres étaient
+        // désignées victimes d'interblocage — un nombre d'essais n'est donc
+        // pas une marge de sécurité, c'est un plafond dur du nombre
+        // d'écritures concurrentes servies (au-delà, des entrées d'audit
+        // étaient perdues en silence malgré des essais "réussis" en apparence
+        // côté Laravel). Pire sur un mutualisé : Laravel réessaie aussi sur
+        // l'erreur 1205 ("lock wait timeout"), qui attend
+        // innodb_lock_wait_timeout avant d'échouer (50 s par défaut) — un
+        // nombre d'essais élevé pouvait donc aussi immobiliser une requête
+        // PHP pendant de nombreuses minutes sur un hébergement au temps
+        // d'exécution plafonné à quelques dizaines de secondes.
+        //
+        // On sérialise donc explicitement sur une cible fixe (un verrou
+        // nommé MariaDB, GET_LOCK) au lieu de réessayer sur une cible mobile.
+        // Mesuré : 32 processus réellement concurrents, un seul essai de
+        // transaction chacun → 32/32 succès, 0 fourche, latence maximale
+        // observée 1,27 s (voir task-5-report.md pour le détail des mesures
+        // à 12/24/32 processus).
+        $lockResult = DB::scalar('SELECT GET_LOCK(?, ?)', [self::LOCK_NAME, self::LOCK_TIMEOUT_SECONDS]);
+        $acquired = is_scalar($lockResult) && (int) $lockResult === 1;
 
-            $prevHash = is_string($previousChainHash) ? $previousChainHash : self::GENESIS_HASH;
-            $chainHash = hash('sha256', $prevHash.$recordHash);
+        if (! $acquired) {
+            throw new RuntimeException(
+                "Chaîne d'audit : verrou d'écriture non obtenu dans le délai imparti — l'entrée n'a pas été journalisée."
+            );
+        }
 
-            return DB::table('audit_log')->insertGetId([
-                ...$columns,
-                'record_hash' => $recordHash,
-                'prev_hash' => $prevHash,
-                'chain_hash' => $chainHash,
-            ]);
-        }, 25);
+        try {
+            $id = DB::transaction(function () use ($columns, $recordHash): int {
+                $previousChainHash = DB::table('audit_log')
+                    ->orderByDesc('id')
+                    ->lockForUpdate()
+                    ->value('chain_hash');
+
+                $prevHash = is_string($previousChainHash) ? $previousChainHash : self::GENESIS_HASH;
+                $chainHash = hash('sha256', $prevHash.$recordHash);
+
+                return DB::table('audit_log')->insertGetId([
+                    ...$columns,
+                    'record_hash' => $recordHash,
+                    'prev_hash' => $prevHash,
+                    'chain_hash' => $chainHash,
+                ]);
+            }, self::TRANSACTION_ATTEMPTS);
+        } finally {
+            // Libéré dans tous les chemins de sortie, y compris sur
+            // exception : un verrou nommé qui ne serait jamais relâché
+            // bloquerait toute écriture d'audit ultérieure jusqu'à la fin de
+            // la session ou du process MariaDB qui le détient.
+            DB::statement('SELECT RELEASE_LOCK(?)', [self::LOCK_NAME]);
+        }
 
         return AuditLog::findOrFail($id);
     }
