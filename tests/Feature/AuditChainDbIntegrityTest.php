@@ -6,6 +6,7 @@ use App\Enums\ActorType;
 use App\Services\AuditChain;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Ce fichier vérifie la défense en profondeur au niveau base (§4.6 de la
@@ -29,12 +30,20 @@ use Illuminate\Support\Facades\DB;
  * les migrations pour lui : sur une base vierge (CI, `php artisan db:wipe`),
  * et comme Pest trie les fichiers avant AuditChainTest.php (qui migre via
  * RefreshDatabase), TRUNCATE échouait ici avec « Table ... doesn't exist ».
- * `Artisan::call('migrate')` est idempotent (aucun effet si déjà à jour) :
- * l'appeler avant chaque TRUNCATE garantit que la table existe, quel que
- * soit l'ordre d'exécution des fichiers de test ou l'état de la base.
+ * On ne migre donc que si la table n'existe pas encore (`Schema::hasTable`),
+ * plutôt que d'appeler `migrate` sans condition à chaque test : au-delà de
+ * la performance, un `migrate` inconditionnel répété s'est montré, une fois
+ * sur plusieurs dizaines d'exécutions pendant le développement de ce
+ * correctif, en porte-à-faux avec l'état réel de la table `migrations`
+ * (« table already exists » sur une migration pourtant déjà enregistrée) —
+ * ne le rappeler que lorsque la table cible est effectivement absente réduit
+ * la surface de ce risque.
  */
 beforeEach(function (): void {
-    Artisan::call('migrate', ['--force' => true]);
+    if (! Schema::hasTable('audit_log')) {
+        Artisan::call('migrate', ['--force' => true]);
+    }
+
     DB::statement('TRUNCATE TABLE audit_log');
 });
 afterEach(fn () => DB::statement('TRUNCATE TABLE audit_log'));

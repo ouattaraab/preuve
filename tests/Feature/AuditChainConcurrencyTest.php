@@ -10,6 +10,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Un bouclage séquentiel de append() dans un seul processus PHP (voir
@@ -31,10 +32,15 @@ use Illuminate\Support\Facades\Process;
  * Ce fichier n'utilisant pas RefreshDatabase, rien ne déclenche jamais les
  * migrations pour lui : sur une base vierge (CI, `php artisan db:wipe`), et
  * comme Pest trie ce fichier avant AuditChainTest.php (qui migre via
- * RefreshDatabase), TRUNCATE échouait avec « Table ... doesn't exist ».
- * `Artisan::call('migrate')` (idempotent) avant chaque TRUNCATE garantit que
- * la table existe, quel que soit l'ordre d'exécution des fichiers ou l'état
- * de la base.
+ * RefreshDatabase), TRUNCATE échouait avec « Table ... doesn't exist ». On ne
+ * migre donc que si la table n'existe pas encore (`Schema::hasTable`),
+ * plutôt que d'appeler `migrate` sans condition à chaque test : au-delà de la
+ * performance, un `migrate` inconditionnel répété s'est montré, une fois sur
+ * plusieurs dizaines d'exécutions pendant le développement de ce correctif,
+ * en porte-à-faux avec l'état réel de la table `migrations` (« table already
+ * exists » sur une migration pourtant déjà enregistrée) — ne le rappeler que
+ * lorsque la table cible est effectivement absente réduit la surface de ce
+ * risque.
  *
  * Mécanisme de sérialisation : AuditChain::append() sérialise désormais les
  * écritures concurrentes avec un verrou nommé MariaDB (GET_LOCK), après
@@ -54,7 +60,10 @@ use Illuminate\Support\Facades\Process;
  * perdue, aucune fourche).
  */
 beforeEach(function (): void {
-    Artisan::call('migrate', ['--force' => true]);
+    if (! Schema::hasTable('audit_log')) {
+        Artisan::call('migrate', ['--force' => true]);
+    }
+
     DB::statement('TRUNCATE TABLE audit_log');
 });
 afterEach(fn () => DB::statement('TRUNCATE TABLE audit_log'));
