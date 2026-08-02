@@ -15,6 +15,7 @@ Développement du socle en cours :
 - ✅ `asset_status_history` + `StatusTransitionService` : matrice des transitions verrouillée par une table de vérité écrite à la main dans les tests
 - ✅ ST-0101/ST-0102 : authentification par OTP (Sanctum), anti-brute-force par destination, `auth/otp/request|verify`, `auth/me`, `auth/logout`
 - ✅ ST-0201/ST-0203/ST-0204 : `AssetRegistrationService` + `POST /api/v1/assets` — F1/V-PRV, normalisation, doublon → fiche existante + réclamation, `PublicAssetResource` (point de passage unique de l'anonymat)
+- ✅ **EP-05 Réclamation & arbitrage** : `claims`/`claim_evidences`, recevabilité large, gel immédiat, grille 40/25/15/10/5/5, seuil de 20 points, 3 issues, appel unique par un autre agent, export empreint remis aux deux parties
 - ✅ **EP-06 Transferts** : `transfers`, double OTP, archivage + création dans la MÊME transaction (règle 3), expiration J+7, chaîne des détenteurs · vol en un geste, levée par le déclarant, fin de vie
 - ✅ Jeu de démonstration (`DemoSeeder`) : 7 statuts, 3 niveaux de fiabilité, comptes particulier/loueur/agent/admin — n'écrit rien dans la chaîne d'audit
 - ✅ ST-0403/ST-0405 : `watch_alerts` + `WatchAlertService` (veille réservée au détenteur actuel OU passé), `preuve:detect-lookup-spikes` (seuil configurable, alerte agrégée et anonyme, silence anti-répétition)
@@ -35,11 +36,11 @@ Développement du socle en cours :
 6. Verticale de lancement : **loueurs B2B** ; foncier repoussé phase 2.
 7. Base de développement locale : **MariaDB Homebrew sur le port 3307**, isolée d'une éventuelle installation MySQL — voir `docs/infrastructure/dev-local-mariadb.md`. Pas de Docker.
 8. **Matrice des transitions** : 3 interdictions confirmées le 02/08/2026 — `V-PRV → V-VTE`, `V-VOL → V-FDV`, et toute sortie de `V-LIT` hors arbitrage. Détail et justification dans systemPatterns.md §1.
-9. Colonnes d'horodatage métier en **DATETIME UTC** et non TIMESTAMP (`audit_log`, `asset_status_history`) : leur représentation textuelle est hachée ou rapprochée dans les exports, elle ne doit pas dépendre du fuseau de la session.
+9. **Matrice amendée le 02/08/2026** : `V-ACT → V-LIT` accepte aussi `arbitration` — un appel qui réforme un maintien doit pouvoir regeler le bien.
+10. Colonnes d'horodatage métier en **DATETIME UTC** et non TIMESTAMP (`audit_log`, `asset_status_history`) : leur représentation textuelle est hachée ou rapprochée dans les exports, elle ne doit pas dépendre du fuseau de la session.
 
 ## Prochaines actions
-1. **EP-05 Réclamation & arbitrage** (ST-0501 à ST-0506) : tables `claims` et `claim_evidences`. C'est le seul chemin vers « Litige en cours » — sans lui, `V-LIT` reste inatteignable en conditions réelles, comme F2 l'était avant le KYC.
-2. ST-0404 : signaux temporels sur le verdict (ancienneté de l'enregistrement et du compte déclarant) — les données existent, l'exposition manque
+1. ST-0404 : signaux temporels sur le verdict (ancienneté de l'enregistrement et du compte déclarant) — les données existent, l'exposition manque
 3. Vérification CT-01 (< 1 s P95 en 3G) sur données volumineuses : les index sont posés, la mesure reste à faire
 
 ## Dette assumée, à reprendre
@@ -47,6 +48,7 @@ Développement du socle en cours :
 - **Envoi SMS synchrone** (10 s de délai d'attente) : à basculer sur la file `notifications` quand Horizon sera en place.
 - **Ancrage à configurer avant toute mise en production** : sans adresse d'archivage ni disque séparé renseignés dans l'espace administrateur, le job quotidien sort en échec et la chaîne reste non opposable. Rien n'est opposable non plus avant le premier ancrage.
 - **Vivacité du selfie appréciée à l'œil** : aucun fournisseur de détection de vivacité n'est retenu (ST-0103 mentionne « liveness »). La colonne `liveness_score` existe et reste nulle ; un agent juge la concordance sur l'image. Une photo de photo peut donc passer.
+- **Frais de dossier de réclamation non prélevés** (2000/5000 FCFA prévus) : ils supposent EP-08. Le dépôt reste ouvert sans paiement — bloquer une victime sur un paiement indisponible fermerait son seul recours.
 - **Transports FCM et SMS non branchés** (ST-1003, ST-1004, sprint 13) : la colonne `channel` dit par quel canal une notification DOIT partir, mais seules les notifications in-app sont réellement délivrées. Une alerte critique — tentative de doublon, vol — n'atteint donc pas encore un propriétaire qui n'ouvre pas l'application.
 - `AuditChainTransactionConcurrencyTest` exige que les 16 processus concurrents réussissent, alors que le rejet sous contention est le comportement voulu : sensible à la charge machine, il peut clignoter en CI.
 
