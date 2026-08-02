@@ -16,6 +16,7 @@ Développement du socle en cours :
 - ✅ ST-0101/ST-0102 : authentification par OTP (Sanctum), anti-brute-force par destination, `auth/otp/request|verify`, `auth/me`, `auth/logout`
 - ✅ ST-0201/ST-0203/ST-0204 : `AssetRegistrationService` + `POST /api/v1/assets` — F1/V-PRV, normalisation, doublon → fiche existante + réclamation, `PublicAssetResource` (point de passage unique de l'anonymat)
 - ✅ EP-03 (ST-0301 à ST-0306) : `LookupService` + `GET /api/v1/lookup/{identifier}` — sans auth, par identifiant OU référence publique, IP hachée salée quotidiennement, plafond de 10/h par visiteur anonyme avec CAPTCHA au-delà, purge planifiée à 12 mois
+- ✅ EP-10 (partiel) + ST-0107 + ST-0205 : table `notifications`, `NotificationService` (anonymat symétrique, agrégation), job horaire `preuve:aggregate-lookups`, centre in-app et préférences
 - ✅ Laravel monté de 11 à 12 (`composer audit` vide) ; rôles de back-office (`user`/`agent`/`admin`), `app_settings` chiffrés, passerelle SMS configurable depuis `/api/v1/admin/sms-provider` — voir `docs/infrastructure/fournisseur-sms.md`
 
 ## Décisions récentes (à ne pas rediscuter)
@@ -30,16 +31,17 @@ Développement du socle en cours :
 9. Colonnes d'horodatage métier en **DATETIME UTC** et non TIMESTAMP (`audit_log`, `asset_status_history`) : leur représentation textuelle est hachée ou rapprochée dans les exports, elle ne doit pas dépendre du fuseau de la session.
 
 ## Prochaines actions
-1. Table `notifications` + `NotificationService` → débloque ST-0205 (alerte `duplicate_attempt`), ST-0403 (agrégation horaire des consultations) et `DetectLookupSpikes` — le journal `lookups` fournit déjà la matière
-2. `TrustLevelEngine` (F1/F2/F3) et `asset_documents` — renforcement du niveau de fiabilité
-3. Job `AnchorAuditHead` (ancrage quotidien externe du hash de tête) — **tant qu'il n'existe pas, la chaîne n'est pas opposable**
-4. Job `PromoteProvisionalAssets` : V-PRV → V-ACT à J+30 (la matrice l'autorise déjà, le job manque)
+1. `TrustLevelEngine` (F1/F2/F3) et `asset_documents` — renforcement du niveau de fiabilité (ST-0401, ST-0207, ST-0208)
+2. Job `AnchorAuditHead` (ancrage quotidien externe du hash de tête) — **tant qu'il n'existe pas, la chaîne n'est pas opposable**
+3. Job `PromoteProvisionalAssets` : V-PRV → V-ACT à J+30 (la matrice l'autorise déjà, le job manque)
+4. `DetectLookupSpikes` + `watch_alerts` (ST-0403, ST-0405) : le journal `lookups` et le type `lookup_spike` sont prêts, il manque le seuil et le job
 5. Seeders de démo : 6 biens couvrant les 6 états
 6. Vérification CT-01 (< 1 s P95 en 3G) sur données volumineuses : les index sont posés, la mesure reste à faire
 
 ## Dette assumée, à reprendre
 - **CAPTCHA non implémenté** : le plafond de consultation répond 429 avec `captcha_required`, mais aucun fournisseur de défi n'est branché. Sans lui, un visiteur légitime derrière une adresse partagée (cybercafé, partage de connexion mobile) reste bloqué une heure.
 - **Envoi SMS synchrone** (10 s de délai d'attente) : à basculer sur la file `notifications` quand Horizon sera en place.
+- **Transports FCM et SMS non branchés** (ST-1003, ST-1004, sprint 13) : la colonne `channel` dit par quel canal une notification DOIT partir, mais seules les notifications in-app sont réellement délivrées. Une alerte critique — tentative de doublon, vol — n'atteint donc pas encore un propriétaire qui n'ouvre pas l'application.
 - `AuditChainTransactionConcurrencyTest` exige que les 16 processus concurrents réussissent, alors que le rejet sous contention est le comportement voulu : sensible à la charge machine, il peut clignoter en CI.
 
 ## Questions ouvertes (à trancher avec Aboubakar)

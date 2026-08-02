@@ -12,13 +12,13 @@
 - ✅ Règle 6 — `StatusTransitionService` : matrice verrouillée par table de vérité, historique + audit dans la même transaction
 - ⬜ ST-0103 KYC Mindee (CNI + liveness, CNI hashée)
 - ⬜ ST-0104 Comptes entreprise (RCCM, validation back-office)
-- ⬜ ST-0105 Droits Loi 2013-450 · ST-0107 Préférences notifications
+- ⬜ ST-0105 Droits Loi 2013-450 · ✅ ST-0107 Préférences notifications
 
 ## Jalon 2 — Alpha interne (fin S7) : démo aux 5 loueurs pilotes
 - 🟨 EP-02 Enregistrement express : ✅ ST-0201 (4 gestes, F1/V-PRV, télémétrie CT-02), ST-0203 (normalisation, détection de type), ST-0204 (unicité, collision → fiche + réclamation) · ⬜ ST-0202 OCR Mindee, ST-0205 notification au détenteur, ST-0206 uploads différés, ST-0207/0208 renforcement F2/F3
 - ✅ EP-03 Consultation 2 clics : ST-0301 (champ unique, détection auto), ST-0302 (verdict 6 états + couleur), ST-0303 (inconnu ≠ rassurant), ST-0304 (journal, IP salée, purge 12 mois), ST-0305 (10/h anonymes — CAPTCHA à brancher côté client), ST-0306 (consultation par `public_ref`)
 - ⬜ EP-04 Confiance graduée (moteur F1-F3, V-PRV J+30, veille, signaux temporels)
-- ⬜ EP-10 (partiel) Centre de notifications in-app + agrégation horaire des consultations
+- ✅ EP-10 (partiel) ST-1001 centre in-app (fil, badge, marquage lu) + ST-1002 agrégation horaire anonyme · ✅ ST-0107 préférences (types critiques non désactivables) · ⬜ ST-1003 push FCM, ST-1004 SMS critique (S13)
 
 ## Jalon 3 — Bêta fermée (fin S10)
 - 🟨 ST-0901 Back-office : socle posé (rôles `user`/`agent`/`admin`, middleware, réglages chiffrés, configuration de la passerelle SMS)
@@ -39,5 +39,6 @@
 | 02/08/2026 | Socle des biens : companies, assets, unicité active ; asset_status_history + StatusTransitionService (matrice complète) ; base de dev MariaDB locale sans Docker | ST-0106, ST-0402, ST-0503, ST-0601, ST-0604, ST-0606, ST-0702 (socle des transitions) | 3 interdictions de la matrice confirmées par Aboubakar, consignées dans systemPatterns.md §1 |
 | 02/08/2026 | Authentification par OTP : Sanctum, OtpService, endpoints request/verify/me/logout | ST-0101, ST-0102 | Fournisseur SMS non arbitré → interface `OtpSender`, implémentation de développement qui refuse la production. `composer audit` : 3 avis sur laravel/framework, dont un « high », sans correctif sur la branche 11 |
 | 02/08/2026 | Enregistrement express : `AssetRegistrationService`, `POST /api/v1/assets`, `PublicAssetResource`, filtrage des champs sur le catalogue de catégories | ST-0201, ST-0203, ST-0204 | ST-0205 limitée à la journalisation de la tentative : la notification au détenteur attend la table `notifications` |
+| 02/08/2026 | Notifications : table, `NotificationService`, agrégation horaire, centre in-app, préférences, alerte de doublon branchée | ST-1001, ST-1002, ST-0107, ST-0205 (complète) | Transports FCM/SMS non branchés : seul l'in-app est réellement délivré |
 | 02/08/2026 | EP-03 consultation publique : `LookupService`, `LookupResult`, `GET /api/v1/lookup/{identifier}`, table `lookups`, purge planifiée | ST-0301 à ST-0306 | CAPTCHA non branché : le 429 porte `captcha_required`, le défi reste à intégrer côté client |
 | 02/08/2026 | Laravel 11 → 12 (clôt 3 avis de sécurité) ; rôles de back-office + `preuve:role` ; `app_settings` chiffrés ; passerelle SMS configurable et testable depuis l'espace administrateur | socle ST-0901, débloque ST-0101/0102 en réel | Le fournisseur `http` est générique (gabarit de requête) : aucun agrégateur n'est codé en dur, le choix reste une décision d'exploitation |
