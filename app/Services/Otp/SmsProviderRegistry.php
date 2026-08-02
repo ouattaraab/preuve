@@ -32,6 +32,17 @@ final class SmsProviderRegistry
             'class' => LogOtpSender::class,
             'fields' => [],
         ],
+        'mail' => [
+            'label' => 'Courriel (repli, sans fournisseur SMS)',
+            'description' => "Expédie le code à l'adresse de courriel du compte. Permet d'ouvrir la ".
+                "plateforme sans attendre un contrat d'agrégateur, mais protège moins qu'un SMS : une ".
+                'boîte se compromet plus discrètement qu\'une carte SIM, et elle est souvent ouverte sur '.
+                "l'appareil même où tourne l'application. À remplacer dès qu'un fournisseur est arbitré.",
+            'class' => MailOtpSender::class,
+            // Aucun champ : la passerelle est celle de MAIL_* et s'éprouve avec
+            // `php artisan preuve:check-mail`.
+            'fields' => [],
+        ],
         'http' => [
             'label' => 'Passerelle HTTP (générique)',
             'description' => 'Convient à tout agrégateur exposant une API HTTP. Le gabarit décrit le corps '.

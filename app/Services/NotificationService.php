@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\NotificationType;
+use App\Mail\NotificationMail;
 use App\Models\Asset;
 use App\Models\Notification;
 use App\Models\User;
@@ -12,6 +13,7 @@ use App\Services\Delivery\PushTransport;
 use App\Services\Delivery\SmsGateway;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Throwable;
 
 /**
@@ -111,15 +113,58 @@ final class NotificationService
         // Le SMS est réservé au critique. Il coûte, et un usage banalisé
         // apprendrait aux propriétaires à ignorer les alertes — exactement
         // celles qui comptent.
-        if (! $type->isCritical() || ! $this->sms->isConfigured()) {
+        if (! $type->isCritical()) {
+            return;
+        }
+
+        if (! $this->sms->isConfigured()) {
+            // Repli par courriel tant qu'aucune passerelle SMS n'est arbitrée.
+            // Sans lui, une alerte critique — tentative d'enregistrement
+            // frauduleux, transfert engagé — ne sortirait pas de l'application,
+            // et son destinataire ne l'apprendrait qu'en l'ouvrant de lui-même.
+            $this->deliverByMail($destinataire, $notification);
+
             return;
         }
 
         try {
             $this->sms->send($destinataire->phone, $this->smsText($notification));
-            $this->traceCost($type->value, 'sent', null);
+            $this->traceCost($type->value, 'sms', 'sent', null);
         } catch (Throwable $e) {
-            $this->traceCost($type->value, 'failed', $e::class);
+            $this->traceCost($type->value, 'sms', 'failed', $e::class);
+        }
+    }
+
+    /**
+     * Repli courriel. NE LÈVE JAMAIS, pour la même raison que le reste de
+     * `deliver()` : une déclaration de vol ne peut pas être refusée parce
+     * qu'une passerelle de messagerie répond mal.
+     *
+     * Le journal de coût distingue ce canal du SMS : savoir combien d'alertes
+     * critiques partent par un canal de repli est ce qui permet d'arbitrer
+     * l'urgence d'un vrai fournisseur.
+     */
+    private function deliverByMail(User $destinataire, Notification $notification): void
+    {
+        $adresse = $destinataire->email;
+
+        if (! is_string($adresse) || $adresse === '') {
+            // Ni numéro joignable ni adresse : c'est un problème de données,
+            // pas de passerelle, et le distinguer est ce qui permet de le voir.
+            $this->traceCost($notification->type->value, 'mail', 'no_channel', null);
+
+            return;
+        }
+
+        try {
+            Mail::to($adresse)->send(new NotificationMail(
+                $notification->title,
+                $notification->asset?->public_ref,
+            ));
+
+            $this->traceCost($notification->type->value, 'mail', 'sent', null);
+        } catch (Throwable $e) {
+            $this->traceCost($notification->type->value, 'mail', 'failed', $e::class);
         }
     }
 
@@ -136,15 +181,18 @@ final class NotificationService
     }
 
     /**
-     * Journal de coût (ST-1004) : le TYPE d'alerte et l'issue, jamais le
-     * destinataire. Savoir combien de SMS partent et pour quels motifs suffit à
+     * Journal de coût (ST-1004) : le TYPE d'alerte, le canal et l'issue, jamais
+     * le destinataire. Savoir combien de SMS partent et pour quels motifs suffit à
      * piloter la dépense ; un journal nominatif ajouterait une donnée
      * personnelle de plus à protéger et à purger.
      */
-    private function traceCost(string $type, string $statut, ?string $erreur): void
+    private function traceCost(string $type, string $canal, string $statut, ?string $erreur): void
     {
         DB::table('sms_deliveries')->insert([
             'notification_type' => $type,
+            // Canal et statut sont orthogonaux : les confondre interdirait de
+            // demander « combien d'alertes ont échoué, tous canaux confondus ».
+            'channel' => $canal,
             'status' => $statut,
             'failure_class' => $erreur,
             'created_at' => now()->format('Y-m-d H:i:s'),

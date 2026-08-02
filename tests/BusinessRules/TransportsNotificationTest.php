@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\NotificationType;
 use App\Enums\UserRole;
+use App\Mail\NotificationMail;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\Delivery\FcmPushTransport;
@@ -12,6 +13,7 @@ use App\Services\Settings\SettingsRepository;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 
@@ -94,10 +96,54 @@ it('fonctionne sans aucun transport configuré', function (): void {
         'Corps',
     );
 
-    expect(Notification::count())->toBe(1)
-        ->and(DB::table('sms_deliveries')->count())->toBe(0);
+    expect(Notification::count())->toBe(1);
 
     Http::assertNothingSent();
+});
+
+it('trace une alerte critique qui n\'a atteint personne', function (): void {
+    // Sans passerelle SMS ni adresse de courriel, une alerte critique — ici une
+    // tentative d'enregistrement du bien de quelqu'un d'autre — ne sort pas de
+    // l'application. Ne rien consigner ferait passer ce trou pour un envoi
+    // réussi ; c'est un problème de données, pas de passerelle, et le
+    // distinguer est ce qui permet de le voir.
+    app(NotificationService::class)->notify(
+        destinataire(),
+        NotificationType::DuplicateAttempt,
+        'Alerte',
+        'Corps',
+    );
+
+    $trace = DB::table('sms_deliveries')->first();
+
+    expect($trace?->status)->toBe('no_channel')
+        ->and($trace?->channel)->toBe('mail');
+});
+
+it('replie les alertes critiques sur le courriel faute de passerelle SMS', function (): void {
+    Mail::fake();
+
+    $utilisateur = destinataire();
+    $utilisateur->forceFill(['email' => 'proprietaire@exemple.ci'])->save();
+
+    app(NotificationService::class)->notify(
+        $utilisateur,
+        NotificationType::DuplicateAttempt,
+        'Tentative d\'enregistrement de votre bien',
+        'Quelqu\'un a tenté d\'enregistrer un bien portant votre identifiant.',
+    );
+
+    Mail::assertSent(NotificationMail::class, function (NotificationMail $mail): bool {
+        return $mail->hasTo('proprietaire@exemple.ci')
+            // Même discipline que le SMS : le titre, et rien de plus. Un aperçu
+            // de courriel s'affiche sur un écran verrouillé.
+            && ! str_contains($mail->render(), 'Quelqu\'un a tenté');
+    });
+
+    $trace = DB::table('sms_deliveries')->first();
+
+    expect($trace?->channel)->toBe('mail')
+        ->and($trace?->status)->toBe('sent');
 });
 
 it('envoie un push pour toute notification quand il est configuré', function (): void {
