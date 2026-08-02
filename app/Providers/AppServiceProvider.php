@@ -8,6 +8,10 @@ use App\Extensions\PreuveSessionHandler;
 use App\Services\Audit\MailAnchorChannel;
 use App\Services\Audit\StorageAnchorChannel;
 use App\Services\AuditAnchorService;
+use App\Services\Delivery\FcmPushTransport;
+use App\Services\Delivery\HttpSmsGateway;
+use App\Services\Delivery\PushTransport;
+use App\Services\Delivery\SmsGateway;
 use App\Services\Kyc\IdentityReader;
 use App\Services\Kyc\MindeeIdentityReader;
 use App\Services\Otp\ConfigurableOtpSender;
@@ -42,6 +46,12 @@ class AppServiceProvider extends ServiceProvider
         // manuelle — la plateforme ne dépend jamais d'un tiers pour continuer
         // à vérifier des identités.
         $this->app->bind(IdentityReader::class, MindeeIdentityReader::class);
+
+        // Transports hors application (ST-1003, ST-1004). Tous deux répondent
+        // « non configuré » tant qu'aucune clé n'est renseignée : le centre de
+        // notifications fonctionne seul, et rien n'échoue faute de passerelle.
+        $this->app->bind(PushTransport::class, FcmPushTransport::class);
+        $this->app->bind(SmsGateway::class, HttpSmsGateway::class);
 
         // Canaux d'ancrage de la chaîne d'audit. L'ordre n'a pas
         // d'importance : un seul canal qui aboutit suffit à rendre l'ancrage

@@ -9,12 +9,14 @@ use App\Http\Controllers\Api\V1\Admin\DocumentReviewController;
 use App\Http\Controllers\Api\V1\Admin\KycProviderController;
 use App\Http\Controllers\Api\V1\Admin\KycReviewController;
 use App\Http\Controllers\Api\V1\Admin\ObservabilityController;
+use App\Http\Controllers\Api\V1\Admin\PushProviderController;
 use App\Http\Controllers\Api\V1\Admin\SmsProviderController;
 use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\AssetDocumentController;
 use App\Http\Controllers\Api\V1\AssetLifecycleController;
 use App\Http\Controllers\Api\V1\ClaimController;
 use App\Http\Controllers\Api\V1\ConfigController;
+use App\Http\Controllers\Api\V1\DeviceTokenController;
 use App\Http\Controllers\Api\V1\FleetController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\KycController;
@@ -113,6 +115,10 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('quota', [QuotaController::class, 'show']);
 
+        // Appareils pour le push (ST-1003).
+        Route::post('devices', [DeviceTokenController::class, 'store']);
+        Route::delete('devices', [DeviceTokenController::class, 'destroy']);
+
         // Offre flotte B2B (ST-0701 à ST-0703). Import borné : chaque
         // enregistrement prend le verrou de la chaîne d'audit.
         Route::get('fleet/{company}/dashboard', [FleetController::class, 'dashboard']);
@@ -168,6 +174,9 @@ Route::prefix('v1')->group(function (): void {
         Route::get('audit-anchor', [AuditAnchorController::class, 'show']);
         Route::put('audit-anchor', [AuditAnchorController::class, 'update']);
         Route::get('audit-anchor/verify', [AuditAnchorController::class, 'verify']);
+
+        Route::get('push-provider', [PushProviderController::class, 'show']);
+        Route::put('push-provider', [PushProviderController::class, 'update']);
 
         Route::get('kyc-provider', [KycProviderController::class, 'show']);
         Route::put('kyc-provider', [KycProviderController::class, 'update']);

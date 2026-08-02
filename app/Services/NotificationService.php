@@ -8,7 +8,11 @@ use App\Enums\NotificationType;
 use App\Models\Asset;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\Delivery\PushTransport;
+use App\Services\Delivery\SmsGateway;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Throwable;
 
 /**
  * Dépôt des notifications au centre in-app et routage vers les canaux
@@ -35,6 +39,11 @@ use Illuminate\Support\Carbon;
  */
 final class NotificationService
 {
+    public function __construct(
+        private readonly PushTransport $push,
+        private readonly SmsGateway $sms,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $payload
      * @return Notification|null null si l'utilisateur a demandé le silence sur
@@ -52,7 +61,7 @@ final class NotificationService
             return null;
         }
 
-        return Notification::create([
+        $notification = Notification::create([
             'user_id' => $destinataire->id,
             'type' => $type,
             'asset_id' => $bien?->id,
@@ -60,6 +69,84 @@ final class NotificationService
             'body' => $corps,
             'payload' => $payload === [] ? null : $payload,
             'channel' => $this->channelFor($type),
+            'created_at' => now()->format('Y-m-d H:i:s'),
+        ]);
+
+        $this->deliver($destinataire, $notification);
+
+        return $notification;
+    }
+
+    /**
+     * Achemine hors de l'application (ST-1003, ST-1004).
+     *
+     * NE LÈVE JAMAIS. La notification in-app est déjà enregistrée : une
+     * passerelle indisponible ne doit pas faire échouer l'action métier qui l'a
+     * déclenchée — une déclaration de vol ne peut pas être refusée parce qu'un
+     * agrégateur SMS répond mal.
+     *
+     * L'envoi est synchrone faute de file : il ajoute quelques centaines de
+     * millisecondes aux actions critiques. À basculer sur la file
+     * `notifications` quand Horizon sera en place.
+     */
+    private function deliver(User $destinataire, Notification $notification): void
+    {
+        $type = $notification->type;
+
+        // Le push accompagne tout ce qui arrive au centre de notifications :
+        // il ne coûte rien et ramène l'utilisateur dans l'application.
+        if ($this->push->isConfigured()) {
+            try {
+                $this->push->send(
+                    $destinataire,
+                    $notification->title,
+                    $notification->body,
+                    ['type' => $type->value, 'asset_id' => (string) ($notification->asset_id ?? '')],
+                );
+            } catch (Throwable) {
+                // Silence volontaire : voir la docstring.
+            }
+        }
+
+        // Le SMS est réservé au critique. Il coûte, et un usage banalisé
+        // apprendrait aux propriétaires à ignorer les alertes — exactement
+        // celles qui comptent.
+        if (! $type->isCritical() || ! $this->sms->isConfigured()) {
+            return;
+        }
+
+        try {
+            $this->sms->send($destinataire->phone, $this->smsText($notification));
+            $this->traceCost($type->value, 'sent', null);
+        } catch (Throwable $e) {
+            $this->traceCost($type->value, 'failed', $e::class);
+        }
+    }
+
+    /**
+     * Texte du SMS : court, sans détail, et invitant à ouvrir l'application.
+     *
+     * Un SMS s'affiche sur un écran verrouillé, parfois sous les yeux d'un
+     * tiers — ou du voleur, si le téléphone a été pris avec le bien. Le détail
+     * reste derrière l'authentification.
+     */
+    private function smsText(Notification $notification): string
+    {
+        return 'PREUVE : '.$notification->title.'. Ouvrez l\'application pour le détail.';
+    }
+
+    /**
+     * Journal de coût (ST-1004) : le TYPE d'alerte et l'issue, jamais le
+     * destinataire. Savoir combien de SMS partent et pour quels motifs suffit à
+     * piloter la dépense ; un journal nominatif ajouterait une donnée
+     * personnelle de plus à protéger et à purger.
+     */
+    private function traceCost(string $type, string $statut, ?string $erreur): void
+    {
+        DB::table('sms_deliveries')->insert([
+            'notification_type' => $type,
+            'status' => $statut,
+            'failure_class' => $erreur,
             'created_at' => now()->format('Y-m-d H:i:s'),
         ]);
     }
