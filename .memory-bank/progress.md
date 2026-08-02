@@ -10,7 +10,7 @@
 - 🟨 ST-0106 AuditChain + tests de continuité ✅ — job d'ancrage quotidien ⬜ (**sans lui, la chaîne n'est pas opposable**)
 - ✅ Règle 3 — unicité active `(identifier_normalized, active_flag)` verrouillée par test
 - ✅ Règle 6 — `StatusTransitionService` : matrice verrouillée par table de vérité, historique + audit dans la même transaction
-- ⬜ ST-0103 KYC Mindee (CNI + liveness, CNI hashée)
+- ✅ ST-0103 KYC : CNI recto/verso + selfie, n° haché (HMAC), extraction Mindee configurable et non bloquante, revue agent, doublon de pièce refusé · ⚠️ vivacité appréciée à l'œil, pas de détection automatique
 - ⬜ ST-0104 Comptes entreprise (RCCM, validation back-office)
 - ⬜ ST-0105 Droits Loi 2013-450 · ✅ ST-0107 Préférences notifications
 
@@ -39,6 +39,7 @@
 | 02/08/2026 | Socle des biens : companies, assets, unicité active ; asset_status_history + StatusTransitionService (matrice complète) ; base de dev MariaDB locale sans Docker | ST-0106, ST-0402, ST-0503, ST-0601, ST-0604, ST-0606, ST-0702 (socle des transitions) | 3 interdictions de la matrice confirmées par Aboubakar, consignées dans systemPatterns.md §1 |
 | 02/08/2026 | Authentification par OTP : Sanctum, OtpService, endpoints request/verify/me/logout | ST-0101, ST-0102 | Fournisseur SMS non arbitré → interface `OtpSender`, implémentation de développement qui refuse la production. `composer audit` : 3 avis sur laravel/framework, dont un « high », sans correctif sur la branche 11 |
 | 02/08/2026 | Enregistrement express : `AssetRegistrationService`, `POST /api/v1/assets`, `PublicAssetResource`, filtrage des champs sur le catalogue de catégories | ST-0201, ST-0203, ST-0204 | ST-0205 limitée à la journalisation de la tentative : la notification au détenteur attend la table `notifications` |
+| 02/08/2026 | KYC : `kyc_submissions`, `KycService`, lecteur Mindee configurable, endpoints utilisateur et file de revue, recalcul en cascade des biens | ST-0103 | Débloque F2 en conditions réelles. Vivacité du selfie non automatisée |
 | 02/08/2026 | `TrustLevelEngine` versionné, `asset_documents`, dépôt de justificatifs, jauge, file de revue agent, contrôle croisé F3 ; unification de config/preuve.php | ST-0401, ST-0207, ST-0208 | F2 reste inatteignable en réel tant que ST-0103 (KYC Mindee) ne fait pas passer `kyc_status` à « verified » |
 | 02/08/2026 | Notifications : table, `NotificationService`, agrégation horaire, centre in-app, préférences, alerte de doublon branchée | ST-1001, ST-1002, ST-0107, ST-0205 (complète) | Transports FCM/SMS non branchés : seul l'in-app est réellement délivré |
 | 02/08/2026 | EP-03 consultation publique : `LookupService`, `LookupResult`, `GET /api/v1/lookup/{identifier}`, table `lookups`, purge planifiée | ST-0301 à ST-0306 | CAPTCHA non branché : le 429 porte `captcha_required`, le défi reste à intégrer côté client |
