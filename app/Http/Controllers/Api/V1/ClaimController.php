@@ -190,6 +190,9 @@ final class ClaimController extends Controller
                 'claimant' => $dossier->claimant_score,
                 'respondent' => $dossier->respondent_score,
             ],
+            // Les frais sont annoncés, jamais opposés : le dossier suit son
+            // cours qu'ils soient réglés ou non (ST-0501).
+            'fee' => $this->arbitrage->fee($dossier),
             'export_sha256' => $dossier->export_sha256,
             'submitted_at' => $dossier->created_at?->toIso8601String(),
         ];

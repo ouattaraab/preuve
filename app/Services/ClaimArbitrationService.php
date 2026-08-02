@@ -10,10 +10,13 @@ use App\Enums\ClaimStatus;
 use App\Enums\EvidenceType;
 use App\Enums\LifeStatus;
 use App\Enums\NotificationType;
+use App\Enums\PaymentPurpose;
+use App\Enums\PaymentStatus;
 use App\Enums\TriggerType;
 use App\Models\Asset;
 use App\Models\Claim;
 use App\Models\ClaimEvidence;
+use App\Models\Payment;
 use App\Models\User;
 use DomainException;
 use Illuminate\Http\UploadedFile;
@@ -61,6 +64,38 @@ final class ClaimArbitrationService
         private readonly AuditChain $auditChain,
         private readonly NotificationService $notifications,
     ) {}
+
+    /**
+     * Frais de dossier attendus (ST-0501), remboursés si la réclamation
+     * aboutit.
+     *
+     * ILS NE CONDITIONNENT PAS LE DÉPÔT. Leur rôle est de décourager les
+     * dossiers de nuisance — contester la propriété d'autrui doit coûter
+     * quelque chose — mais une victime démunie ne doit pas se voir fermer son
+     * seul recours faute de 2000 francs. Le dossier suit son cours ; le
+     * paiement est attendu, non exigé, et son absence est visible de l'agent.
+     *
+     * @return array{amount_fcfa: int, paid: bool, refundable: bool}
+     */
+    public function fee(Claim $dossier): array
+    {
+        $montant = config('preuve.claim_fee_fcfa');
+        $montant = is_numeric($montant) && (int) $montant > 0 ? (int) $montant : 2000;
+
+        $regle = Payment::query()
+            ->where('purpose', PaymentPurpose::ClaimFee->value)
+            ->where('related_id', $dossier->id)
+            ->where('status', PaymentStatus::Succeeded->value)
+            ->exists();
+
+        return [
+            'amount_fcfa' => $montant,
+            'paid' => $regle,
+            // Remboursables si la réclamation est fondée : le réclamant a eu
+            // raison de contester, il n'a pas à en supporter le coût.
+            'refundable' => $dossier->decision === ClaimDecision::TransferToClaimant,
+        ];
+    }
 
     /**
      * Ouvre une réclamation en brouillon. Le KYC est exigé : contester la
@@ -347,6 +382,12 @@ final class ClaimArbitrationService
 
         $this->applyDecision($dossier->fresh() ?? $dossier, $agent, $decision);
 
+        if ($decision === ClaimDecision::TransferToClaimant) {
+            // Le réclamant a eu raison de contester : il n'a pas à supporter le
+            // coût du dossier.
+            $this->markFeeRefundable($dossier);
+        }
+
         return $dossier->fresh() ?? $dossier;
     }
 
@@ -433,6 +474,22 @@ final class ClaimArbitrationService
         $dossier->forceFill(['export_sha256' => $empreinte, 'export_ref' => $chemin])->save();
 
         return $texte;
+    }
+
+    /**
+     * Marque les frais comme remboursables. Le remboursement lui-même passe par
+     * l'opérateur de paiement : la plateforme constate le droit, elle
+     * n'exécute pas le virement.
+     */
+    private function markFeeRefundable(Claim $dossier): void
+    {
+        $dossier->forceFill(['fee_refunded' => true])->save();
+
+        Payment::query()
+            ->where('purpose', PaymentPurpose::ClaimFee->value)
+            ->where('related_id', $dossier->id)
+            ->where('status', PaymentStatus::Succeeded->value)
+            ->update(['status' => PaymentStatus::Refunded->value]);
     }
 
     /**

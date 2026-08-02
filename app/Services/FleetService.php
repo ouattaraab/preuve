@@ -59,6 +59,14 @@ final class FleetService
      */
     public function import(Company $societe, User $operateur, UploadedFile $fichier): array
     {
+        // Suspension douce (ST-0805) : une flotte en lecture seule n'ajoute
+        // plus de véhicules, mais ceux qu'elle a déjà enregistrés restent
+        // protégés — couper la protection punirait les véhicules, pas le
+        // débiteur.
+        if (! $societe->subscription_status->allowsNewAssets()) {
+            throw new DomainException($societe->subscription_status->message());
+        }
+
         $lignes = $this->readCsv($fichier);
 
         if ($lignes === []) {

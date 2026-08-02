@@ -51,6 +51,10 @@ Schedule::command('preuve:detect-lookup-spikes')->hourlyAt(35)->withoutOverlappi
 // remonte.
 Schedule::command('preuve:anchor-audit-head')->dailyAt('02:40')->withoutOverlapping();
 
+// Relances d'abonnement et suspension douce (ST-0805). Quotidien : les retards
+// se comptent en jours, et aucune relance ne retire la protection acquise.
+Schedule::command('preuve:subscription-dunning')->dailyAt('09:10')->withoutOverlapping();
+
 // Politique ARTCI : aucune consultation conservée au-delà de 12 mois
 // (ST-0304). Aux heures creuses, la table pouvant être volumineuse.
 Schedule::command('preuve:purge-lookups')->dailyAt('03:20');

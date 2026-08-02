@@ -71,6 +71,14 @@ return [
     */
     'asset_slot_price_fcfa' => (int) env('PREUVE_SLOT_PRICE', 500),
 
+    /*
+    | Frais de dossier de réclamation (ST-0501), remboursés si la réclamation
+    | aboutit. Ils filtrent les dossiers de nuisance — contester la propriété
+    | d'autrui doit coûter quelque chose — sans jamais conditionner le dépôt :
+    | une victime démunie ne doit pas se voir fermer son seul recours.
+    */
+    'claim_fee_fcfa' => (int) env('PREUVE_CLAIM_FEE', 2000),
+
     'fleet_tiers' => [
         // taille du parc à partir de laquelle s'applique le prix unitaire
         1 => 500,
