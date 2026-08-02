@@ -17,6 +17,8 @@ use Illuminate\Support\Carbon;
  * @property int $claimant_user_id
  * @property ClaimStatus $status
  * @property Carbon|null $respondent_deadline
+ * @property int $reminders_sent
+ * @property Carbon|null $last_reminder_at
  * @property ClaimDecision|null $decision
  * @property string|null $decision_reason
  * @property int|null $claimant_score
@@ -32,7 +34,8 @@ class Claim extends Model
 {
     protected $fillable = [
         'asset_id', 'claimant_user_id', 'status', 'fee_payment_id', 'fee_refunded',
-        'respondent_deadline', 'decision', 'decision_reason', 'claimant_score',
+        'respondent_deadline', 'reminders_sent', 'last_reminder_at',
+        'decision', 'decision_reason', 'claimant_score',
         'respondent_score', 'decided_by', 'decided_at', 'appeal_of',
         'export_sha256', 'export_ref',
     ];
@@ -45,6 +48,7 @@ class Claim extends Model
             'decision' => ClaimDecision::class,
             'fee_refunded' => 'boolean',
             'respondent_deadline' => 'datetime',
+            'last_reminder_at' => 'datetime',
             'decided_at' => 'datetime',
         ];
     }

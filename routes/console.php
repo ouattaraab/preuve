@@ -31,6 +31,10 @@ Schedule::command('preuve:promote-provisional')->hourlyAt(5)->withoutOverlapping
 // des visites.
 Schedule::command('preuve:aggregate-lookups')->hourlyAt(20)->withoutOverlapping();
 
+// Relances du contradictoire et clôture des délais échus (ST-0504). Quotidien :
+// les rappels se comptent en jours, un passage horaire n'apporterait rien.
+Schedule::command('preuve:remind-contradictory')->dailyAt('08:15')->withoutOverlapping();
+
 // Clôture des transferts non confirmés à J+7 (ST-0601) : un transfert laissé
 // ouvert maintiendrait le bien en « Transfert en cours », donc averti aux
 // acheteurs, indéfiniment.
