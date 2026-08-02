@@ -26,6 +26,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property string $kyc_status
  * @property string $locale
  * @property string $status
+ * @property array<string, bool>|null $notification_preferences
  */
 class User extends Authenticatable
 {
@@ -50,6 +51,7 @@ class User extends Authenticatable
     {
         return [
             'role' => UserRole::class,
+            'notification_preferences' => 'array',
             'phone_verified_at' => 'datetime',
             'email_verified_at' => 'datetime',
             'kyc_verified_at' => 'datetime',

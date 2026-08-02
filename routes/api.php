@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\Admin\SmsProviderController;
 use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\ConfigController;
 use App\Http\Controllers\Api\V1\LookupController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OtpAuthController;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
@@ -40,6 +41,12 @@ Route::prefix('v1')->group(function (): void {
     // Toute écriture exige un compte authentifié (règle métier absolue n° 2).
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('assets', [AssetController::class, 'store']);
+
+        Route::get('notifications', [NotificationController::class, 'index']);
+        Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+        Route::post('notifications/{notification}/read', [NotificationController::class, 'markAsRead']);
+        Route::get('notification-preferences', [NotificationController::class, 'preferences']);
+        Route::put('notification-preferences', [NotificationController::class, 'updatePreferences']);
     });
 
     // Espace administrateur : configuration de la plateforme en exploitation.

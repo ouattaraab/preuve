@@ -30,7 +30,10 @@ function nettoyerEndpointBien(): void
     DB::statement('SET FOREIGN_KEY_CHECKS = 0');
 
     foreach ([
-        'audit_log', 'asset_status_history', 'assets', 'personal_access_tokens',
+        // `notifications` en premier : une tentative de doublon alerte
+        // désormais le détenteur (ST-0205), et ces lignes survivraient au test
+        // puisque ce fichier ne s'appuie pas sur RefreshDatabase.
+        'audit_log', 'notifications', 'asset_status_history', 'assets', 'personal_access_tokens',
         'users', 'category_fields', 'asset_categories',
     ] as $table) {
         DB::statement("TRUNCATE TABLE {$table}");

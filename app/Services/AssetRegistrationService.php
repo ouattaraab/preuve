@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Enums\ActorType;
 use App\Enums\LifeStatus;
+use App\Enums\NotificationType;
 use App\Enums\TriggerType;
 use App\Enums\TrustLevel;
 use App\Exceptions\DoublonActifException;
@@ -61,6 +62,7 @@ final class AssetRegistrationService
         private readonly CategoryRegistry $categories,
         private readonly IdentifierNormalizer $normalizer,
         private readonly AuditChain $auditChain,
+        private readonly NotificationService $notifications,
     ) {}
 
     /**
@@ -233,7 +235,45 @@ final class AssetRegistrationService
             ],
         );
 
+        $this->alertHolder($existant, $candidat);
+
         throw new DoublonActifException($existant);
+    }
+
+    /**
+     * Alerte le détenteur d'une tentative d'enregistrement de son identifiant
+     * (ST-0205) : c'est le signal de fraude le plus précoce dont dispose la
+     * plateforme — quelqu'un détient assez d'informations sur le bien pour en
+     * recopier l'identifiant.
+     *
+     * Le détenteur n'apprend RIEN du candidat (règle métier absolue n° 4) : ni
+     * son nom, ni son identifiant de compte. Une alerte nominative
+     * transformerait chaque tentative honnête — un acheteur qui enregistre de
+     * bonne foi le bien qu'il vient d'acquérir — en dénonciation.
+     *
+     * Le détenteur ne peut pas se taire sur ce type : il est critique.
+     */
+    private function alertHolder(Asset $existant, User $candidat): void
+    {
+        $detenteur = $existant->owner;
+
+        // Un candidat qui retombe sur son propre bien n'a pas à s'alerter
+        // lui-même : c'est le cas banal du double envoi depuis un réseau
+        // instable (CT-05).
+        if (! $detenteur instanceof User || $detenteur->id === $candidat->id) {
+            return;
+        }
+
+        $this->notifications->notify(
+            $detenteur,
+            NotificationType::DuplicateAttempt,
+            'Tentative d\'enregistrement de votre bien',
+            'Quelqu\'un vient de tenter d\'enregistrer un bien portant le même identifiant que le vôtre. '.
+            "Si vous n'avez pas vendu ce bien, restez vigilant : vérifiez qu'il est toujours en votre ".
+            'possession.',
+            $existant,
+            ['identifier_type' => $existant->identifier_type],
+        );
     }
 
     private function assertCategoryIsPublished(string $categoryKey): void

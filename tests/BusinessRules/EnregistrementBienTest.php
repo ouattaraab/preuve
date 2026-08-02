@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\LifeStatus;
+use App\Enums\NotificationType;
 use App\Enums\TrustLevel;
 use App\Exceptions\DoublonActifException;
 use App\Models\Asset;
@@ -10,6 +11,7 @@ use App\Models\AssetCategory;
 use App\Models\AssetStatusHistory;
 use App\Models\AuditLog;
 use App\Models\CategoryField;
+use App\Models\Notification;
 use App\Models\User;
 use App\Services\AssetRegistrationService;
 use Illuminate\Support\Facades\Artisan;
@@ -39,7 +41,7 @@ function nettoyerEnregistrement(): void
 {
     DB::statement('SET FOREIGN_KEY_CHECKS = 0');
 
-    foreach (['audit_log', 'asset_status_history', 'assets', 'users', 'category_fields', 'asset_categories'] as $table) {
+    foreach (['audit_log', 'notifications', 'asset_status_history', 'assets', 'users', 'category_fields', 'asset_categories'] as $table) {
         DB::statement("TRUNCATE TABLE {$table}");
     }
 
@@ -167,6 +169,61 @@ it('journalise la tentative de doublon sur le bien visé', function (): void {
         // L'identifiant en clair n'a rien à faire dans un journal inaltérable :
         // il suffit de savoir quel bien a été visé.
         ->and(json_encode($tentative->payload))->not->toContain('1M8GDM9AXKP042788');
+});
+
+it('alerte le détenteur d\'une tentative de doublon sans lui dire par qui (ST-0205)', function (): void {
+    // Signal de fraude le plus précoce dont dispose la plateforme : quelqu'un
+    // détient assez d'informations pour recopier l'identifiant du bien. Mais
+    // une alerte nominative transformerait chaque tentative honnête — un
+    // acheteur qui enregistre de bonne foi ce qu'il vient d'acquérir — en
+    // dénonciation.
+    $detenteur = proprietaire();
+    $bien = app(AssetRegistrationService::class)->register(
+        $detenteur,
+        'moto',
+        ['chassis' => '1M8GDM9AXKP042788', 'brand_model' => 'Yamaha Crux'],
+    );
+
+    $candidat = User::create(['phone' => '+2250788888888', 'full_name' => 'Yao N.']);
+
+    try {
+        enregistrer($candidat, '1M8GDM9AXKP042788');
+    } catch (DoublonActifException) {
+        // Attendu.
+    }
+
+    $alerte = Notification::sole();
+
+    expect($alerte->user_id)->toBe($detenteur->id)
+        ->and($alerte->type)->toBe(NotificationType::DuplicateAttempt)
+        ->and($alerte->asset_id)->toBe($bien->id)
+        // Type critique : il part par le canal d'interruption.
+        ->and($alerte->channel)->toBe('sms')
+        ->and($alerte->body)->not->toContain('Yao N.')
+        ->and(json_encode($alerte->payload))->not->toContain((string) $candidat->id);
+});
+
+it('ne s\'alerte pas soi-même en réessayant sur un réseau instable', function (): void {
+    // Cas banal du double envoi en 3G (CT-05) : le propriétaire retombe sur
+    // son propre bien, il n'a pas à recevoir une alerte de fraude.
+    $detenteur = proprietaire();
+    app(AssetRegistrationService::class)->register(
+        $detenteur,
+        'moto',
+        ['chassis' => '1M8GDM9AXKP042788', 'brand_model' => 'Yamaha Crux'],
+    );
+
+    try {
+        app(AssetRegistrationService::class)->register(
+            $detenteur,
+            'moto',
+            ['chassis' => '1M8GDM9AXKP042788', 'brand_model' => 'Yamaha Crux'],
+        );
+    } catch (DoublonActifException) {
+        // Attendu.
+    }
+
+    expect(Notification::count())->toBe(0);
 });
 
 it('autorise un nouvel enregistrement une fois le précédent archivé', function (): void {
