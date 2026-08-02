@@ -1,0 +1,221 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services;
+
+use App\Enums\ActorType;
+use App\Enums\OtpPurpose;
+use App\Enums\PaymentProvider;
+use App\Enums\PaymentPurpose;
+use App\Enums\PaymentStatus;
+use App\Models\Asset;
+use App\Models\Payment;
+use App\Models\User;
+use DomainException;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Paiements et réconciliation des webhooks (ST-0801, ST-0802, ST-0806).
+ *
+ * L'IDEMPOTENCE N'EST PAS UN CONFORT. Les opérateurs de paiement mobile
+ * renvoient le même événement plusieurs fois — c'est le comportement normal
+ * d'un réseau peu fiable, pas une anomalie. Sans garde, un rapport serait
+ * crédité deux fois pour un seul paiement, ou un abonnement prolongé indûment.
+ * La garantie ne repose pas sur une vérification applicative, qui perdrait la
+ * course entre deux webhooks simultanés, mais sur la contrainte unique
+ * (provider, provider_ref) : c'est la base qui tranche.
+ *
+ * UN ÉTAT DÉFINITIF NE SE REJOUE PAS. Un webhook tardif ne doit pas repasser
+ * en « payé » une transaction remboursée, ni l'inverse. Seule une transaction
+ * encore en attente change d'état.
+ *
+ * LE PAYEUR EST TOUJOURS IDENTIFIABLE (règle métier absolue n° 7) : compte
+ * connecté, ou nom + e-mail + téléphone VÉRIFIÉ PAR CODE AVANT le paiement.
+ * Vérifier après coup ne servirait à rien — l'accès serait déjà ouvert.
+ */
+final class PaymentService
+{
+    public function __construct(
+        private readonly OtpService $otp,
+        private readonly AuditChain $auditChain,
+        private readonly ReportAccessService $reports,
+    ) {}
+
+    /**
+     * Prépare un paiement de rapport pour un acheteur connecté.
+     *
+     * @throws DomainException
+     */
+    public function intendForUser(User $acheteur, Asset $bien, PaymentProvider $operateur): Payment
+    {
+        return $this->createIntent($operateur, $bien, [
+            'user_id' => $acheteur->id,
+        ]);
+    }
+
+    /**
+     * Prépare un paiement pour un acheteur non inscrit (ST-0802).
+     *
+     * Le code reçu par SMS est vérifié ICI, avant toute création : c'est le
+     * seul moment où la vérification a un sens. Après paiement, le rapport
+     * serait déjà accessible.
+     *
+     * @throws DomainException
+     */
+    public function intendForGuest(
+        Asset $bien,
+        PaymentProvider $operateur,
+        string $nom,
+        string $email,
+        string $telephone,
+        string $code,
+    ): Payment {
+        if (trim($nom) === '' || trim($email) === '') {
+            throw new DomainException('Nom et adresse e-mail sont obligatoires pour un achat sans compte.');
+        }
+
+        // Lève si le code est faux : aucun paiement n'est créé, aucun accès
+        // n'est ouvert.
+        $this->otp->verify($telephone, $code, OtpPurpose::GuestPayment);
+
+        return $this->createIntent($operateur, $bien, [
+            'buyer_name' => trim($nom),
+            'buyer_email' => trim($email),
+            'buyer_phone' => $this->otp->normalizeDestination($telephone),
+        ]);
+    }
+
+    /**
+     * Réconcilie un événement d'opérateur. Rejouable sans risque : c'est
+     * exactement ce qu'on attend d'un webhook.
+     *
+     * @return Payment|null null si l'événement ne correspond à aucun paiement connu
+     *
+     * @throws DomainException
+     */
+    public function reconcile(
+        PaymentProvider $operateur,
+        string $reference,
+        PaymentStatus $etat,
+        ?int $paymentId = null,
+    ): ?Payment {
+        if ($reference === '') {
+            throw new DomainException('Un événement de paiement sans référence est inexploitable.');
+        }
+
+        return DB::transaction(function () use ($operateur, $reference, $etat, $paymentId): ?Payment {
+            // Verrou de ligne : deux webhooks simultanés pour la même
+            // transaction ne doivent pas la créditer deux fois.
+            $paiement = Payment::query()
+                ->where('provider', $operateur->value)
+                ->where('provider_ref', $reference)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $paiement instanceof Payment && $paymentId !== null) {
+                $paiement = Payment::query()->whereKey($paymentId)->lockForUpdate()->first();
+            }
+
+            if (! $paiement instanceof Payment) {
+                return null;
+            }
+
+            if ($paiement->status->isFinal()) {
+                // Déjà tranché : un webhook rejoué ou tardif ne réécrit pas
+                // l'histoire d'une transaction.
+                return $paiement;
+            }
+
+            try {
+                $paiement->forceFill([
+                    'provider_ref' => $reference,
+                    'status' => $etat,
+                    'paid_at' => $etat === PaymentStatus::Succeeded ? now() : null,
+                ])->save();
+            } catch (QueryException $e) {
+                // La contrainte unique a tranché : un autre webhook a déjà
+                // rattaché cette référence. C'est le résultat attendu, pas une
+                // erreur.
+                if (! $this->isDuplicateReference($e)) {
+                    throw $e;
+                }
+
+                return Payment::query()
+                    ->where('provider', $operateur->value)
+                    ->where('provider_ref', $reference)
+                    ->first();
+            }
+
+            return $paiement;
+        });
+    }
+
+    /**
+     * Donne suite à un paiement abouti : ouvre l'accès au rapport. Idempotent
+     * lui aussi — l'accès n'est créé qu'une fois.
+     */
+    public function fulfill(Payment $paiement): void
+    {
+        if ($paiement->status !== PaymentStatus::Succeeded) {
+            return;
+        }
+
+        if ($paiement->purpose !== PaymentPurpose::DetailedReport) {
+            return;
+        }
+
+        $bien = Asset::query()->whereKey($paiement->related_id)->first();
+
+        if ($bien instanceof Asset) {
+            $this->reports->grant($paiement, $bien);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $acheteur
+     */
+    private function createIntent(PaymentProvider $operateur, Asset $bien, array $acheteur): Payment
+    {
+        $paiement = Payment::create([
+            ...$acheteur,
+            'purpose' => PaymentPurpose::DetailedReport,
+            'related_id' => $bien->id,
+            'amount_fcfa' => $this->reportPrice(),
+            'provider' => $operateur,
+            'status' => PaymentStatus::Pending,
+        ]);
+
+        $this->auditChain->append(
+            $paiement->user_id === null ? ActorType::System : ActorType::User,
+            $paiement->user_id,
+            'payment.intended',
+            'payment',
+            $paiement->id,
+            [
+                'purpose' => PaymentPurpose::DetailedReport->value,
+                'provider' => $operateur->value,
+                'amount_fcfa' => $paiement->amount_fcfa,
+                'asset_id' => $bien->id,
+                // Jamais l'identité de l'acheteur invité : la chaîne est
+                // inaltérable, et son anonymat doit lui survivre.
+            ],
+        );
+
+        return $paiement;
+    }
+
+    private function reportPrice(): int
+    {
+        $prix = config('preuve.report_price_fcfa');
+
+        return is_numeric($prix) && (int) $prix > 0 ? (int) $prix : 1000;
+    }
+
+    private function isDuplicateReference(QueryException $e): bool
+    {
+        return $e->getCode() === '23000'
+            && str_contains($e->getMessage(), 'uq_payments_provider_ref');
+    }
+}

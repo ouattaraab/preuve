@@ -53,6 +53,13 @@ return [
         'cooldown_hours' => (int) env('PREUVE_SPIKE_COOLDOWN_HOURS', 24),
     ],
 
+    /*
+    | Prix du rapport détaillé, en FCFA. Le tarif exact (500 ou 1000) reste à
+    | arbitrer : il est ici pour qu'un changement de grille tarifaire soit une
+    | ligne de configuration, pas une livraison.
+    */
+    'report_price_fcfa' => (int) env('PREUVE_REPORT_PRICE', 1000),
+
     // Conservation des consultations : politique déclarée à l'ARTCI
     'lookup_retention_months' => 12,
 

@@ -17,6 +17,8 @@ use App\Http\Controllers\Api\V1\KycController;
 use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OtpAuthController;
+use App\Http\Controllers\Api\V1\PaymentWebhookController;
+use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\TransferController;
 use App\Http\Controllers\Api\V1\WatchAlertController;
 use App\Http\Middleware\EnsureUserHasBackOfficeAccess;
@@ -26,6 +28,19 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function (): void {
     // Publique : l'application doit pouvoir se configurer avant toute connexion
     Route::get('config/categories', [ConfigController::class, 'categories']);
+
+    // Rapport détaillé : l'achat n'exige pas de compte mais exige une
+    // identité (règle métier absolue n° 7) ; la lecture ne passe que par le
+    // jeton, pour qu'un rapport reçu par SMS s'ouvre sur n'importe quel
+    // appareil.
+    Route::post('reports/guest-code', [ReportController::class, 'requestGuestCode'])
+        ->middleware('throttle:20,1');
+    Route::post('assets/{asset}/reports', [ReportController::class, 'purchase'])
+        ->middleware('throttle:20,1');
+    Route::get('reports/access/{token}', [ReportController::class, 'show']);
+
+    // Webhooks d'opérateurs : signés, idempotents (ST-0806).
+    Route::post('webhooks/payments/{provider}', [PaymentWebhookController::class, 'handle']);
 
     // Consultation de statut : gratuite, anonyme, SANS compte (règle métier
     // absolue n° 1). N'ajouter JAMAIS de middleware d'authentification ici —

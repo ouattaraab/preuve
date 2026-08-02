@@ -9,6 +9,7 @@ use App\Enums\TriggerType;
 use App\Enums\TrustLevel;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 use RuntimeException;
 
 /**
@@ -20,6 +21,17 @@ use RuntimeException;
  * fondement du rapport détaillé payant et des exports d'arbitrage. Le rendre
  * modifiable permettrait de réécrire après coup la chronologie d'un vol ou
  * d'un transfert.
+ *
+ * @property int $id
+ * @property int $asset_id
+ * @property LifeStatus|null $from_status
+ * @property LifeStatus $to_status
+ * @property TrustLevel|null $from_trust
+ * @property TrustLevel|null $to_trust
+ * @property TriggerType $trigger_type
+ * @property int|null $actor_user_id
+ * @property string|null $reason
+ * @property Carbon|null $created_at
  */
 class AssetStatusHistory extends Model
 {
