@@ -15,6 +15,7 @@ Développement du socle en cours :
 - ✅ `asset_status_history` + `StatusTransitionService` : matrice des transitions verrouillée par une table de vérité écrite à la main dans les tests
 - ✅ ST-0101/ST-0102 : authentification par OTP (Sanctum), anti-brute-force par destination, `auth/otp/request|verify`, `auth/me`, `auth/logout`
 - ✅ ST-0201/ST-0203/ST-0204 : `AssetRegistrationService` + `POST /api/v1/assets` — F1/V-PRV, normalisation, doublon → fiche existante + réclamation, `PublicAssetResource` (point de passage unique de l'anonymat)
+- ✅ ST-0402 : `preuve:promote-provisional` — bascule V-PRV → V-ACT au terme des 30 jours, bornée, notifiée ; planification durcie (`withoutOverlapping`, minutes décalées)
 - ✅ ST-0106 (complète) : ancrage externe quotidien du hash de tête (courrier horodaté + stockage séparé), registre append-only, `preuve:verify-audit-chain` — voir `docs/infrastructure/ancrage-chaine-audit.md`
 - ✅ ST-0103 : KYC (CNI recto/verso + selfie), n° de pièce haché HMAC jamais en clair, extraction Mindee configurable et non bloquante, revue par agent, recalcul en cascade des biens
 - ✅ ST-0401/ST-0207/ST-0208 : `TrustLevelEngine` (règles versionnées, redescente possible), `asset_documents`, dépôt + jauge, file de revue des agents, contrôle croisé F3
@@ -34,8 +35,7 @@ Développement du socle en cours :
 9. Colonnes d'horodatage métier en **DATETIME UTC** et non TIMESTAMP (`audit_log`, `asset_status_history`) : leur représentation textuelle est hachée ou rapprochée dans les exports, elle ne doit pas dépendre du fuseau de la session.
 
 ## Prochaines actions
-1. Job `PromoteProvisionalAssets` : V-PRV → V-ACT à J+30 (la matrice l'autorise déjà, le job manque)
-2. `DetectLookupSpikes` + `watch_alerts` (ST-0403, ST-0405) : le journal `lookups` et le type `lookup_spike` sont prêts, il manque le seuil et le job
+1. `DetectLookupSpikes` + `watch_alerts` (ST-0403, ST-0405) : le journal `lookups` et le type `lookup_spike` sont prêts, il manque le seuil et le job
 3. Seeders de démo : 6 biens couvrant les 6 états
 6. Vérification CT-01 (< 1 s P95 en 3G) sur données volumineuses : les index sont posés, la mesure reste à faire
 
