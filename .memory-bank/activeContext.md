@@ -15,6 +15,7 @@ Développement du socle en cours :
 - ✅ `asset_status_history` + `StatusTransitionService` : matrice des transitions verrouillée par une table de vérité écrite à la main dans les tests
 - ✅ ST-0101/ST-0102 : authentification par OTP (Sanctum), anti-brute-force par destination, `auth/otp/request|verify`, `auth/me`, `auth/logout`
 - ✅ ST-0201/ST-0203/ST-0204 : `AssetRegistrationService` + `POST /api/v1/assets` — F1/V-PRV, normalisation, doublon → fiche existante + réclamation, `PublicAssetResource` (point de passage unique de l'anonymat)
+- ✅ ST-0106 (complète) : ancrage externe quotidien du hash de tête (courrier horodaté + stockage séparé), registre append-only, `preuve:verify-audit-chain` — voir `docs/infrastructure/ancrage-chaine-audit.md`
 - ✅ ST-0103 : KYC (CNI recto/verso + selfie), n° de pièce haché HMAC jamais en clair, extraction Mindee configurable et non bloquante, revue par agent, recalcul en cascade des biens
 - ✅ ST-0401/ST-0207/ST-0208 : `TrustLevelEngine` (règles versionnées, redescente possible), `asset_documents`, dépôt + jauge, file de revue des agents, contrôle croisé F3
 - ✅ EP-03 (ST-0301 à ST-0306) : `LookupService` + `GET /api/v1/lookup/{identifier}` — sans auth, par identifiant OU référence publique, IP hachée salée quotidiennement, plafond de 10/h par visiteur anonyme avec CAPTCHA au-delà, purge planifiée à 12 mois
@@ -33,15 +34,15 @@ Développement du socle en cours :
 9. Colonnes d'horodatage métier en **DATETIME UTC** et non TIMESTAMP (`audit_log`, `asset_status_history`) : leur représentation textuelle est hachée ou rapprochée dans les exports, elle ne doit pas dépendre du fuseau de la session.
 
 ## Prochaines actions
-1. Job `AnchorAuditHead` (ancrage quotidien externe du hash de tête) — **tant qu'il n'existe pas, la chaîne n'est pas opposable**
-2. Job `PromoteProvisionalAssets` : V-PRV → V-ACT à J+30 (la matrice l'autorise déjà, le job manque)
-3. `DetectLookupSpikes` + `watch_alerts` (ST-0403, ST-0405) : le journal `lookups` et le type `lookup_spike` sont prêts, il manque le seuil et le job
-4. Seeders de démo : 6 biens couvrant les 6 états
+1. Job `PromoteProvisionalAssets` : V-PRV → V-ACT à J+30 (la matrice l'autorise déjà, le job manque)
+2. `DetectLookupSpikes` + `watch_alerts` (ST-0403, ST-0405) : le journal `lookups` et le type `lookup_spike` sont prêts, il manque le seuil et le job
+3. Seeders de démo : 6 biens couvrant les 6 états
 6. Vérification CT-01 (< 1 s P95 en 3G) sur données volumineuses : les index sont posés, la mesure reste à faire
 
 ## Dette assumée, à reprendre
 - **CAPTCHA non implémenté** : le plafond de consultation répond 429 avec `captcha_required`, mais aucun fournisseur de défi n'est branché. Sans lui, un visiteur légitime derrière une adresse partagée (cybercafé, partage de connexion mobile) reste bloqué une heure.
 - **Envoi SMS synchrone** (10 s de délai d'attente) : à basculer sur la file `notifications` quand Horizon sera en place.
+- **Ancrage à configurer avant toute mise en production** : sans adresse d'archivage ni disque séparé renseignés dans l'espace administrateur, le job quotidien sort en échec et la chaîne reste non opposable. Rien n'est opposable non plus avant le premier ancrage.
 - **Vivacité du selfie appréciée à l'œil** : aucun fournisseur de détection de vivacité n'est retenu (ST-0103 mentionne « liveness »). La colonne `liveness_score` existe et reste nulle ; un agent juge la concordance sur l'image. Une photo de photo peut donc passer.
 - **Transports FCM et SMS non branchés** (ST-1003, ST-1004, sprint 13) : la colonne `channel` dit par quel canal une notification DOIT partir, mais seules les notifications in-app sont réellement délivrées. Une alerte critique — tentative de doublon, vol — n'atteint donc pas encore un propriétaire qui n'ouvre pas l'application.
 - `AuditChainTransactionConcurrencyTest` exige que les 16 processus concurrents réussissent, alors que le rejet sous contention est le comportement voulu : sensible à la charge machine, il peut clignoter en CI.
