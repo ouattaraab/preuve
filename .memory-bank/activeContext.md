@@ -15,6 +15,7 @@ Développement du socle en cours :
 - ✅ `asset_status_history` + `StatusTransitionService` : matrice des transitions verrouillée par une table de vérité écrite à la main dans les tests
 - ✅ ST-0101/ST-0102 : authentification par OTP (Sanctum), anti-brute-force par destination, `auth/otp/request|verify`, `auth/me`, `auth/logout`
 - ✅ ST-0201/ST-0203/ST-0204 : `AssetRegistrationService` + `POST /api/v1/assets` — F1/V-PRV, normalisation, doublon → fiche existante + réclamation, `PublicAssetResource` (point de passage unique de l'anonymat)
+- ✅ **ST-0904** : mode lecture seule (consultation TOUJOURS ouverte), sauvegarde chiffrée quotidienne hors machine, sonde de santé
 - ✅ **EP-10 complet** : transports push FCM et SMS critique branchés, jetons d'appareil, coût SMS tracé par type — configuration depuis `/api/v1/admin/push-provider`
 - ✅ **EP-07 complet** : ST-0705 délégation aux collaborateurs (rôles admin/opérateur, invitation par numéro, actions tracées par acteur, actes de propriété jamais délégués)
 - ✅ **EP-08 complet** : abonnements de flotte (relances échelonnées, suspension DOUCE en lecture seule), frais de dossier de réclamation annoncés et remboursables, décompte mensuel
@@ -48,8 +49,7 @@ Développement du socle en cours :
 10. Colonnes d'horodatage métier en **DATETIME UTC** et non TIMESTAMP (`audit_log`, `asset_status_history`) : leur représentation textuelle est hachée ou rapprochée dans les exports, elle ne doit pas dépendre du fuseau de la session.
 
 ## Prochaines actions
-1. ST-0904 : sauvegardes automatisées, PRA testé, mode lecture seule (documenté dans `docs/infrastructure/exploitation.md`, rien n'est en place)
-2. ST-0202 (OCR de carte grise à l'enregistrement) et ST-0206 (uploads différés avec reprise) — les deux derniers points d'EP-02
+1. ST-0202 (OCR de carte grise à l'enregistrement) et ST-0206 (uploads différés avec reprise) — les deux derniers points d'EP-02
 
 ## Dette assumée, à reprendre
 - **CAPTCHA non implémenté** : le plafond de consultation répond 429 avec `captcha_required`, mais aucun fournisseur de défi n'est branché. Sans lui, un visiteur légitime derrière une adresse partagée (cybercafé, partage de connexion mobile) reste bloqué une heure.
@@ -57,8 +57,7 @@ Développement du socle en cours :
 - **Ancrage à configurer avant toute mise en production** : sans adresse d'archivage ni disque séparé renseignés dans l'espace administrateur, le job quotidien sort en échec et la chaîne reste non opposable. Rien n'est opposable non plus avant le premier ancrage.
 - **Vivacité du selfie appréciée à l'œil** : aucun fournisseur de détection de vivacité n'est retenu (ST-0103 mentionne « liveness »). La colonne `liveness_score` existe et reste nulle ; un agent juge la concordance sur l'image. Une photo de photo peut donc passer.
 - **CT-01 non remesuré sur l'hébergement cible** : la mesure a été faite sur poste de développement, sans charge concurrente et sans latence 3G. À reprendre sur l'environnement réel avant lancement.
-- **Sauvegardes et PRA non mis en place** : `docs/infrastructure/exploitation.md` décrit ce qui doit exister (sauvegarde chiffrée quotidienne, restauration testée, vérification de la chaîne après restauration), rien n'est encore automatisé.
-- **Mode lecture seule absent** : la dégradation gracieuse fonctionne par service (consultation survit à une panne d'écriture), mais aucun interrupteur de maintenance n'existe.
+- **Restauration jamais éprouvée** : la sauvegarde de la base est automatisée et chiffrée, mais aucune restauration n'a été testée — une sauvegarde jamais restaurée est une hypothèse, pas une garantie. La sauvegarde du bucket de documents reste aussi à automatiser.
 - **Import de flotte borné à 200 lignes par appel** : au-delà, le loueur découpe son fichier. Chaque enregistrement prend le verrou de la chaîne d'audit ; l'import devra passer en file quand Horizon sera en place.
 - **Quota d'enregistrement volontairement non bloquant** (ST-0804) : au-delà des 3 biens gratuits, l'enregistrement aboutit quand même et l'upsell est seulement proposé. Le revenu de ce poste repose donc sur la bonne volonté — le rendre bloquant est une décision produit, pas une correction technique.
 - **Décompte mensuel ≠ facture fiscale** : le document produit porte le calcul mais pas les mentions exigibles en Côte d'Ivoire (régime, numéro de contribuable, TVA) — à faire valider par un comptable avant émission.
