@@ -43,6 +43,22 @@ final class DocumentInventory
     ];
 
     /**
+     * Préfixes sous lesquels les services déposent les pièces.
+     *
+     * Utilisés par la réconciliation, qui balaie le bucket : sans eux, elle
+     * rapporterait comme orphelin tout ce qui partage le disque sans être une
+     * pièce — ancrages d'audit, marqueurs de dépôt, résidus d'exploitation. Un
+     * rapport noyé sous de faux positifs n'est plus lu, et c'est celui-là qui
+     * doit l'être après un sinistre.
+     *
+     * @return list<string>
+     */
+    public function prefixes(): array
+    {
+        return ['assets', 'claims', 'kyc'];
+    }
+
+    /**
      * Énumère les pièces DEPUIS LA BASE, jamais depuis le bucket.
      *
      * La base est l'index de ce qui est une pièce : un objet présent sur le
