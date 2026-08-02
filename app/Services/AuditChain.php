@@ -236,13 +236,20 @@ final class AuditChain
      * Lit les colonnes brutes (pas les attributs castés par Eloquent) : le
      * payload doit être haché tel quel, jamais décodé puis ré-encodé.
      *
+     * `$connection` permet de rejouer la chaîne d'une AUTRE base que celle en
+     * service — c'est ce dont a besoin l'exercice de restauration, qui doit
+     * vérifier une sauvegarde remontée à côté sans jamais toucher à la base
+     * vivante. Le calcul d'empreinte reste défini ici et nulle part ailleurs :
+     * un second exemplaire dériverait, et la vérification finirait par valider
+     * autre chose que ce que la plateforme écrit.
+     *
      * @return array{valid: bool, broken_at: int|null}
      */
-    public function verify(): array
+    public function verify(?string $connection = null): array
     {
         $prevHash = self::GENESIS_HASH;
 
-        foreach (DB::table('audit_log')->orderBy('id')->cursor() as $row) {
+        foreach (DB::connection($connection)->table('audit_log')->orderBy('id')->cursor() as $row) {
             $row = (array) $row;
 
             $columns = [

@@ -108,6 +108,17 @@ return [
     'backup' => [
         'disk' => env('PREUVE_BACKUP_DISK'),
         'mysqldump' => env('PREUVE_MYSQLDUMP_PATH', 'mysqldump'),
+        // Client utilisé par l'exercice de restauration (`preuve:restore-drill`).
+        'mysql' => env('PREUVE_MYSQL_PATH', 'mysql'),
+        /*
+        | Identifiants d'EXPLOITATION pour l'exercice de restauration. Le
+        | compte applicatif ne doit pas pouvoir créer de bases : ce droit ne
+        | servirait qu'une fois par trimestre et resterait ouvert le reste du
+        | temps, sur le compte qu'un attaquant atteint en premier. À défaut,
+        | préparez une base vide et passez-la en `--database=`.
+        */
+        'restore_username' => env('PREUVE_RESTORE_DB_USERNAME'),
+        'restore_password' => env('PREUVE_RESTORE_DB_PASSWORD'),
     ],
 
     'documents' => [
