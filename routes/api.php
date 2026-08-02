@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\Admin\SmsProviderController;
 use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\ConfigController;
+use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\OtpAuthController;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
@@ -12,6 +13,14 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function (): void {
     // Publique : l'application doit pouvoir se configurer avant toute connexion
     Route::get('config/categories', [ConfigController::class, 'categories']);
+
+    // Consultation de statut : gratuite, anonyme, SANS compte (règle métier
+    // absolue n° 1). N'ajouter JAMAIS de middleware d'authentification ici —
+    // le contrôleur interroge le garde Sanctum directement, ce qui reconnaît
+    // un porteur de jeton (et le dispense du plafond anonyme) sans jamais
+    // rendre le jeton nécessaire.
+    Route::get('lookup/{identifier}', [LookupController::class, 'show'])
+        ->where('identifier', '.*');
 
     Route::prefix('auth')->group(function (): void {
         // Le rythme des envois est déjà borné par destination dans
