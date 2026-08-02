@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Extensions\PreuveSessionHandler;
-use App\Services\Otp\LogOtpSender;
+use App\Services\Otp\ConfigurableOtpSender;
 use App\Services\Otp\OtpSender;
+use App\Services\Settings\SettingsRepository;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\ServiceProvider;
@@ -18,12 +19,17 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // Acheminement des codes OTP. Tant qu'aucun fournisseur SMS ivoirien
-        // n'est arbitré (question ouverte du cadrage), le développement passe
-        // par les journaux — LogOtpSender refuse de s'exécuter en production,
-        // pour qu'un déploiement sans fournisseur échoue bruyamment plutôt
-        // que d'écrire des codes d'accès en clair dans un fichier de log.
-        $this->app->bind(OtpSender::class, LogOtpSender::class);
+        // Les réglages sont relus à chaque émission de code : une seule
+        // instance, donc un seul cache mémoire par requête.
+        $this->app->singleton(SettingsRepository::class);
+
+        // Acheminement des codes OTP : le fournisseur est choisi dans l'espace
+        // administrateur, pas dans le code. Sur une installation neuve, aucun
+        // fournisseur n'est configuré et les journaux servent de défaut —
+        // LogOtpSender refusant de lui-même la production, un déploiement sans
+        // fournisseur échoue bruyamment plutôt que d'écrire des codes d'accès
+        // en clair dans un fichier de log.
+        $this->app->bind(OtpSender::class, ConfigurableOtpSender::class);
     }
 
     /**

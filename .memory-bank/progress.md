@@ -21,6 +21,7 @@
 - ⬜ EP-10 (partiel) Centre de notifications in-app + agrégation horaire des consultations
 
 ## Jalon 3 — Bêta fermée (fin S10)
+- 🟨 ST-0901 Back-office : socle posé (rôles `user`/`agent`/`admin`, middleware, réglages chiffrés, configuration de la passerelle SMS)
 - ⬜ EP-05 Réclamation & arbitrage (dépôt, gel V-LIT, contradictoire, grille, export hashé, appel)
 - ⬜ EP-06 Transferts double OTP + chaîne des détenteurs + vol un geste + V-FDV
 - ⬜ ST-0901 Back-office admin de base
@@ -38,3 +39,4 @@
 | 02/08/2026 | Socle des biens : companies, assets, unicité active ; asset_status_history + StatusTransitionService (matrice complète) ; base de dev MariaDB locale sans Docker | ST-0106, ST-0402, ST-0503, ST-0601, ST-0604, ST-0606, ST-0702 (socle des transitions) | 3 interdictions de la matrice confirmées par Aboubakar, consignées dans systemPatterns.md §1 |
 | 02/08/2026 | Authentification par OTP : Sanctum, OtpService, endpoints request/verify/me/logout | ST-0101, ST-0102 | Fournisseur SMS non arbitré → interface `OtpSender`, implémentation de développement qui refuse la production. `composer audit` : 3 avis sur laravel/framework, dont un « high », sans correctif sur la branche 11 |
 | 02/08/2026 | Enregistrement express : `AssetRegistrationService`, `POST /api/v1/assets`, `PublicAssetResource`, filtrage des champs sur le catalogue de catégories | ST-0201, ST-0203, ST-0204 | ST-0205 limitée à la journalisation de la tentative : la notification au détenteur attend la table `notifications` |
+| 02/08/2026 | Laravel 11 → 12 (clôt 3 avis de sécurité) ; rôles de back-office + `preuve:role` ; `app_settings` chiffrés ; passerelle SMS configurable et testable depuis l'espace administrateur | socle ST-0901, débloque ST-0101/0102 en réel | Le fournisseur `http` est générique (gabarit de requête) : aucun agrégateur n'est codé en dur, le choix reste une décision d'exploitation |

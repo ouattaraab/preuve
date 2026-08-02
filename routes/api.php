@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Admin\SmsProviderController;
 use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\ConfigController;
 use App\Http\Controllers\Api\V1\OtpAuthController;
+use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
@@ -29,5 +31,12 @@ Route::prefix('v1')->group(function (): void {
     // Toute écriture exige un compte authentifié (règle métier absolue n° 2).
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('assets', [AssetController::class, 'store']);
+    });
+
+    // Espace administrateur : configuration de la plateforme en exploitation.
+    Route::prefix('admin')->middleware(['auth:sanctum', EnsureUserIsAdmin::class])->group(function (): void {
+        Route::get('sms-provider', [SmsProviderController::class, 'show']);
+        Route::put('sms-provider', [SmsProviderController::class, 'update']);
+        Route::post('sms-provider/test', [SmsProviderController::class, 'test']);
     });
 });

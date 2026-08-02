@@ -15,6 +15,7 @@ Développement du socle en cours :
 - ✅ `asset_status_history` + `StatusTransitionService` : matrice des transitions verrouillée par une table de vérité écrite à la main dans les tests
 - ✅ ST-0101/ST-0102 : authentification par OTP (Sanctum), anti-brute-force par destination, `auth/otp/request|verify`, `auth/me`, `auth/logout`
 - ✅ ST-0201/ST-0203/ST-0204 : `AssetRegistrationService` + `POST /api/v1/assets` — F1/V-PRV, normalisation, doublon → fiche existante + réclamation, `PublicAssetResource` (point de passage unique de l'anonymat)
+- ✅ Laravel monté de 11 à 12 (`composer audit` vide) ; rôles de back-office (`user`/`agent`/`admin`), `app_settings` chiffrés, passerelle SMS configurable depuis `/api/v1/admin/sms-provider` — voir `docs/infrastructure/fournisseur-sms.md`
 
 ## Décisions récentes (à ne pas rediscuter)
 1. Backend **Laravel 11 + MariaDB** (pas PostgreSQL) — unicité via `(identifier_normalized, active_flag)`.
@@ -36,8 +37,6 @@ Développement du socle en cours :
 6. Seeders de démo : 6 biens couvrant les 6 états
 
 ## Questions ouvertes (à trancher avec Aboubakar)
-- **Laravel 11 n'a plus de correctif de sécurité** : `composer audit` remonte 3 avis sur laravel/framework, dont un « high » (injection CRLF dans la règle de validation `email`, utilisée au guest checkout), corrigés seulement en 12.60+/13.10+. Monter de version contredit la stack verrouillée — décision à prendre.
-- **Fournisseur SMS OTP** : bloquant pour toute démo réelle. `OtpSender` est prêt, `LogOtpSender` refuse la production.
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)
 - Tarif exact rapport détaillé (500 vs 1000 FCFA) et paliers abonnement flotte
