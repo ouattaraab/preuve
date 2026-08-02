@@ -59,6 +59,19 @@ Schedule::command('preuve:subscription-dunning')->dailyAt('09:10')->withoutOverl
 // rien tant qu'aucun disque de sauvegarde n'est configuré.
 Schedule::command('preuve:backup')->dailyAt('01:30')->withoutOverlapping();
 
+// Les pièces du bucket, sans lesquelles la base restaurée renverrait à des
+// fichiers introuvables (ST-0904). Après le dump : une pièce sauvegardée sans
+// la ligne qui la désigne ne se rattache à rien.
+Schedule::command('preuve:backup-documents')->dailyAt('01:50')->withoutOverlapping();
+
+// Contrôle d'intégrité des pièces, hebdomadaire et non quotidien : il RELIT
+// tout le bucket, quand la sauvegarde ne lit que ce qui manque. C'est le seul
+// chemin qui voit une pièce substituée après avoir été sauvegardée — celle que
+// l'incrémental ne touche plus jamais.
+Schedule::command('preuve:backup-documents --verify')
+    ->weeklyOn(0, '04:30')
+    ->withoutOverlapping();
+
 // Politique ARTCI : aucune consultation conservée au-delà de 12 mois
 // (ST-0304). Aux heures creuses, la table pouvant être volumineuse.
 Schedule::command('preuve:purge-lookups')->dailyAt('03:20');
@@ -66,4 +79,4 @@ Schedule::command('preuve:purge-lookups')->dailyAt('03:20');
 // Envois différés abandonnés (ST-0206). Plus fréquent que les autres purges :
 // ce sont des fichiers, sur le disque de travail que partagent les sessions et
 // le cache — laissés à eux-mêmes, ils le remplissent.
-Schedule::command('preuve:purge-uploads')->hourly()->at(40)->withoutOverlapping();
+Schedule::command('preuve:purge-uploads')->hourlyAt(40)->withoutOverlapping();
