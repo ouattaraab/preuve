@@ -27,7 +27,7 @@
 - ⬜ ST-0901 Back-office admin de base
 
 ## Jalon 4 — Lancement public (fin S13)
-- 🟨 EP-07 Offre flotte B2B : ✅ ST-0701 import CSV (partiel, borné, rapport d'erreurs), ST-0702 marquage en masse, ST-0703 tableau de bord, ST-0704 alertes remontées · ⬜ ST-0705 délégation aux collaborateurs
+- 🟨 EP-07 Offre flotte B2B : ✅ ST-0701 import CSV (partiel, borné, rapport d'erreurs), ST-0702 marquage en masse, ST-0703 tableau de bord, ST-0704 alertes remontées · ✅ ST-0705 délégation aux collaborateurs
 - 🟨 EP-08 Monétisation : ✅ ST-0801 rapport détaillé anonymisé, ST-0802 guest checkout OTP, ST-0803 notification anonyme, ST-0804 quota non bloquant, ST-0805 paliers de flotte, ST-0806 webhooks signés idempotents · ✅ relances d'abonnement, suspension douce, frais de dossier · ⬜ facture fiscale conforme (mentions à valider par un comptable)
 - 🟨 EP-09 : ✅ ST-0901 (validation entreprises, actions tracées), ST-0902 anti-fraude, ST-0903 télémétrie CT-01/CT-02, sonde de santé · ⬜ ST-0904 sauvegardes/PRA à mettre en place (documenté)
 - ⬜ EP-10 (fin) Push FCM + SMS critique
@@ -39,6 +39,7 @@
 | 02/08/2026 | Socle des biens : companies, assets, unicité active ; asset_status_history + StatusTransitionService (matrice complète) ; base de dev MariaDB locale sans Docker | ST-0106, ST-0402, ST-0503, ST-0601, ST-0604, ST-0606, ST-0702 (socle des transitions) | 3 interdictions de la matrice confirmées par Aboubakar, consignées dans systemPatterns.md §1 |
 | 02/08/2026 | Authentification par OTP : Sanctum, OtpService, endpoints request/verify/me/logout | ST-0101, ST-0102 | Fournisseur SMS non arbitré → interface `OtpSender`, implémentation de développement qui refuse la production. `composer audit` : 3 avis sur laravel/framework, dont un « high », sans correctif sur la branche 11 |
 | 02/08/2026 | Enregistrement express : `AssetRegistrationService`, `POST /api/v1/assets`, `PublicAssetResource`, filtrage des champs sur le catalogue de catégories | ST-0201, ST-0203, ST-0204 | ST-0205 limitée à la journalisation de la tentative : la notification au détenteur attend la table `notifications` |
+| 02/08/2026 | ST-0705 : `company_members`, `CompanyMemberService`, invitation par numéro, rôles admin/opérateur | ST-0705 | Les actes de propriété ne se délèguent jamais : un téléphone d'employé volé ne doit pas coûter le parc |
 | 02/08/2026 | Abonnements de flotte : relances échelonnées, suspension douce en lecture seule, frais de dossier de réclamation, décompte mensuel | ST-0805, ST-0501 (frais) | La suspension ne retire jamais la protection acquise : couper punirait les véhicules, pas le débiteur |
 | 02/08/2026 | Mesure CT-01 sur volume : `preuve:benchmark-lookup`, 1 ms au p95 sur 200 k biens + 1 M de consultations | CT-01, ST-0903 | Mesure serveur uniquement : ni latence 3G, ni charge concurrente, ni hébergement cible |
 | 02/08/2026 | ST-0404 : `AgeBracket`, signaux temporels sur le verdict public | ST-0404 | Tranches et non dates : une date exacte de création de compte aiderait à identifier le déclarant |

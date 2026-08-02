@@ -15,6 +15,7 @@ Développement du socle en cours :
 - ✅ `asset_status_history` + `StatusTransitionService` : matrice des transitions verrouillée par une table de vérité écrite à la main dans les tests
 - ✅ ST-0101/ST-0102 : authentification par OTP (Sanctum), anti-brute-force par destination, `auth/otp/request|verify`, `auth/me`, `auth/logout`
 - ✅ ST-0201/ST-0203/ST-0204 : `AssetRegistrationService` + `POST /api/v1/assets` — F1/V-PRV, normalisation, doublon → fiche existante + réclamation, `PublicAssetResource` (point de passage unique de l'anonymat)
+- ✅ **EP-07 complet** : ST-0705 délégation aux collaborateurs (rôles admin/opérateur, invitation par numéro, actions tracées par acteur, actes de propriété jamais délégués)
 - ✅ **EP-08 complet** : abonnements de flotte (relances échelonnées, suspension DOUCE en lecture seule), frais de dossier de réclamation annoncés et remboursables, décompte mensuel
 - ✅ **CT-01 mesuré sur volume** : 1 ms au 95e centile sur 200 000 biens et 1 M de consultations journalisées — `preuve:benchmark-lookup`, voir `docs/infrastructure/mesure-ct01.md`
 - ✅ ST-0404 : signaux temporels sur le verdict (ancienneté du bien et du compte, en TRANCHES, non antidatables, formulation factuelle)
@@ -46,10 +47,9 @@ Développement du socle en cours :
 10. Colonnes d'horodatage métier en **DATETIME UTC** et non TIMESTAMP (`audit_log`, `asset_status_history`) : leur représentation textuelle est hachée ou rapprochée dans les exports, elle ne doit pas dépendre du fuseau de la session.
 
 ## Prochaines actions
-1. ST-0705 : délégation aux collaborateurs d'un loueur (rôles admin/opérateur, actions tracées par acteur)
-2. ST-1003/ST-1004 : transports push FCM et SMS critique — la colonne `channel` est renseignée, aucun transport n'est branché
-3. ST-0904 : sauvegardes automatisées, PRA testé, mode lecture seule (documenté dans `docs/infrastructure/exploitation.md`, rien n'est en place)
-4. ST-0202 (OCR de carte grise à l'enregistrement) et ST-0206 (uploads différés avec reprise) — les deux derniers points d'EP-02
+1. ST-1003/ST-1004 : transports push FCM et SMS critique — la colonne `channel` est renseignée, aucun transport n'est branché
+2. ST-0904 : sauvegardes automatisées, PRA testé, mode lecture seule (documenté dans `docs/infrastructure/exploitation.md`, rien n'est en place)
+3. ST-0202 (OCR de carte grise à l'enregistrement) et ST-0206 (uploads différés avec reprise) — les deux derniers points d'EP-02
 
 ## Dette assumée, à reprendre
 - **CAPTCHA non implémenté** : le plafond de consultation répond 429 avec `captcha_required`, mais aucun fournisseur de défi n'est branché. Sans lui, un visiteur légitime derrière une adresse partagée (cybercafé, partage de connexion mobile) reste bloqué une heure.
