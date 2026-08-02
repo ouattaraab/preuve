@@ -7,16 +7,28 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Support\Carbon;
+use Laravel\Sanctum\HasApiTokens;
 
-// NB : le trait Laravel\Sanctum\HasApiTokens sera ajouté par la tâche qui
-// installe Sanctum (`php artisan install:api`, plan lot 1, étape "Installer
-// et configurer Sanctum"). Le paquet n'est pas encore une dépendance du
-// projet à ce stade (tâche 4) ; l'ajouter maintenant ferait échouer
-// `vendor/bin/phpstan analyse` (trait.notFound, non ignorable).
+/**
+ * Pas de mot de passe au MVP : l'authentification repose entièrement sur un
+ * code OTP envoyé au téléphone (voir OtpService), échangé contre un jeton
+ * Sanctum.
+ *
+ * @property int $id
+ * @property string $phone
+ * @property Carbon|null $phone_verified_at
+ * @property string|null $email
+ * @property string|null $full_name
+ * @property string $account_type
+ * @property string $kyc_status
+ * @property string $locale
+ * @property string $status
+ */
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory;
+    use HasApiTokens, HasFactory;
 
     protected $fillable = [
         'phone', 'email', 'full_name', 'account_type', 'locale',
