@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\Admin\DocumentReviewController;
 use App\Http\Controllers\Api\V1\Admin\KycProviderController;
 use App\Http\Controllers\Api\V1\Admin\KycReviewController;
 use App\Http\Controllers\Api\V1\Admin\ObservabilityController;
+use App\Http\Controllers\Api\V1\Admin\PlatformStateController;
 use App\Http\Controllers\Api\V1\Admin\PushProviderController;
 use App\Http\Controllers\Api\V1\Admin\SmsProviderController;
 use App\Http\Controllers\Api\V1\AssetController;
@@ -28,6 +29,7 @@ use App\Http\Controllers\Api\V1\QuotaController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\TransferController;
 use App\Http\Controllers\Api\V1\WatchAlertController;
+use App\Http\Middleware\EnsurePlatformIsWritable;
 use App\Http\Middleware\EnsureUserHasBackOfficeAccess;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
@@ -76,8 +78,10 @@ Route::prefix('v1')->group(function (): void {
         });
     });
 
-    // Toute écriture exige un compte authentifié (règle métier absolue n° 2).
-    Route::middleware('auth:sanctum')->group(function (): void {
+    // Toute écriture exige un compte authentifié (règle métier absolue n° 2),
+    // et cède la première pendant une maintenance en lecture seule (ST-0904) :
+    // enregistrer peut attendre une heure, vérifier un bien avant de payer non.
+    Route::middleware(['auth:sanctum', EnsurePlatformIsWritable::class])->group(function (): void {
         Route::post('assets', [AssetController::class, 'store']);
 
         // Renforcement de la fiabilité APRÈS l'enregistrement (ST-0207) : c'est
@@ -174,6 +178,9 @@ Route::prefix('v1')->group(function (): void {
         Route::get('audit-anchor', [AuditAnchorController::class, 'show']);
         Route::put('audit-anchor', [AuditAnchorController::class, 'update']);
         Route::get('audit-anchor/verify', [AuditAnchorController::class, 'verify']);
+
+        Route::get('platform-state', [PlatformStateController::class, 'show']);
+        Route::put('platform-state', [PlatformStateController::class, 'update']);
 
         Route::get('push-provider', [PushProviderController::class, 'show']);
         Route::put('push-provider', [PushProviderController::class, 'update']);

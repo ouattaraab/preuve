@@ -90,6 +90,17 @@ return [
     // Conservation des consultations : politique déclarée à l'ARTCI
     'lookup_retention_months' => 12,
 
+    /*
+    | Sauvegardes (ST-0904). `disk` doit pointer AILLEURS que la machine
+    | sauvegardée : une sauvegarde qui vit sur le disque qu'elle sauvegarde ne
+    | protège ni d'une panne, ni d'un effacement volontaire. Vide = sauvegarde
+    | désactivée, et la commande le dit plutôt que d'échouer en silence.
+    */
+    'backup' => [
+        'disk' => env('PREUVE_BACKUP_DISK'),
+        'mysqldump' => env('PREUVE_MYSQLDUMP_PATH', 'mysqldump'),
+    ],
+
     'documents' => [
         // Bucket chiffré au repos (MinIO en production). Les pièces déposées
         // contiennent des données personnelles — carte grise, facture
