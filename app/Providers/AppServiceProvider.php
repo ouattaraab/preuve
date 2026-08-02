@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Extensions\PreuveSessionHandler;
+use App\Services\Otp\LogOtpSender;
+use App\Services\Otp\OtpSender;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\ServiceProvider;
@@ -16,7 +18,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Acheminement des codes OTP. Tant qu'aucun fournisseur SMS ivoirien
+        // n'est arbitré (question ouverte du cadrage), le développement passe
+        // par les journaux — LogOtpSender refuse de s'exécuter en production,
+        // pour qu'un déploiement sans fournisseur échoue bruyamment plutôt
+        // que d'écrire des codes d'accès en clair dans un fichier de log.
+        $this->app->bind(OtpSender::class, LogOtpSender::class);
     }
 
     /**
