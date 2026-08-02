@@ -5,7 +5,7 @@
 ## Où on en est
 Cadrage COMPLET (brief BMAD, PRD, schéma MySQL v1.1, backlog v1.1, prototypes).
 Développement du socle en cours :
-- ✅ Application Laravel 11 configurée pour hébergement mutualisé (sans Redis), CI Pest + Larastan + Pint
+- ✅ Application Laravel 12 configurée pour hébergement mutualisé (sans Redis), CI Pest + Larastan + Pint
 - ✅ Enums du domaine (`LifeStatus`, `TrustLevel`, `ActorType`, `OtpPurpose`, `TriggerType`) avec libellés en langage courant (CT-04)
 - ✅ Tables `users`, `otp_codes`, `sessions` (jamais d'IP en clair), `audit_log`
 - ✅ ST-0106 `AuditChain` : empreinte sur toutes les colonnes métier, verrou nommé, déclencheurs d'inaltérabilité, `transaction()` pour englober une action métier
@@ -21,7 +21,7 @@ Développement du socle en cours :
 - ✅ Laravel monté de 11 à 12 (`composer audit` vide) ; rôles de back-office (`user`/`agent`/`admin`), `app_settings` chiffrés, passerelle SMS configurable depuis `/api/v1/admin/sms-provider` — voir `docs/infrastructure/fournisseur-sms.md`
 
 ## Décisions récentes (à ne pas rediscuter)
-1. Backend **Laravel 11 + MariaDB** (pas PostgreSQL) — unicité via `(identifier_normalized, active_flag)`.
+1. Backend **Laravel 12 + MariaDB** (pas PostgreSQL ; monté de 11 à 12 le 02/08/2026 pour clore 3 avis de sécurité) — unicité via `(identifier_normalized, active_flag)`.
 2. Enregistrement d'un bien : **authentification obligatoire** (OTP). Consultation : jamais.
 3. Notifications de consultation : **agrégées, anonymes**, in-app + push, SMS réservé au critique.
 4. Rapport détaillé : accessible **connecté OU invité identifié** (nom+email+téléphone OTP avant paiement), accès par token 30 j.
