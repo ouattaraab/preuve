@@ -13,7 +13,8 @@ En fin de session significative, mets à jour `activeContext.md` et `progress.md
 
 ## Stack (ne pas dévier)
 
-- **Backend** : Laravel 11 (API REST), PHP 8.3, **MySQL 8.0+** (InnoDB, utf8mb4_0900_ai_ci), Redis + Horizon (queues), Sanctum (auth OTP, pas de mot de passe au MVP)
+- **Backend** : Laravel 12 (API REST), PHP 8.3+, **MySQL 8.0+ / MariaDB** (InnoDB, utf8mb4), Redis + Horizon (queues), Sanctum (auth OTP, pas de mot de passe au MVP)
+  - *Passé de Laravel 11 à 12 le 02/08/2026* : la branche 11 ne recevait plus de correctif pour trois avis de sécurité, dont une injection CRLF dans la règle de validation `email` (utilisée au guest checkout). Ne jamais redescendre.
 - **Mobile** : Flutter (iOS/Android)
 - **Web public** : front léger orienté consultation/SEO (pages de statut par `public_ref`)
 - **Stockage objets** : MinIO (documents chiffrés au repos) · **OCR/KYC** : Mindee · **Secrets** : Vault
