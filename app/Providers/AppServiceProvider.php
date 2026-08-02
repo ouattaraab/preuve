@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Extensions\PreuveSessionHandler;
+use App\Services\Kyc\IdentityReader;
+use App\Services\Kyc\MindeeIdentityReader;
 use App\Services\Otp\ConfigurableOtpSender;
 use App\Services\Otp\OtpSender;
 use App\Services\Settings\SettingsRepository;
@@ -30,6 +32,13 @@ class AppServiceProvider extends ServiceProvider
         // fournisseur échoue bruyamment plutôt que d'écrire des codes d'accès
         // en clair dans un fichier de log.
         $this->app->bind(OtpSender::class, ConfigurableOtpSender::class);
+
+        // Extraction des pièces d'identité. Mindee est le fournisseur de la
+        // stack, mais sa clé se configure en exploitation : sans clé, le
+        // lecteur rend une extraction vide et le dossier part en revue
+        // manuelle — la plateforme ne dépend jamais d'un tiers pour continuer
+        // à vérifier des identités.
+        $this->app->bind(IdentityReader::class, MindeeIdentityReader::class);
     }
 
     /**

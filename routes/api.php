@@ -3,10 +3,13 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Admin\DocumentReviewController;
+use App\Http\Controllers\Api\V1\Admin\KycProviderController;
+use App\Http\Controllers\Api\V1\Admin\KycReviewController;
 use App\Http\Controllers\Api\V1\Admin\SmsProviderController;
 use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\AssetDocumentController;
 use App\Http\Controllers\Api\V1\ConfigController;
+use App\Http\Controllers\Api\V1\KycController;
 use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OtpAuthController;
@@ -50,6 +53,11 @@ Route::prefix('v1')->group(function (): void {
         Route::post('assets/{asset}/documents', [AssetDocumentController::class, 'store']);
         Route::get('assets/{asset}/trust', [AssetDocumentController::class, 'trust']);
 
+        // Vérification d'identité : friction assumée, exigée seulement pour
+        // documenter, réclamer ou transférer (ST-0103, CT-06).
+        Route::get('kyc', [KycController::class, 'show']);
+        Route::post('kyc', [KycController::class, 'store']);
+
         Route::get('notifications', [NotificationController::class, 'index']);
         Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
         Route::post('notifications/{notification}/read', [NotificationController::class, 'markAsRead']);
@@ -61,6 +69,9 @@ Route::prefix('v1')->group(function (): void {
     // justificatif n'est pas configurer la plateforme.
     Route::prefix('admin')->middleware(['auth:sanctum', EnsureUserHasBackOfficeAccess::class])
         ->group(function (): void {
+            Route::get('kyc', [KycReviewController::class, 'index']);
+            Route::post('kyc/{submission}/review', [KycReviewController::class, 'review']);
+
             Route::get('documents', [DocumentReviewController::class, 'index']);
             Route::post('documents/{document}/review', [DocumentReviewController::class, 'review']);
             Route::post('assets/{asset}/verify', [DocumentReviewController::class, 'verify']);
@@ -72,5 +83,8 @@ Route::prefix('v1')->group(function (): void {
         Route::get('sms-provider', [SmsProviderController::class, 'show']);
         Route::put('sms-provider', [SmsProviderController::class, 'update']);
         Route::post('sms-provider/test', [SmsProviderController::class, 'test']);
+
+        Route::get('kyc-provider', [KycProviderController::class, 'show']);
+        Route::put('kyc-provider', [KycProviderController::class, 'update']);
     });
 });

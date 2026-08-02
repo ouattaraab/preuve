@@ -215,7 +215,7 @@ final class TrustLevelEngine
     {
         $detenteur = $bien->owner;
 
-        return $detenteur instanceof User && $detenteur->kyc_status === 'verified';
+        return $detenteur instanceof User && $detenteur->hasVerifiedIdentity();
     }
 
     private function hasBackOfficeVerification(Asset $bien): bool

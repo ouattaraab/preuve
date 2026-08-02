@@ -196,10 +196,19 @@ it('n\'expose jamais l\'identité du détenteur dans le résultat', function ():
     // doit rien apprendre du déclarant.
     $bien = bienConsultable();
 
+    // Identifiant volontairement improbable : avec un petit entier,
+    // l'assertion d'absence passerait sur n'importe quelle date ou couleur.
+    DB::table('users')->insert([
+        'id' => 987654, 'phone' => '+2250701020304', 'full_name' => 'Awa Koné',
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+    DB::table('assets')->where('id', $bien->id)->update(['owner_user_id' => 987654]);
+
     $resultat = app(LookupService::class)->lookup('1M8GDM9AXKP042788', '41.66.0.1');
 
     expect(json_encode($resultat->toPublicArray()))
-        ->not->toContain((string) $bien->owner_user_id)
+        ->not->toContain('987654')
+        ->and(json_encode($resultat->toPublicArray()))->not->toContain('Awa Koné')
         ->and($resultat->toPublicArray())->not->toHaveKey('owner_user_id');
 });
 
