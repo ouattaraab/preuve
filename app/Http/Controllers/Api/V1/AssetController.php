@@ -10,6 +10,7 @@ use App\Http\Resources\PublicAssetResource;
 use App\Models\User;
 use App\Services\AssetRegistrationService;
 use App\Services\CategoryRegistry;
+use App\Services\QuotaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -25,6 +26,7 @@ final class AssetController extends Controller
     public function __construct(
         private readonly AssetRegistrationService $registration,
         private readonly CategoryRegistry $categories,
+        private readonly QuotaService $quotas,
     ) {}
 
     public function store(Request $request): JsonResponse
@@ -93,6 +95,12 @@ final class AssetController extends Controller
             throw ValidationException::withMessages(['attributes' => $e->getMessage()]);
         }
 
-        return response()->json(['asset' => new PublicAssetResource($bien)], 201);
+        // Le quota accompagne la réponse sans jamais l'avoir empêchée
+        // (ST-0804, upsell non bloquant) : un bien non enregistré est un bien
+        // non protégé.
+        return response()->json([
+            'asset' => new PublicAssetResource($bien),
+            'quota' => $this->quotas->forUser($proprietaire),
+        ], 201);
     }
 }

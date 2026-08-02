@@ -60,6 +60,25 @@ return [
     */
     'report_price_fcfa' => (int) env('PREUVE_REPORT_PRICE', 1000),
 
+    /*
+    | Tarification des enregistrements au-delà du quota gratuit (ST-0804) et
+    | paliers d'abonnement de flotte (ST-0805).
+    |
+    | Les paliers font baisser le coût par véhicule : sans eux, un loueur de
+    | cent véhicules paierait cent fois le prix d'un particulier pour le même
+    | service, et n'aurait aucune raison de tout déclarer — alors que c'est
+    | précisément la couverture complète du parc qui fait la valeur du registre.
+    */
+    'asset_slot_price_fcfa' => (int) env('PREUVE_SLOT_PRICE', 500),
+
+    'fleet_tiers' => [
+        // taille du parc à partir de laquelle s'applique le prix unitaire
+        1 => 500,
+        10 => 400,
+        50 => 300,
+        200 => 200,
+    ],
+
     // Conservation des consultations : politique déclarée à l'ARTCI
     'lookup_retention_months' => 12,
 

@@ -7,6 +7,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property int $id
+ * @property int $owner_user_id
+ * @property string $legal_name
+ * @property string $rccm_number
+ * @property string $validation_status
+ * @property int $free_fleet_quota
+ */
 class Company extends Model
 {
     protected $fillable = [

@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OtpAuthController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
+use App\Http\Controllers\Api\V1\QuotaController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\TransferController;
 use App\Http\Controllers\Api\V1\WatchAlertController;
@@ -101,6 +102,8 @@ Route::prefix('v1')->group(function (): void {
         Route::post('claims/{claim}/submit', [ClaimController::class, 'submit']);
         Route::get('claims/{claim}', [ClaimController::class, 'show']);
         Route::post('claims/{claim}/appeal', [ClaimController::class, 'appeal']);
+
+        Route::get('quota', [QuotaController::class, 'show']);
 
         Route::get('notifications', [NotificationController::class, 'index']);
         Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
