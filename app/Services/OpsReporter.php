@@ -21,10 +21,19 @@ use Throwable;
  * que personne ne va le lire, et personne ne va lire ce qu'il ne sait pas
  * attendre.
  *
- * IL PART MÊME QUAND TOUT VA BIEN, et c'est délibéré. Un rapport qui n'arrive
- * qu'en cas d'anomalie est indistinguable d'une tâche qui a cessé de tourner :
- * le silence devient ambigu, et l'ambiguïté se lit toujours comme « rien à
- * signaler ». Sur une cadence mensuelle, le coût du bruit est nul.
+ * SA VALEUR VIENT DE SA RARETÉ. Toutes les tâches n'ont pas à écrire ici : une
+ * purge qui purge n'apprend rien à personne, et un canal alimenté par tout
+ * finirait filtré — emportant avec lui les rapports qui comptent. N'y écrivent
+ * que les tâches capables de détecter un défaut SILENCIEUX, celui qu'aucun
+ * utilisateur ne verra jamais : chaîne non ancrée, sauvegarde absente, pièce
+ * disparue, pièce orpheline.
+ *
+ * DEUX CADENCES, DEUX RÈGLES. Les contrôles espacés — hebdomadaire, mensuel —
+ * écrivent dans TOUS les cas : un rapport qui n'arriverait qu'en cas d'anomalie
+ * est indistinguable d'une tâche qui a cessé de tourner, et l'ambiguïté se lit
+ * toujours comme « rien à signaler ». Les tâches quotidiennes, elles, n'écrivent
+ * qu'en cas d'anomalie (voir `alert()`) : leur accusé quotidien serait le bruit
+ * qui ferait perdre l'habitude d'ouvrir les autres.
  *
  * IL NE FAIT JAMAIS ÉCHOUER CE QU'IL RAPPORTE. Une passerelle de messagerie
  * indisponible ne doit ni masquer un rapport sain, ni transformer un rapport
@@ -58,7 +67,28 @@ final class OpsReporter
     }
 
     /**
+     * Alerte : n'expédie QUE s'il y a quelque chose à traiter.
+     *
+     * Réservée aux tâches QUOTIDIENNES. Leur envoyer un accusé chaque jour
+     * produirait trois cent soixante-cinq messages par an, et le destinataire
+     * apprendrait à les archiver sans les ouvrir — y compris celui qui compte.
+     *
+     * Leur silence n'est pas ambigu pour autant : les contrôles hebdomadaire et
+     * mensuel, eux, écrivent dans tous les cas. Si RIEN n'arrive pendant une
+     * semaine, ce n'est pas que tout va bien — c'est que le planificateur est
+     * arrêté.
+     */
+    public function alert(string $titre, string $corps, bool $anomalie, ?string $journal = null): bool
+    {
+        return $anomalie && $this->send($titre, $corps, true, $journal);
+    }
+
+    /**
      * Expédie un rapport. Rend vrai si un courriel est parti.
+     *
+     * Réservé aux tâches ESPACÉES — hebdomadaires, mensuelles — pour lesquelles
+     * l'accusé de bonne santé vaut la peine d'être reçu : il atteste que la
+     * mécanique tourne.
      *
      * @param  bool  $anomalie  vrai si le rapport signale quelque chose à traiter
      */

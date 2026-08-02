@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Services\AuditAnchorService;
+use App\Services\OpsReporter;
 use Illuminate\Console\Command;
 
 /**
@@ -15,12 +16,22 @@ use Illuminate\Console\Command;
  * n'est plus opposable. Une commande qui réussirait silencieusement en n'ayant
  * rien publié entretiendrait exactement l'illusion contre laquelle l'ancrage
  * existe.
+ *
+ * L'échec part aussi au destinataire d'exploitation. C'est LE défaut silencieux
+ * de la plateforme : tout continue de fonctionner, aucun utilisateur ne voit
+ * rien, et la chaîne cesse d'être opposable. Un code de sortie non nul dans un
+ * journal de cron ne réveille personne.
  */
 final class AnchorAuditHead extends Command
 {
     protected $signature = 'preuve:anchor-audit-head';
 
     protected $description = "Publie l'empreinte de tête de la chaîne d'audit hors de la plateforme";
+
+    public function __construct(private readonly OpsReporter $rapports)
+    {
+        parent::__construct();
+    }
 
     public function handle(AuditAnchorService $anchors): int
     {
@@ -58,10 +69,19 @@ final class AnchorAuditHead extends Command
             return self::SUCCESS;
         }
 
-        $this->components->error(
-            "AUCUN canal externe n'a abouti : la chaîne d'audit N'EST PAS opposable pour cette période. ".
+        $message = "AUCUN canal externe n'a abouti : la chaîne d'audit N'EST PAS opposable pour cette ".
+            'période. '.
             ($absents !== [] ? 'Canaux non configurés : '.implode(', ', $absents).'. ' : '').
-            ($echoues !== [] ? 'Canaux en échec : '.implode(', ', $echoues).'.' : '')
+            ($echoues !== [] ? 'Canaux en échec : '.implode(', ', $echoues).'.' : '');
+
+        $this->components->error($message);
+
+        $this->rapports->alert(
+            "Ancrage de la chaîne d'audit",
+            $message.PHP_EOL.PHP_EOL.
+            "Tant qu'aucun ancrage n'aboutit, la cohérence interne de la chaîne ne prouve rien : ".
+            'l\'algorithme est public, et une chaîne reconstruite la passerait sans difficulté.',
+            true,
         );
 
         return self::FAILURE;

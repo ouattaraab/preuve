@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Services\DocumentInventory;
+use App\Services\OpsReporter;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
@@ -53,8 +54,10 @@ final class BackupDocuments extends Command
 
     protected $description = 'Sauvegarde chiffrée des pièces du bucket, adressées par contenu';
 
-    public function __construct(private readonly DocumentInventory $inventaire)
-    {
+    public function __construct(
+        private readonly DocumentInventory $inventaire,
+        private readonly OpsReporter $rapports,
+    ) {
         parent::__construct();
     }
 
@@ -161,6 +164,15 @@ final class BackupDocuments extends Command
         $this->rapporter($manquants, $alteres);
 
         if ($manquants !== [] || $alteres !== []) {
+            // Quotidienne : elle n'écrit au destinataire qu'en cas d'anomalie.
+            // Un accusé chaque nuit ferait perdre l'habitude d'ouvrir les
+            // rapports qui comptent.
+            $this->rapports->alert(
+                'Sauvegarde des pièces',
+                $this->synthese($total, $deja, $copies, $manquants, $alteres),
+                true,
+            );
+
             return self::FAILURE;
         }
 
@@ -223,7 +235,69 @@ final class BackupDocuments extends Command
 
         $this->rapporter($manquants, $alteres);
 
-        return $manquants === [] && $alteres === [] ? self::SUCCESS : self::FAILURE;
+        $sain = $manquants === [] && $alteres === [];
+
+        // Hebdomadaire : elle écrit DANS TOUS LES CAS. C'est ce passage qui
+        // atteste que la mécanique tourne, et qui rend non ambigu le silence
+        // des tâches quotidiennes.
+        $this->rapports->send(
+            'Intégrité des pièces sauvegardées',
+            implode(PHP_EOL, array_filter([
+                'Pièces référencées : '.$total,
+                'Empreintes conformes à celles figées au dépôt : '.$intactes,
+                $nonSauvegardees > 0 ? 'Restant à sauvegarder : '.$nonSauvegardees : null,
+                '',
+                $sain
+                    ? 'Aucune pièce altérée ni manquante.'
+                    : $this->detail($manquants, $alteres),
+            ], static fn (?string $ligne): bool => $ligne !== null)),
+            ! $sain,
+        );
+
+        return $sain ? self::SUCCESS : self::FAILURE;
+    }
+
+    /**
+     * @param  list<string>  $manquants
+     * @param  list<string>  $alteres
+     */
+    private function synthese(int $total, int $deja, int $copies, array $manquants, array $alteres): string
+    {
+        return implode(PHP_EOL, [
+            'Pièces référencées : '.$total,
+            'Déjà sauvegardées : '.$deja,
+            'Copiées ce passage : '.$copies,
+            '',
+            $this->detail($manquants, $alteres),
+        ]);
+    }
+
+    /**
+     * @param  list<string>  $manquants
+     * @param  list<string>  $alteres
+     */
+    private function detail(array $manquants, array $alteres): string
+    {
+        $lignes = [];
+
+        foreach ([
+            'Référencées mais INTROUVABLES dans le bucket' => $manquants,
+            'MODIFIÉES depuis leur dépôt' => $alteres,
+        ] as $titre => $entrees) {
+            if ($entrees === []) {
+                continue;
+            }
+
+            $lignes[] = count($entrees).' — '.$titre;
+
+            foreach ($entrees as $entree) {
+                $lignes[] = '  '.$entree;
+            }
+
+            $lignes[] = '';
+        }
+
+        return implode(PHP_EOL, $lignes);
     }
 
     /**

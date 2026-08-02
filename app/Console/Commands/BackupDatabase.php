@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Services\OpsReporter;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
@@ -34,15 +35,21 @@ final class BackupDatabase extends Command
 
     protected $description = 'Produit une sauvegarde chiffrée de la base et la dépose hors machine';
 
+    public function __construct(private readonly OpsReporter $rapports)
+    {
+        parent::__construct();
+    }
+
     public function handle(): int
     {
         $disque = $this->disk();
 
         if ($disque === null) {
-            $this->components->error(
-                'Aucun disque de sauvegarde configuré (preuve.backup.disk) : une sauvegarde qui reste sur '.
-                'la machine qu\'elle sauvegarde ne protège de rien.'
-            );
+            $message = 'Aucun disque de sauvegarde configuré (preuve.backup.disk) : une sauvegarde qui reste '.
+                'sur la machine qu\'elle sauvegarde ne protège de rien.';
+
+            $this->components->error($message);
+            $this->rapports->alert('Sauvegarde de la base', $message, true);
 
             return self::FAILURE;
         }
@@ -51,6 +58,14 @@ final class BackupDatabase extends Command
             $dump = $this->dump();
         } catch (Throwable $e) {
             $this->components->error('Sauvegarde impossible : '.$e->getMessage());
+
+            // Une sauvegarde absente ne se voit pas : tout continue de
+            // fonctionner, et c'est le jour de la panne qu'on l'apprend.
+            $this->rapports->alert(
+                'Sauvegarde de la base',
+                'Aucune sauvegarde n\'a pu être produite cette nuit.'.PHP_EOL.PHP_EOL.$e->getMessage(),
+                true,
+            );
 
             return self::FAILURE;
         }
