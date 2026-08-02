@@ -36,8 +36,12 @@ use App\Models\User;
  */
 final class LookupService
 {
-    /** Consultations anonymes tolérées par heure et par empreinte d'adresse. */
-    private const ANONYMOUS_HOURLY_LIMIT = 10;
+    /**
+     * Plafond de repli si la configuration est absente ou aberrante. La valeur
+     * qui fait foi est `preuve.lookup_rate_limit.anonymous_per_hour`, verrouillée
+     * par ConfigurationMutualiseeTest.
+     */
+    private const ANONYMOUS_HOURLY_LIMIT_FALLBACK = 10;
 
     /** Longueur en deçà de laquelle une saisie ne peut désigner aucun bien. */
     private const MIN_IDENTIFIER_LENGTH = 6;
@@ -105,7 +109,16 @@ final class LookupService
             ->where('created_at', '>', now()->subHour())
             ->count();
 
-        return $consultations >= self::ANONYMOUS_HOURLY_LIMIT;
+        return $consultations >= $this->anonymousHourlyLimit();
+    }
+
+    private function anonymousHourlyLimit(): int
+    {
+        $plafond = config('preuve.lookup_rate_limit.anonymous_per_hour');
+
+        return is_numeric($plafond) && (int) $plafond > 0
+            ? (int) $plafond
+            : self::ANONYMOUS_HOURLY_LIMIT_FALLBACK;
     }
 
     private function journal(

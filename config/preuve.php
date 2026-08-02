@@ -25,8 +25,27 @@ return [
         'max_attempts' => 3,
         // Verrouillage progressif après épuisement des tentatives, en minutes
         'lockout_steps_minutes' => [1, 5, 15, 60],
+        // Période d'observation des récidives : au-delà, le compteur de
+        // verrouillages repart de zéro et la sanction redevient légère
+        'lockout_window_hours' => 24,
+        // Délai minimal entre deux envois vers un même numéro : protège
+        // l'abonné d'un pilonnage de SMS déclenché par un tiers
+        'resend_delay_seconds' => 60,
+        // Plafond horaire d'envois vers un même numéro : protège le budget SMS
+        'max_requests_per_hour' => 5,
     ],
 
     // Conservation des consultations : politique déclarée à l'ARTCI
     'lookup_retention_months' => 12,
+
+    'documents' => [
+        // Bucket chiffré au repos (MinIO en production). Les pièces déposées
+        // contiennent des données personnelles — carte grise, facture
+        // nominative : jamais de disque public, jamais d'URL devinable.
+        'disk' => env('PREUVE_DOCUMENTS_DISK', 's3'),
+        // Taille maximale d'un justificatif, en kilo-octets. Volontairement
+        // modeste : le dépôt se fait souvent en 3G (CT-05), et une carte grise
+        // photographiée y tient largement.
+        'max_kb' => (int) env('PREUVE_DOCUMENTS_MAX_KB', 8192),
+    ],
 ];

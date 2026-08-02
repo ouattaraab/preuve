@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\DB;
  */
 final class PurgeLookups extends Command
 {
-    protected $signature = 'preuve:purge-lookups {--months=12 : Ancienneté au-delà de laquelle purger}';
+    protected $signature = 'preuve:purge-lookups {--months= : Ancienneté au-delà de laquelle purger}';
 
     protected $description = 'Purge les consultations de plus de 12 mois (politique ARTCI)';
 
@@ -29,7 +29,16 @@ final class PurgeLookups extends Command
 
     public function handle(): int
     {
-        $mois = max(1, (int) $this->option('months'));
+        // Sans option explicite, la durée de conservation déclarée à l'ARTCI
+        // fait foi (config/preuve.php) : elle ne doit pas être redéfinie ici.
+        $demande = $this->option('months');
+        $configuree = config('preuve.lookup_retention_months');
+
+        $mois = is_numeric($demande)
+            ? (int) $demande
+            : (is_numeric($configuree) ? (int) $configuree : 12);
+
+        $mois = max(1, $mois);
         $limite = now()->subMonths($mois);
         $supprimees = 0;
 

@@ -55,8 +55,12 @@ final class AssetRegistrationService
 
     private const PUBLIC_REF_MAX_TRIES = 10;
 
-    /** Durée de la fenêtre de contestation d'un enregistrement récent. */
-    private const PROVISIONAL_DAYS = 30;
+    /**
+     * Repli si la configuration est absente ou aberrante. La valeur qui fait
+     * foi est `preuve.provisional_days`, verrouillée par
+     * ConfigurationMutualiseeTest.
+     */
+    private const PROVISIONAL_DAYS_FALLBACK = 30;
 
     public function __construct(
         private readonly CategoryRegistry $categories,
@@ -170,7 +174,7 @@ final class AssetRegistrationService
                     'attributes' => $attributes,
                     'trust_level' => TrustLevel::Declared,
                     'life_status' => LifeStatus::Provisional,
-                    'provisional_until' => $registeredAt->copy()->addDays(self::PROVISIONAL_DAYS),
+                    'provisional_until' => $registeredAt->copy()->addDays($this->provisionalDays()),
                     'registered_at' => $registeredAt,
                 ]);
 
@@ -274,6 +278,13 @@ final class AssetRegistrationService
             $existant,
             ['identifier_type' => $existant->identifier_type],
         );
+    }
+
+    private function provisionalDays(): int
+    {
+        $jours = config('preuve.provisional_days');
+
+        return is_numeric($jours) && (int) $jours > 0 ? (int) $jours : self::PROVISIONAL_DAYS_FALLBACK;
     }
 
     private function assertCategoryIsPublished(string $categoryKey): void

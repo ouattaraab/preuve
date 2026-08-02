@@ -25,6 +25,8 @@ use Illuminate\Support\Carbon;
  * @property LifeStatus $life_status
  * @property Carbon|null $provisional_until
  * @property Carbon|null $stolen_declared_at
+ * @property Carbon|null $trust_verified_at
+ * @property int|null $trust_verified_by
  * @property bool $stolen_consolidated
  * @property Carbon $registered_at
  */

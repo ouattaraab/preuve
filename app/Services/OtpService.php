@@ -293,38 +293,38 @@ final class OtpService
 
     private function codeLength(): int
     {
-        return $this->configInt('otp.length', 6);
+        return $this->configInt('preuve.otp.length', 6);
     }
 
     private function ttlMinutes(): int
     {
-        return $this->configInt('otp.ttl_minutes', 5);
+        return $this->configInt('preuve.otp.ttl_minutes', 5);
     }
 
     private function maxAttempts(): int
     {
-        return $this->configInt('otp.max_attempts', 3);
+        return $this->configInt('preuve.otp.max_attempts', 3);
     }
 
     private function resendDelaySeconds(): int
     {
-        return $this->configInt('otp.resend_delay_seconds', 60);
+        return $this->configInt('preuve.otp.resend_delay_seconds', 60);
     }
 
     private function maxRequestsPerHour(): int
     {
-        return $this->configInt('otp.max_requests_per_hour', 5);
+        return $this->configInt('preuve.otp.max_requests_per_hour', 5);
     }
 
     private function lockoutWindowHours(): int
     {
-        return $this->configInt('otp.lockout_window_hours', 24);
+        return $this->configInt('preuve.otp.lockout_window_hours', 24);
     }
 
     /** @return non-empty-list<int> */
     private function lockoutSchedule(): array
     {
-        $paliers = config('otp.lockout_minutes');
+        $paliers = config('preuve.otp.lockout_steps_minutes');
         $retenus = [];
 
         if (is_array($paliers)) {
@@ -335,7 +335,7 @@ final class OtpService
             }
         }
 
-        return $retenus === [] ? [5, 15, 60, 1440] : $retenus;
+        return $retenus === [] ? [1, 5, 15, 60] : $retenus;
     }
 
     private function configInt(string $cle, int $defaut): int

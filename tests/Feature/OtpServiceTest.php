@@ -35,6 +35,19 @@ it('émet un code à six chiffres, valide cinq minutes', function (): void {
         ->and($defi->max_attempts)->toBe(3);
 });
 
+it('lit ses paramètres dans la configuration du projet, pas ailleurs', function (): void {
+    // config/preuve.php est la source de vérité des paramètres métier
+    // (verrouillée par ConfigurationMutualiseeTest). Un second fichier de
+    // configuration parallèle laisserait un réglage modifié sans effet.
+    config()->set('preuve.otp.length', 4);
+    config()->set('preuve.otp.max_attempts', 7);
+
+    $defi = $this->otp->request('+2250700000001', OtpPurpose::Login);
+
+    expect(dernierCode())->toMatch('/^\d{4}$/')
+        ->and($defi->max_attempts)->toBe(7);
+});
+
 it('ne stocke jamais le code en clair', function (): void {
     $this->otp->request('+2250700000001', OtpPurpose::Login);
 
