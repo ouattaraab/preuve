@@ -63,7 +63,10 @@ function bienAvecProprietaire(): Asset
         'asset_category_key' => 'voiture',
         'identifier_type' => 'vin',
         'identifier_raw' => '1M8GDM9AXKP042788',
-        'identifier_normalized' => '1M8GDM9AXKP0427'.random_int(10, 99),
+        // Réellement unique : l'index (identifier_normalized, active_flag) est
+        // la règle métier absolue n° 3, et deux biens de test qui collident
+        // feraient échouer le test pour une raison sans rapport avec son objet.
+        'identifier_normalized' => 'BENCH'.strtoupper(bin2hex(random_bytes(6))),
         'active_flag' => 1,
         'attributes' => [],
         'trust_level' => TrustLevel::Declared,

@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use Generator;
+use App\Services\DocumentInventory;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
@@ -54,25 +53,10 @@ final class BackupDocuments extends Command
 
     protected $description = 'Sauvegarde chiffrée des pièces du bucket, adressées par contenu';
 
-    /** @var array<string, array{table: string, colonnes: array<string, string>}> */
-    private const FAMILLES = [
-        'justificatif' => [
-            'table' => 'asset_documents',
-            'colonnes' => ['file_ref' => 'file_sha256'],
-        ],
-        'réclamation' => [
-            'table' => 'claim_evidences',
-            'colonnes' => ['file_ref' => 'file_sha256'],
-        ],
-        'identité' => [
-            'table' => 'kyc_submissions',
-            'colonnes' => [
-                'id_front_ref' => 'id_front_sha256',
-                'id_back_ref' => 'id_back_sha256',
-                'selfie_ref' => 'selfie_sha256',
-            ],
-        ],
-    ];
+    public function __construct(private readonly DocumentInventory $inventaire)
+    {
+        parent::__construct();
+    }
 
     public function handle(): int
     {
@@ -120,10 +104,10 @@ final class BackupDocuments extends Command
         $manquants = [];
         $alteres = [];
 
-        foreach ($this->objets() as $objet) {
+        foreach ($this->inventaire->objets() as $objet) {
             $total++;
 
-            if (Storage::disk($sauvegarde)->exists($this->backupPath($objet['sha']))) {
+            if (Storage::disk($sauvegarde)->exists($this->inventaire->backupPath($objet['sha']))) {
                 $deja++;
 
                 continue;
@@ -148,7 +132,7 @@ final class BackupDocuments extends Command
                 // pas le contrôle d'intégrité : celui-ci relit TOUT (--verify).
                 $alteres[] = $this->ecart($objet, $reelle);
 
-                if (Storage::disk($sauvegarde)->exists($this->backupPath($reelle))) {
+                if (Storage::disk($sauvegarde)->exists($this->inventaire->backupPath($reelle))) {
                     $deja++;
 
                     continue;
@@ -158,7 +142,7 @@ final class BackupDocuments extends Command
             // Sauvegardée sous son empreinte RÉELLE, altérée ou non : refuser
             // laisserait pour seule copie celle, peut-être substituée, du
             // bucket.
-            Storage::disk($sauvegarde)->put($this->backupPath($reelle), Crypt::encryptString($contenu));
+            Storage::disk($sauvegarde)->put($this->inventaire->backupPath($reelle), Crypt::encryptString($contenu));
             $copies++;
         }
 
@@ -208,7 +192,7 @@ final class BackupDocuments extends Command
         $manquants = [];
         $alteres = [];
 
-        foreach ($this->objets() as $objet) {
+        foreach ($this->inventaire->objets() as $objet) {
             $total++;
 
             $contenu = $this->lire($source, $objet, $manquants);
@@ -225,7 +209,7 @@ final class BackupDocuments extends Command
                 $alteres[] = $this->ecart($objet, $reelle);
             }
 
-            if (! Storage::disk($sauvegarde)->exists($this->backupPath($reelle))) {
+            if (! Storage::disk($sauvegarde)->exists($this->inventaire->backupPath($reelle))) {
                 $nonSauvegardees++;
             }
         }
@@ -286,61 +270,5 @@ final class BackupDocuments extends Command
         foreach ($alteres as $altere) {
             $this->components->error('Pièce modifiée depuis son dépôt : '.$altere);
         }
-    }
-
-    /**
-     * Énumère les pièces DEPUIS LA BASE, jamais depuis le bucket.
-     *
-     * La base est l'index de ce qui est une pièce : un objet présent sur le
-     * bucket sans ligne qui le désigne n'a ni propriétaire déclaré, ni chemin
-     * de revue, et le sauvegarder perpétuerait une donnée qui devrait être
-     * purgée. Lister un bucket de production coûterait par ailleurs bien plus
-     * qu'une lecture indexée.
-     *
-     * @return Generator<int, array{label: string, ref: string, sha: string}>
-     */
-    private function objets(): Generator
-    {
-        foreach (self::FAMILLES as $famille => $definition) {
-            $colonnes = array_merge(
-                ['id'],
-                array_keys($definition['colonnes']),
-                array_values($definition['colonnes']),
-            );
-
-            $lignes = DB::table($definition['table'])->orderBy('id')->select($colonnes)->cursor();
-
-            foreach ($lignes as $ligne) {
-                $ligne = (array) $ligne;
-
-                foreach ($definition['colonnes'] as $colonneRef => $colonneSha) {
-                    $ref = $ligne[$colonneRef] ?? null;
-                    $sha = $ligne[$colonneSha] ?? null;
-
-                    // Une pièce de réclamation peut être une déclaration sans
-                    // fichier : ce n'est pas une anomalie.
-                    if (! is_string($ref) || $ref === '' || ! is_string($sha) || $sha === '') {
-                        continue;
-                    }
-
-                    yield [
-                        'label' => $famille.' #'.(is_scalar($ligne['id'] ?? null) ? (string) $ligne['id'] : '?').
-                            ' ('.$colonneRef.')',
-                        'ref' => $ref,
-                        'sha' => $sha,
-                    ];
-                }
-            }
-        }
-    }
-
-    /**
-     * Adressage par contenu, réparti sur deux niveaux : un répertoire unique
-     * de plusieurs dizaines de milliers d'objets devient impraticable à lister
-     * comme à parcourir, y compris pour la restauration.
-     */
-    private function backupPath(string $sha): string
-    {
-        return 'documents/'.substr($sha, 0, 2).'/'.substr($sha, 2, 2).'/'.$sha.'.enc';
     }
 }
