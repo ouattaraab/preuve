@@ -4,8 +4,8 @@
 > Statuts : ⬜ à faire · 🟨 en cours · ✅ terminé · ❌ bloqué (avec raison)
 
 ## Jalon 1 — Fondations (fin S3)
-- ✅ Repo Laravel 11 + CI (Pest, Larastan, Pint) ; base locale MariaDB sans Docker (`docs/infrastructure/dev-local-mariadb.md`)
-- 🟨 Migrations conformes au schéma v1.1 : users, otp_codes, sessions, audit_log, asset_categories, category_fields, companies, assets, asset_status_history (9/14) — seeders 6 états à faire
+- ✅ Repo Laravel 12 + CI (Pest, Larastan, Pint) ; base locale MariaDB sans Docker (`docs/infrastructure/dev-local-mariadb.md`)
+- 🟨 Migrations conformes au schéma v1.1 : users, otp_codes, sessions, audit_log, asset_categories, category_fields, companies, assets, asset_status_history, lookups, notifications (+ app_settings, personal_access_tokens) — manquent asset_documents, transfers, claims, claim_evidences, watch_alerts, payments, report_purchases ; seeders 6 états à faire
 - ✅ ST-0101/0102 Auth OTP : `OtpService` (HMAC APP_KEY, verrouillage progressif par destination), endpoints `auth/otp/request|verify`, `auth/me`, `auth/logout`, jetons Sanctum — reste à brancher un vrai fournisseur SMS
 - 🟨 ST-0106 AuditChain + tests de continuité ✅ — job d'ancrage quotidien ⬜ (**sans lui, la chaîne n'est pas opposable**)
 - ✅ Règle 3 — unicité active `(identifier_normalized, active_flag)` verrouillée par test
@@ -15,7 +15,7 @@
 - ⬜ ST-0105 Droits Loi 2013-450 · ✅ ST-0107 Préférences notifications
 
 ## Jalon 2 — Alpha interne (fin S7) : démo aux 5 loueurs pilotes
-- 🟨 EP-02 Enregistrement express : ✅ ST-0201 (4 gestes, F1/V-PRV, télémétrie CT-02), ST-0203 (normalisation, détection de type), ST-0204 (unicité, collision → fiche + réclamation) · ⬜ ST-0202 OCR Mindee, ST-0205 notification au détenteur, ST-0206 uploads différés, ST-0207/0208 renforcement F2/F3
+- 🟨 EP-02 Enregistrement express : ✅ ST-0201 (4 gestes, F1/V-PRV, télémétrie CT-02), ST-0203 (normalisation, détection de type), ST-0204 (unicité, collision → fiche + réclamation) · ✅ ST-0205 (tentative journalisée + détenteur alerté anonymement) · ⬜ ST-0202 OCR Mindee, ST-0206 uploads différés, ST-0207/0208 renforcement F2/F3
 - ✅ EP-03 Consultation 2 clics : ST-0301 (champ unique, détection auto), ST-0302 (verdict 6 états + couleur), ST-0303 (inconnu ≠ rassurant), ST-0304 (journal, IP salée, purge 12 mois), ST-0305 (10/h anonymes — CAPTCHA à brancher côté client), ST-0306 (consultation par `public_ref`)
 - ⬜ EP-04 Confiance graduée (moteur F1-F3, V-PRV J+30, veille, signaux temporels)
 - ✅ EP-10 (partiel) ST-1001 centre in-app (fil, badge, marquage lu) + ST-1002 agrégation horaire anonyme · ✅ ST-0107 préférences (types critiques non désactivables) · ⬜ ST-1003 push FCM, ST-1004 SMS critique (S13)
