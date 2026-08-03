@@ -7,7 +7,9 @@ namespace App\Console\Commands;
 use App\Services\LookupService;
 use App\Services\TelemetryService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 /**
@@ -32,7 +34,8 @@ final class BenchmarkLookup extends Command
     protected $signature = 'preuve:benchmark-lookup
                             {--seed=0 : Biens à générer avant la mesure (0 pour mesurer l\'existant)}
                             {--seed-lookups=0 : Consultations à pré-journaliser avant la mesure}
-                            {--runs=500 : Consultations à chronométrer}';
+                            {--runs=500 : Consultations à chronométrer}
+                            {--database= : Base de mesure dédiée, obligatoire en production}';
 
     protected $description = 'Mesure la latence de consultation sur volume (CT-01)';
 
@@ -45,10 +48,31 @@ final class BenchmarkLookup extends Command
 
     public function handle(LookupService $lookups): int
     {
-        if (app()->isProduction()) {
+        $mesure = $this->option('database');
+        $mesure = is_string($mesure) && $mesure !== '' ? $mesure : null;
+
+        /*
+         * En production, la mesure exige une base DÉDIÉE.
+         *
+         * Elle fabrique des biens et des consultations fictifs : les écrire
+         * dans le registre en service y laisserait des lignes que rien ne
+         * distinguerait des vraies, et fausserait toute la télémétrie. Mais
+         * l'interdire tout court rendrait la promesse CT-01 invérifiable là où
+         * elle compte — sur le matériel réel, au volume réel. C'est
+         * précisément l'hébergement mutualisé, avec son disque partagé, qui
+         * peut la mettre en défaut.
+         *
+         * La sûreté vient donc du cloisonnement, pas du refus.
+         */
+        if (app()->isProduction() && $mesure === null) {
             throw new RuntimeException(
-                'Cette mesure écrit des biens et des consultations fictifs : interdite en production.'
+                'Cette mesure écrit des biens et des consultations fictifs : en production, elle exige une '.
+                'base dédiée. Créez-en une vide et passez --database=nom.'
             );
+        }
+
+        if ($mesure !== null) {
+            $this->useMeasurementDatabase($mesure);
         }
 
         // Le journal de requêtes de Laravel garde chaque requête en mémoire :
@@ -211,6 +235,55 @@ final class BenchmarkLookup extends Command
 
         $barre->finish();
         $this->newLine(2);
+    }
+
+    /**
+     * Bascule la connexion par défaut vers la base de mesure.
+     *
+     * Le nom est comparé à celui de la base en service avant toute écriture :
+     * une erreur de frappe ne doit pas remplir le registre de biens fictifs.
+     *
+     * @throws RuntimeException
+     */
+    private function useMeasurementDatabase(string $base): void
+    {
+        $defaut = config('database.default');
+        $defaut = is_string($defaut) ? $defaut : 'mariadb';
+
+        $enService = DB::connection()->getDatabaseName();
+
+        if ($base === $enService) {
+            throw new RuntimeException(
+                "La base de mesure porterait le nom de la base en service ({$enService}) : mesure annulée."
+            );
+        }
+
+        $config = config('database.connections.'.$defaut);
+        $config = is_array($config) ? $config : [];
+        $config['database'] = $base;
+
+        // Identifiants d'exploitation s'ils existent : le compte applicatif n'a
+        // aucun droit sur une base autre que la sienne, et ne doit pas en avoir.
+        $utilisateur = config('preuve.backup.restore_username');
+        $motDePasse = config('preuve.backup.restore_password');
+
+        if (is_string($utilisateur) && $utilisateur !== '') {
+            $config['username'] = $utilisateur;
+            $config['password'] = is_string($motDePasse) ? $motDePasse : '';
+        }
+
+        Config::set('database.connections.benchmark', $config);
+        Config::set('database.default', 'benchmark');
+        DB::purge('benchmark');
+        DB::setDefaultConnection('benchmark');
+
+        // Le schéma doit exister : la base de mesure est vierge par nature.
+        if (! Schema::hasTable('assets')) {
+            $this->components->info('Base de mesure vide : application du schéma…');
+            $this->callSilent('migrate', ['--force' => true]);
+        }
+
+        $this->components->twoColumnDetail('Base de mesure', $base);
     }
 
     /** @param  list<int>  $valeurs */

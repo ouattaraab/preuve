@@ -160,3 +160,25 @@ it('produit une sauvegarde restaurable par un AUTRE compte', function (): void {
         ->and($propre)->toContain('TRIGGER audit_log_interdit_update')
         ->and($propre)->toContain('SIGNAL SQLSTATE');
 });
+
+it('refuse la mesure de charge en production sans base dédiée', function (): void {
+    // Elle fabrique des biens et des consultations fictifs : les écrire dans le
+    // registre en service y laisserait des lignes que rien ne distinguerait des
+    // vraies, et fausserait toute la télémétrie.
+    app()->detectEnvironment(fn (): string => 'production');
+
+    try {
+        expect(fn () => Artisan::call('preuve:benchmark-lookup', ['--runs' => 1]))
+            ->toThrow(RuntimeException::class, 'base dédiée');
+    } finally {
+        app()->detectEnvironment(fn (): string => 'testing');
+    }
+});
+
+it('refuse de mesurer sur la base en service', function (): void {
+    // Une erreur de frappe ne doit pas remplir le registre de biens fictifs.
+    expect(fn () => Artisan::call('preuve:benchmark-lookup', [
+        '--runs' => 1,
+        '--database' => DB::connection()->getDatabaseName(),
+    ]))->toThrow(RuntimeException::class, 'base en service');
+});
