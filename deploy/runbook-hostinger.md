@@ -207,7 +207,26 @@ d'ancrage.
 Une seule entrée cron, à la minute (action hPanel n° 3) :
 
 ```
-* * * * * cd ~/domains/preuve.click/app && php artisan schedule:run >> /dev/null 2>&1
+* * * * * /usr/bin/php /home/u726808002/domains/preuve.click/app/artisan schedule:run >> /dev/null 2>&1
+```
+
+**Chemin absolu vers `artisan`, sans `cd`.** Le champ de hPanel préfixe déjà la
+commande par l'interpréteur et le chemin du compte : y coller une commande
+commençant par `cd` produit une ligne du type
+`/usr/bin/php /home/u726808002/cd ~/… && php artisan …`, qui échoue sur
+`Could not open input file` — et comme l'enchaînement est un `&&`, **le
+planificateur n'est jamais atteint**. L'échec est silencieux : la tâche existe,
+elle tourne chaque minute, et elle ne fait rien.
+
+`~` n'est par ailleurs pas garanti d'être développé dans l'environnement de
+cron. Laravel résout sa racine depuis l'emplacement d'`artisan` : le chemin
+absolu suffit, et fonctionne quel que soit le répertoire courant.
+
+**Pour la première heure, gardez la sortie** plutôt que de l'envoyer dans le
+vide — c'est la seule façon de prouver que la tâche s'exécute :
+
+```
+* * * * * /usr/bin/php /home/u726808002/domains/preuve.click/app/artisan schedule:run >> /home/u726808002/cron-preuve.log 2>&1
 ```
 
 Les 11 tâches sont ensuite pilotées par Laravel, à minutes décalées — elles se
