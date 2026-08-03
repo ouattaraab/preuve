@@ -124,7 +124,38 @@ final class BackupDatabase extends Command
             throw new RuntimeException(trim($processus->getErrorOutput()) ?: 'mysqldump a échoué.');
         }
 
-        return $processus->getOutput();
+        return $this->withoutDefiners($processus->getOutput());
+    }
+
+    /**
+     * Retire les clauses `DEFINER` des déclencheurs et des routines.
+     *
+     * SANS CELA, LA SAUVEGARDE N'EST RESTAURABLE QUE PAR LE COMPTE QUI L'A
+     * PRODUITE. `mysqldump` fige dans chaque déclencheur le compte qui l'a
+     * créé (`DEFINER=`u...`@`127.0.0.1``) ; les recréer sous un autre compte
+     * exige le privilège `SET USER`, qu'un hébergement mutualisé n'accorde
+     * jamais. La restauration échoue alors sur :
+     *
+     *     ERROR 1227 (42000): Access denied; you need (at least one of) the
+     *     SET USER privilege(s) for this operation.
+     *
+     * Constaté le 03/08/2026 au premier exercice mené sur l'hébergement cible.
+     * Le défaut est silencieux au possible : la sauvegarde se produit chaque
+     * nuit, se chiffre, se dépose, et pèse le bon nombre d'octets. Rien ne
+     * distingue une archive restaurable d'une archive qui ne l'est pas —
+     * jusqu'au jour où l'on essaie, c'est-à-dire le pire.
+     *
+     * Sans clause `DEFINER`, les déclencheurs se recréent au nom du compte qui
+     * restaure : ce qu'on veut, et la seule chose qui reste possible quand le
+     * compte d'origine a disparu avec le serveur.
+     */
+    public function withoutDefiners(string $dump): string
+    {
+        // Forme commentée par version : /*!50017 DEFINER=`u`@`h` */
+        $sans = preg_replace('/\/\*!5001[37] DEFINER=[^*]*\*\/\s*/', '', $dump);
+
+        // Forme nue, hors commentaire de version.
+        return preg_replace('/DEFINER=`[^`]*`@`[^`]*`\s*/', '', $sans ?? $dump) ?? $dump;
     }
 
     /** Ne garde que les N dernières : un stockage saturé ne sauvegarde plus rien. */

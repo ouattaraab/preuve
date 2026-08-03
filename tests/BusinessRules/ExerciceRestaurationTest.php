@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Console\Commands\BackupDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Crypt;
@@ -137,4 +138,25 @@ it('refuse en production sans base fournie', function (): void {
 
     expect($code)->toBe(1)
         ->and($sortie)->toContain('base préparée à l\'avance');
+});
+
+it('produit une sauvegarde restaurable par un AUTRE compte', function (): void {
+    // Constaté au premier exercice réel sur l'hébergement cible : mysqldump fige
+    // dans chaque déclencheur le compte qui l'a créé. Les recréer sous un autre
+    // compte exige le privilège SET USER, qu'un mutualisé n'accorde jamais — la
+    // sauvegarde n'était donc restaurable que par le compte d'origine, c'est-à-dire
+    // par celui qui a disparu avec le serveur.
+    $dump = <<<'SQL'
+    /*!50003 CREATE*/ /*!50017 DEFINER=`u726808002_napster010826`@`127.0.0.1`*/ /*!50003 TRIGGER audit_log_interdit_update
+    BEFORE UPDATE ON audit_log FOR EACH ROW BEGIN SIGNAL SQLSTATE '45000'; END */;
+    CREATE DEFINER=`autre`@`localhost` PROCEDURE `x`() BEGIN END;
+    SQL;
+
+    $propre = app(BackupDatabase::class)->withoutDefiners($dump);
+
+    expect($propre)->not->toContain('DEFINER')
+        // Le déclencheur lui-même survit : c'est lui qui rend le journal
+        // inaltérable, et une restauration sans lui serait pire que rien.
+        ->and($propre)->toContain('TRIGGER audit_log_interdit_update')
+        ->and($propre)->toContain('SIGNAL SQLSTATE');
 });
