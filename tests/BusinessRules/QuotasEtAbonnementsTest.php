@@ -62,9 +62,10 @@ it('compte les places gratuites restantes', function (): void {
         ->and($etat['over_quota'])->toBeFalse();
 });
 
-it('signale le dépassement sans jamais le présenter comme un blocage', function (): void {
-    // Le message invite, il n'avertit pas : l'utilisateur vient de protéger un
-    // bien de plus, ce n'est pas le moment de lui reprocher quoi que ce soit.
+it('dit le prix et ce qu\'il ouvre plutôt que de se contenter d\'un refus', function (): void {
+    // Un refus qui n'indique pas la sortie ne laisse que l'abandon — et
+    // l'abandon signifie ici un bien qui reste non enregistré, donc non
+    // protégé. Le message doit porter le montant et rassurer sur l'existant.
     $proprietaire = proprietaireQuota();
 
     foreach (range(1, 4) as $bien) {

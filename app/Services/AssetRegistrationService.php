@@ -10,6 +10,7 @@ use App\Enums\NotificationType;
 use App\Enums\TriggerType;
 use App\Enums\TrustLevel;
 use App\Exceptions\DoublonActifException;
+use App\Exceptions\QuotaEpuiseException;
 use App\Models\Asset;
 use App\Models\AssetStatusHistory;
 use App\Models\User;
@@ -67,6 +68,7 @@ final class AssetRegistrationService
         private readonly IdentifierNormalizer $normalizer,
         private readonly AuditChain $auditChain,
         private readonly NotificationService $notifications,
+        private readonly QuotaService $quotas,
     ) {}
 
     /**
@@ -75,6 +77,7 @@ final class AssetRegistrationService
      *                                     télémétrie CT-02 (< 90 s au médian)
      *
      * @throws DoublonActifException si un enregistrement actif existe déjà
+     * @throws QuotaEpuiseException si aucune place d'enregistrement ne reste
      * @throws RuntimeException si la catégorie ou l'identifiant est inexploitable
      */
     public function register(
@@ -85,6 +88,11 @@ final class AssetRegistrationService
         ?int $clientElapsedMs = null,
     ): Asset {
         $this->assertCategoryIsPublished($categoryKey);
+
+        // Contrôlé AVANT toute écriture et avant même la normalisation : un
+        // refus de quota ne doit consommer aucune ressource, ni laisser de
+        // trace d'une tentative qui n'a pas eu lieu.
+        $this->quotas->assertMayRegister($owner, $companyId);
 
         $canonicalKey = $this->categories->canonicalFieldKey($categoryKey);
         $raw = $attributes[$canonicalKey] ?? null;

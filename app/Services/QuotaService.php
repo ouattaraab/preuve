@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Enums\PaymentPurpose;
 use App\Enums\PaymentStatus;
+use App\Exceptions\QuotaEpuiseException;
 use App\Models\Asset;
 use App\Models\Company;
 use App\Models\Payment;
@@ -14,22 +15,22 @@ use App\Models\User;
 /**
  * Quotas d'enregistrement et dû d'abonnement (ST-0804, ST-0805).
  *
- * LE QUOTA N'EMPÊCHE JAMAIS D'ENREGISTRER, et c'est la décision structurante
- * de ce service. Le critère d'acceptation de ST-0804 dit « upsell non
- * bloquant », et la raison est plus forte qu'un choix commercial : un bien non
- * enregistré est un bien non protégé. Refuser le quatrième enregistrement
- * d'une famille, c'est laisser une moto dehors — et c'est précisément le vol
- * que la plateforme existe pour rendre inutile. La mission prime sur la
- * facturation à l'acte.
+ * LE QUOTA BLOQUE au-delà des places gratuites et payées (décision produit du
+ * 03/08/2026). Il ne l'a pas toujours fait : le service proposait auparavant
+ * sans jamais barrer, au motif qu'un bien non enregistré est un bien non
+ * protégé. L'arbitrage a été rendu dans l'autre sens, le revenu de ce poste ne
+ * pouvant reposer sur la seule bonne volonté.
  *
- * Le compteur sert donc à PROPOSER, pas à barrer : il dit combien de places
- * gratuites restent, ce que coûte la suivante, et laisse l'utilisateur décider.
- * Un enregistrement au-delà du quota aboutit, et l'invitation à régulariser
- * l'accompagne.
+ * CE QUE CE CHOIX COÛTE, ET QU'IL FAUT REGARDER EN FACE : on ne déclare pas
+ * volé un bien qu'on n'a pas enregistré. Un particulier au-delà de son quota
+ * dont la moto est volée devra donc payer avant de pouvoir la signaler. Le
+ * refus dit exactement quoi faire et combien — c'est le minimum — mais il
+ * reste un refus, à un moment où l'utilisateur est déjà victime.
  *
- * Conséquence assumée : le revenu de ce poste repose sur la bonne volonté.
- * Le rendre bloquant est une décision produit, pas une correction technique —
- * elle se prendrait ici, en une ligne, mais elle appartient au métier.
+ * LE BLOCAGE NE VISE QUE LES PARTICULIERS. Une flotte relève de son abonnement
+ * (ST-0805) et de la suspension douce, qui ne retire jamais la protection déjà
+ * acquise : y appliquer en plus le quota personnel refuserait deux fois la
+ * même chose.
  */
 final class QuotaService
 {
@@ -58,6 +59,32 @@ final class QuotaService
             'next_slot_price_fcfa' => $this->slotPrice(),
             'message' => $this->message($restants, $depasse),
         ];
+    }
+
+    /**
+     * Refuse l'enregistrement quand il ne reste aucune place.
+     *
+     * Placé ici, et appelé par AssetRegistrationService : le contrôle vaut
+     * alors pour TOUT chemin d'enregistrement, y compris ceux qu'on écrira plus
+     * tard. Le poser dans un contrôleur laisserait la première autre porte
+     * l'ignorer.
+     *
+     * @throws QuotaEpuiseException
+     */
+    public function assertMayRegister(User $utilisateur, ?int $societeId = null): void
+    {
+        // Une flotte relève de son abonnement, pas du quota personnel.
+        if ($societeId !== null) {
+            return;
+        }
+
+        $quota = $this->forUser($utilisateur);
+
+        if ($quota['remaining'] > 0) {
+            return;
+        }
+
+        throw new QuotaEpuiseException($quota);
     }
 
     /**
@@ -162,13 +189,15 @@ final class QuotaService
      */
     private function message(int $restants, bool $depasse): ?string
     {
-        if ($depasse) {
-            return 'Vos enregistrements gratuits sont utilisés. Vos biens restent protégés — '.
-                'contribuez quand vous le souhaitez pour soutenir le service.';
-        }
-
-        if ($restants === 0) {
-            return 'C\'était votre dernier enregistrement gratuit. Les suivants restent possibles.';
+        if ($depasse || $restants === 0) {
+            // Dire le prix ET ce qu'il ouvre : un refus qui n'indique pas la
+            // sortie ne laisse que l'abandon, et l'abandon signifie ici un bien
+            // qui reste non enregistré.
+            return sprintf(
+                'Vos places d\'enregistrement sont utilisées. La suivante coûte %s FCFA pour un an. '.
+                'Vos biens déjà enregistrés restent protégés.',
+                number_format($this->slotPrice(), 0, ',', ' '),
+            );
         }
 
         if ($restants === 1) {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Exceptions\DoublonActifException;
+use App\Exceptions\QuotaEpuiseException;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PublicAssetResource;
 use App\Models\User;
@@ -108,13 +109,20 @@ final class AssetController extends Controller
                 'asset' => new PublicAssetResource($e->existant),
                 'claim_url' => '/api/v1/claims?public_ref='.$e->existant->public_ref,
             ], 409);
+        } catch (QuotaEpuiseException $e) {
+            // 402 et non 422 : il n'y a rien à corriger dans la demande, elle
+            // est valide et le restera. Le client doit router vers le paiement,
+            // pas vers le formulaire.
+            return response()->json([
+                'message' => $e->getMessage(),
+                'quota' => $e->quota,
+            ], 402);
         } catch (RuntimeException $e) {
             throw ValidationException::withMessages(['attributes' => $e->getMessage()]);
         }
 
-        // Le quota accompagne la réponse sans jamais l'avoir empêchée
-        // (ST-0804, upsell non bloquant) : un bien non enregistré est un bien
-        // non protégé.
+        // Le quota accompagne la réponse : l'utilisateur voit ce qu'il lui
+        // reste avant d'être arrêté, plutôt que de le découvrir au refus.
         return response()->json([
             'asset' => new PublicAssetResource($bien),
             'quota' => $this->quotas->forUser($proprietaire),
