@@ -21,6 +21,16 @@ Artisan::command('inspire', function () {
  * elles entreraient en concurrence dès la première seconde.
  */
 
+/*
+ * Témoin de passage du planificateur (ST-0904). Toutes les cinq minutes : assez
+ * souvent pour que son arrêt se voie vite, assez rare pour ne rien coûter.
+ *
+ * Il ne prend aucun verrou d'audit et n'écrit qu'un horodatage. Sa seule raison
+ * d'être est de rendre VISIBLE un planificateur arrêté — panne constatée le
+ * 03/08/2026 sur l'hébergement, sans une erreur ni un journal.
+ */
+Schedule::command('preuve:heartbeat')->everyFiveMinutes();
+
 // Clôture des fenêtres de contestation arrivées à terme (ST-0402). Horaire
 // plutôt que quotidien : un bien enregistré à 14 h ne doit pas attendre le
 // lendemain matin pour devenir Actif au bout de ses 30 jours.
