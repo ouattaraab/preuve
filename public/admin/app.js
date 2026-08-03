@@ -451,7 +451,392 @@ const Comptes = {
   },
 };
 
+/* ------------------------------------------------------------------ */
+/* Levée d'anonymat sur réquisition (greffée sur l'annuaire des comptes) */
+/* ------------------------------------------------------------------ */
+
+const Levee = {
+  async registre() {
+    const zone = document.getElementById('lv-registre');
+    if (!zone) return;
+
+    try {
+      const r = await Api.get('/api/v1/admin/disclosures');
+
+      if (!r.disclosures.length) {
+        zone.innerHTML = `<p style="font-size:13px;color:#7A6A55">Aucune levée d'anonymat à ce jour.</p>`;
+        return;
+      }
+
+      zone.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden">
+          <thead><tr style="background:#2B1D12;color:#FFF6E8">
+            ${['DATE', 'SUJET', 'DEMANDÉ PAR', 'AUTORITÉ', 'RÉFÉRENCE', 'OBJET']
+              .map(h => `<th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:700;letter-spacing:.4px">${h}</th>`).join('')}
+          </tr></thead>
+          <tbody>${r.disclosures.map(d => `
+            <tr style="border-top:1px solid #E4DBC8;vertical-align:top">
+              <td style="padding:10px 12px;font-size:13px;color:#5C4A33;white-space:nowrap">${new Date(d.disclosed_at).toLocaleString('fr-FR')}</td>
+              <td style="padding:10px 12px;font-size:13px;font-weight:700">#${txt(d.subject_user_id)}</td>
+              <td style="padding:10px 12px;font-size:13px">#${txt(d.requested_by)}</td>
+              <td style="padding:10px 12px;font-size:13px">${txt(d.authority)}</td>
+              <td style="padding:10px 12px;font-size:13px;font-family:ui-monospace,monospace">${txt(d.reference)}<br><span style="font-size:11px;color:#7A6A55">${txt(d.issued_on)}</span></td>
+              <td style="padding:10px 12px;font-size:12px;color:#5C4A33;max-width:280px">${txt(d.purpose)}</td>
+            </tr>`).join('')}</tbody>
+        </table>`;
+    } catch (e) {
+      zone.innerHTML = `<p style="color:#B23A3A;font-weight:700">${txt(e.message)}</p>`;
+    }
+  },
+
+  async soumettre() {
+    const zone = document.getElementById('lv-resultat');
+    const v = id => ((document.getElementById(id) || {}).value || '').trim();
+
+    // Une dernière confirmation explicite : c'est l'unique opération de la
+    // console qui rend une identité, et elle ne doit jamais partir d'un clic
+    // machinal.
+    if (!window.confirm(
+      "Confirmer la levée d'anonymat ?\n\n" +
+      "Elle sera consignée définitivement dans la chaîne d'audit et au registre des levées, " +
+      "sous votre compte. Le sujet n'en sera pas informé."
+    )) return;
+
+    try {
+      const r = await Api.post('/api/v1/admin/disclosures', {
+        user_id: Number(v('lv-user')),
+        authority: v('lv-autorite'),
+        reference: v('lv-reference'),
+        issued_on: v('lv-date'),
+        purpose: v('lv-objet'),
+      });
+
+      const i = r.identity;
+
+      zone.innerHTML = `
+        <div style="background:#fff;border:2px solid #B23A3A;border-radius:10px;padding:16px 18px">
+          <p style="font-size:12px;color:#B23A3A;font-weight:700;margin-bottom:10px">
+            IDENTITÉ DIVULGUÉE — ${new Date(r.disclosed_at).toLocaleString('fr-FR')}
+          </p>
+          <p style="font-size:15px;font-weight:700">${txt(i.full_name || '—')}</p>
+          <p style="font-size:13px;color:#5C4A33;font-family:ui-monospace,monospace;margin-top:4px">${txt(i.phone || '—')} · ${txt(i.email || '—')}</p>
+          <p style="font-size:13px;color:#5C4A33;margin-top:6px">
+            Compte ${txt(i.account_status)} · KYC ${txt(i.kyc_status)} ·
+            inscrit le ${i.registered_at ? new Date(i.registered_at).toLocaleDateString('fr-FR') : '—'}
+          </p>
+          <p style="font-size:13px;font-weight:700;margin-top:12px">Biens rattachés (${i.assets.length})</p>
+          ${i.assets.map(a => `<p style="font-size:13px;font-family:ui-monospace,monospace;color:#5C4A33">${txt(a.identifier)} · ${txt(a.public_ref)} · ${txt(a.life_status)}</p>`).join('') || '<p style="font-size:13px;color:#7A6A55">Aucun.</p>'}
+          <p style="font-size:12px;color:#7A6A55;margin-top:12px;line-height:1.6">${txt(i.id_number_note)}</p>
+          <p style="font-size:12px;color:#7A6A55;margin-top:6px;line-height:1.6">${txt(r.notice)}</p>
+        </div>`;
+
+      this.registre();
+    } catch (e) {
+      zone.innerHTML = `<p style="color:#B23A3A;font-weight:700">${txt(e.message)}</p>`;
+    }
+  },
+
+  init() {
+    const bouton = document.getElementById('lv-soumettre');
+    if (bouton) bouton.addEventListener('click', () => this.soumettre());
+    this.registre();
+  },
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   if (document.getElementById('table-registre')) Registre.init();
   if (document.getElementById('table-comptes')) Comptes.init();
+  if (document.getElementById('form-levee')) Levee.init();
+});
+
+/* ------------------------------------------------------------------ */
+/* Écran : Catégories & champs                                         */
+/* ------------------------------------------------------------------ */
+
+const Categories = {
+  async charger() {
+    const zone = document.getElementById('liste-categories');
+    if (!zone) return;
+
+    try {
+      const r = await Api.get('/api/v1/admin/categories');
+
+      const version = document.getElementById('version-catalogue');
+      if (version) version.textContent = r.version || '—';
+
+      zone.innerHTML = r.categories.map(c => `
+        <section style="background:#FFF6E8;border-radius:12px;padding:18px 20px;margin-bottom:14px;${c.is_active ? '' : 'opacity:.62'}">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:10px;min-width:0">
+              <span style="font-size:22px">${txt(c.icon || '📦')}</span>
+              <span>
+                <span style="display:block;font-size:16px;font-weight:700">${txt(c.name)}</span>
+                <span style="display:block;font-size:12px;color:#7A6A55;font-family:ui-monospace,monospace">${txt(c.key)}</span>
+              </span>
+              ${c.is_active ? '' : pastille('DÉSACTIVÉE', '#B23A3A', '#FFF6E8')}
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:13px;color:#5C4A33">${txt(c.assets)} bien(s) rattaché(s)</span>
+              <button data-champ="${txt(c.id)}"
+                      style="background:transparent;color:#2B1D12;border:2px solid #2B1D12;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer">
+                Ajouter un champ
+              </button>
+              <button data-cat="${txt(c.id)}" data-actif="${c.is_active ? '0' : '1'}" data-biens="${txt(c.assets)}" data-nom="${txt(c.name)}"
+                      style="background:${c.is_active ? 'transparent' : '#2B1D12'};color:${c.is_active ? '#B23A3A' : '#FFF6E8'};border:2px solid ${c.is_active ? '#B23A3A' : '#2B1D12'};border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer">
+                ${c.is_active ? 'Désactiver' : 'Réactiver'}
+              </button>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
+            ${c.fields.map(f => `
+              <span style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #E4DBC8;border-radius:8px;padding:6px 10px;font-size:13px">
+                <strong>${txt(f.label)}</strong>
+                <span style="color:#7A6A55;font-family:ui-monospace,monospace;font-size:11px">${txt(f.key)} · ${txt(f.type)}</span>
+                ${f.required ? pastille('obligatoire', '#2B1D12', '#FFF6E8') : ''}
+                ${f.canonical ? pastille('identifiant', '#D97706', '#2B1D12') : ''}
+              </span>`).join('') || '<span style="font-size:13px;color:#7A6A55">Aucun champ.</span>'}
+          </div>
+        </section>`).join('');
+
+      zone.querySelectorAll('[data-cat]').forEach(b =>
+        b.addEventListener('click', () => this.basculer(b.dataset)));
+      zone.querySelectorAll('[data-champ]').forEach(b =>
+        b.addEventListener('click', () => this.ajouterChamp(b.dataset.champ)));
+    } catch (e) {
+      zone.innerHTML = `<p style="color:#B23A3A;font-weight:700">${txt(e.message)}</p>`;
+    }
+  },
+
+  async basculer(d) {
+    const activer = d.actif === '1';
+
+    // Le nombre de biens rattachés est rappelé AVANT la confirmation : une
+    // désactivation sur une catégorie peuplée n'a pas la même portée que sur
+    // une catégorie vide, et l'écart ne se voit qu'ici.
+    if (!activer && !window.confirm(
+      `Désactiver « ${d.nom} » ?\n\n` +
+      `${d.biens} bien(s) y sont rattachés : ils resteront enregistrés et consultables, ` +
+      `mais la catégorie disparaîtra des nouveaux enregistrements dès la publication.`
+    )) return;
+
+    try {
+      const r = await Api.post(`/api/v1/admin/categories/${d.cat}/active`, { active: activer });
+      window.alert(r.message);
+      this.charger();
+    } catch (e) {
+      window.alert(e.message);
+    }
+  },
+
+  async ajouterChamp(id) {
+    const cle = window.prompt("Clé technique du champ (minuscules, chiffres et « _ ») :");
+    if (!cle || !cle.trim()) return;
+
+    const libelle = window.prompt('Libellé affiché aux utilisateurs :');
+    if (!libelle || !libelle.trim()) return;
+
+    const type = window.prompt('Type : text, number, date, identifier ou select', 'text');
+    if (!type || !type.trim()) return;
+
+    try {
+      const r = await Api.post(`/api/v1/admin/categories/${id}/fields`, {
+        key: cle.trim(),
+        label: libelle.trim(),
+        type: type.trim(),
+        required: window.confirm('Ce champ est-il obligatoire ?'),
+      });
+      window.alert(r.message);
+      this.charger();
+    } catch (e) {
+      window.alert(e.message);
+    }
+  },
+
+  init() {
+    const publier = document.getElementById('publier');
+
+    if (publier) {
+      publier.addEventListener('click', async () => {
+        try {
+          const r = await Api.post('/api/v1/admin/categories/publish');
+          window.alert(r.message);
+          this.charger();
+        } catch (e) {
+          window.alert(e.message);
+        }
+      });
+    }
+
+    this.charger();
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/* Écran : Piste d'audit                                               */
+/* ------------------------------------------------------------------ */
+
+const Audit = {
+  page: 1,
+
+  parametres() {
+    const p = new URLSearchParams();
+    const v = id => (document.getElementById(id) || {}).value || '';
+    if (v('fa-action')) p.set('action', v('fa-action'));
+    if (v('fa-entite')) p.set('entity_type', v('fa-entite'));
+    if (v('fa-du')) p.set('from', v('fa-du'));
+    if (v('fa-au')) p.set('to', v('fa-au'));
+    return p;
+  },
+
+  async charger() {
+    const zone = document.getElementById('table-audit');
+    if (!zone) return;
+
+    const p = this.parametres();
+    p.set('page', String(this.page));
+
+    try {
+      const r = await Api.get('/api/v1/admin/audit-trail?' + p.toString());
+
+      if (!r.entries.length) {
+        zone.innerHTML = `<p style="padding:26px;background:#FFF6E8;border-radius:12px;font-size:15px;font-weight:700;text-align:center">Aucune entrée ne correspond.</p>`;
+        pagination('pagination-audit', r.pagination, () => {});
+        return;
+      }
+
+      zone.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;background:#FFF6E8;border-radius:12px;overflow:hidden">
+          <thead><tr style="background:#2B1D12;color:#FFF6E8">
+            ${['HORODATAGE', 'ACTEUR', 'ACTION', 'ENTITÉ', 'CHARGE UTILE', 'EMPREINTE']
+              .map(h => `<th style="text-align:left;padding:12px 14px;font-size:11px;font-weight:700;letter-spacing:.4px">${h}</th>`).join('')}
+          </tr></thead>
+          <tbody>${r.entries.map(e => `
+            <tr style="border-top:1px solid #E4DBC8;vertical-align:top">
+              <td style="padding:12px 14px;font-size:13px;color:#5C4A33;white-space:nowrap">${new Date(e.at).toLocaleString('fr-FR')}</td>
+              <td style="padding:12px 14px;font-size:13px">${txt(e.actor_type)}${e.actor_id ? ' #' + txt(e.actor_id) : ''}</td>
+              <td style="padding:12px 14px;font-size:13px;font-weight:700;font-family:ui-monospace,monospace">${txt(e.action)}</td>
+              <td style="padding:12px 14px;font-size:13px">${txt(e.entity_type)} #${txt(e.entity_id)}</td>
+              <td style="padding:12px 14px;font-size:12px;color:#5C4A33;max-width:340px;word-break:break-word;font-family:ui-monospace,monospace">${txt(JSON.stringify(e.payload))}</td>
+              <td style="padding:12px 14px;font-size:11px;color:#7A6A55;font-family:ui-monospace,monospace" title="${txt(e.chain_hash)}">${txt((e.chain_hash || '').slice(0, 12))}…</td>
+            </tr>`).join('')}</tbody>
+        </table>`;
+
+      pagination('pagination-audit', r.pagination, n => { this.page = n; this.charger(); });
+    } catch (e) {
+      zone.innerHTML = `<p style="color:#B23A3A;font-weight:700">${txt(e.message)}</p>`;
+    }
+  },
+
+  init() {
+    const relancer = differer(() => { this.page = 1; this.charger(); });
+    ['fa-action', 'fa-entite', 'fa-du', 'fa-au'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener(el.type === 'date' ? 'change' : 'input', relancer);
+    });
+
+    const exporter = document.getElementById('exporter');
+
+    if (exporter) {
+      // Navigation directe plutôt que `fetch` : l'export est diffusé en flux et
+      // peut peser des dizaines de mégaoctets — le rassembler en mémoire pour
+      // fabriquer un lien local ferait échouer l'export précisément sur les
+      // journaux volumineux, les seuls pour lesquels il compte.
+      exporter.addEventListener('click', () => {
+        window.location.href = '/api/v1/admin/audit-trail/export?' + this.parametres().toString();
+      });
+    }
+
+    this.charger();
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/* Écran : Équipe & rôles                                              */
+/* ------------------------------------------------------------------ */
+
+const Equipe = {
+  async charger() {
+    const zone = document.getElementById('liste-equipe');
+    if (!zone) return;
+
+    try {
+      const r = await Api.get('/api/v1/admin/team');
+
+      zone.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;background:#FFF6E8;border-radius:12px;overflow:hidden">
+          <thead><tr style="background:#2B1D12;color:#FFF6E8">
+            ${['MEMBRE', 'ADRESSE', 'RÔLE', 'PAGES ATTEINTES', 'ACTION']
+              .map(h => `<th style="text-align:left;padding:12px 14px;font-size:11px;font-weight:700;letter-spacing:.4px">${h}</th>`).join('')}
+          </tr></thead>
+          <tbody>${r.members.map(m => `
+            <tr style="border-top:1px solid #E4DBC8;vertical-align:top">
+              <td style="padding:12px 14px;font-size:14px;font-weight:700">${txt(m.name || '—')}${m.status === 'suspended' ? ' ' + pastille('SUSPENDU', '#B23A3A', '#FFF6E8') : ''}</td>
+              <td style="padding:12px 14px;font-size:13px;font-family:ui-monospace,monospace;color:#7A6A55">${txt(m.email || '—')}</td>
+              <td style="padding:12px 14px">${pastille(m.role_label, m.role === 'admin' ? '#D97706' : '#FFF', '#2B1D12')}</td>
+              <td style="padding:12px 14px;font-size:12px;color:#5C4A33;max-width:320px">${txt(m.pages.join(' · ')) || '—'}</td>
+              <td style="padding:12px 14px">
+                <button data-membre="${txt(m.id)}" data-nom="${txt(m.name || '')}" data-role="${txt(m.role)}"
+                        style="background:transparent;color:#2B1D12;border:2px solid #2B1D12;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer">
+                  Changer le rôle
+                </button>
+              </td>
+            </tr>`).join('')}</tbody>
+        </table>`;
+
+      zone.querySelectorAll('[data-membre]').forEach(b =>
+        b.addEventListener('click', () => this.changer(b.dataset)));
+
+      const matrice = document.getElementById('matrice-roles');
+
+      if (matrice) {
+        matrice.innerHTML = `
+          <h2 style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:17px;margin-bottom:10px">Ce que chaque rôle atteint</h2>
+          <p style="font-size:13px;color:#5C4A33;margin-bottom:12px">${txt(r.notice)}</p>
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            ${r.roles.map(role => `
+              <div style="flex:1;min-width:260px;background:#FFF6E8;border-radius:12px;padding:16px 18px">
+                <span style="display:block;font-size:15px;font-weight:700;margin-bottom:8px">${txt(role.label)}</span>
+                ${role.pages.map(p => `<span style="display:block;font-size:13px;color:#5C4A33;padding:2px 0">• ${txt(p)}</span>`).join('')}
+              </div>`).join('')}
+          </div>`;
+      }
+    } catch (e) {
+      zone.innerHTML = `<p style="color:#B23A3A;font-weight:700">${txt(e.message)}</p>`;
+    }
+  },
+
+  async changer(d) {
+    const role = window.prompt(
+      `Nouveau rôle pour ${d.nom || 'ce compte'} — actuellement « ${d.role} ».\n\n` +
+      "user : aucun accès au back-office\nagent : instruction des dossiers\nadmin : configuration et levée d'anonymat",
+      d.role
+    );
+
+    if (!role || !role.trim()) return;
+
+    const motif = window.prompt(
+      "Motif du changement d'habilitation.\n\n" +
+      "Il entre dans la chaîne d'audit avec l'ancien et le nouveau rôle : savoir " +
+      "qu'un changement a eu lieu ne suffit pas à juger s'il a élargi ou restreint l'accès."
+    );
+
+    if (!motif || !motif.trim()) return;
+
+    try {
+      const r = await Api.post(`/api/v1/admin/team/${d.membre}/role`, { role: role.trim(), reason: motif.trim() });
+      window.alert(r.message);
+      this.charger();
+    } catch (e) {
+      window.alert(e.message);
+    }
+  },
+
+  init() { this.charger(); },
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (document.getElementById('liste-categories')) Categories.init();
+  if (document.getElementById('table-audit')) Audit.init();
+  if (document.getElementById('liste-equipe')) Equipe.init();
 });

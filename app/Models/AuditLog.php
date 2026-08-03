@@ -6,11 +6,24 @@ namespace App\Models;
 
 use App\Enums\ActorType;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use RuntimeException;
 
 /**
  * Journal inaltérable. Toute écriture passe par AuditChain::append().
  * Les mises à jour et suppressions sont interdites au niveau du modèle.
+ *
+ * @property int $id
+ * @property ActorType $actor_type
+ * @property int|null $actor_id
+ * @property string $action
+ * @property string $entity_type
+ * @property int $entity_id
+ * @property array<string, mixed>|null $payload
+ * @property string $record_hash
+ * @property string|null $prev_hash
+ * @property string $chain_hash
+ * @property Carbon $created_at
  */
 class AuditLog extends Model
 {

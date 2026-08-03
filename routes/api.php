@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Admin\AssetRegistryController;
 use App\Http\Controllers\Api\V1\Admin\AuditAnchorController;
+use App\Http\Controllers\Api\V1\Admin\AuditTrailController;
 use App\Http\Controllers\Api\V1\Admin\CaptchaProviderController;
+use App\Http\Controllers\Api\V1\Admin\CategoryAdminController;
 use App\Http\Controllers\Api\V1\Admin\ClaimFeeController;
 use App\Http\Controllers\Api\V1\Admin\ClaimReviewController;
 use App\Http\Controllers\Api\V1\Admin\CompanyValidationController;
@@ -17,6 +19,7 @@ use App\Http\Controllers\Api\V1\Admin\OpsRecipientController;
 use App\Http\Controllers\Api\V1\Admin\PlatformStateController;
 use App\Http\Controllers\Api\V1\Admin\PushProviderController;
 use App\Http\Controllers\Api\V1\Admin\SmsProviderController;
+use App\Http\Controllers\Api\V1\Admin\TeamController;
 use App\Http\Controllers\Api\V1\Admin\UserDirectoryController;
 use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\AssetDocumentController;
@@ -223,6 +226,35 @@ Route::prefix('v1')->group(function (): void {
     // Configuration de la plateforme : administrateurs seulement. Un agent n'a
     // aucune raison de pouvoir rerouter les SMS.
     Route::prefix('admin')->middleware(['auth:sanctum', EnsureUserIsAdmin::class])->group(function (): void {
+        /*
+         * Piste d'audit : LECTURE SEULE, et réservée aux administrateurs.
+         *
+         * Aucune écriture n'est offerte — pas seulement parce que les
+         * déclencheurs l'interdisent, mais parce qu'un bouton qui échouerait
+         * toujours enseignerait qu'une modification est concevable.
+         *
+         * Fermée aux agents : le journal dit qui a fait quoi, y compris les
+         * autres agents. L'instruction d'un dossier ne suppose pas de savoir
+         * ce qu'un collègue a décidé hier.
+         */
+        Route::get('audit-trail', [AuditTrailController::class, 'index']);
+        Route::get('audit-trail/export', [AuditTrailController::class, 'export']);
+
+        // Catalogue des catégories : il gouverne ce que TOUTE l'application
+        // accepte d'enregistrer, et il est servi aux mobiles sans passage par
+        // les magasins. C'est de la configuration de plateforme, pas de
+        // l'instruction de dossier. Une catégorie se désactive, jamais ne se
+        // supprime — des biens y sont rattachés.
+        Route::get('categories', [CategoryAdminController::class, 'index']);
+        Route::post('categories/{category}/active', [CategoryAdminController::class, 'setActive']);
+        Route::post('categories/{category}/fields', [CategoryAdminController::class, 'addField']);
+        Route::post('categories/publish', [CategoryAdminController::class, 'publish']);
+
+        // Équipe : promouvoir fabrique les comptes qui voient les pièces
+        // d'identité et lèvent l'anonymat. Un agent ne fabrique pas d'agents.
+        Route::get('team', [TeamController::class, 'index']);
+        Route::post('team/{user}/role', [TeamController::class, 'setRole']);
+
         Route::get('sms-provider', [SmsProviderController::class, 'show']);
         Route::put('sms-provider', [SmsProviderController::class, 'update']);
         Route::post('sms-provider/test', [SmsProviderController::class, 'test']);

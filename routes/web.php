@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Admin\AdminAuthController;
 use App\Http\Controllers\Admin\AdminConsoleController;
 use App\Http\Middleware\EnsureUserHasBackOfficeAccess;
+use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => view('welcome'));
@@ -36,5 +37,17 @@ Route::prefix('admin')->group(function (): void {
         Route::get('registre', [AdminConsoleController::class, 'registry'])->name('admin.registry');
         Route::get('comptes', [AdminConsoleController::class, 'users'])->name('admin.users');
         Route::get('supervision', [AdminConsoleController::class, 'monitoring'])->name('admin.monitoring');
+
+        /*
+         * Écrans de configuration : administrateurs seulement, comme les API
+         * qui les alimentent. Le garde est posé ICI et non dans le gabarit :
+         * une coquille vide servie à un agent lui apprendrait quand même que
+         * l'écran existe, et un oubli de garde côté API resterait invisible.
+         */
+        Route::middleware(EnsureUserIsAdmin::class)->group(function (): void {
+            Route::get('categories', [AdminConsoleController::class, 'categories'])->name('admin.categories');
+            Route::get('audit', [AdminConsoleController::class, 'audit'])->name('admin.audit');
+            Route::get('equipe', [AdminConsoleController::class, 'team'])->name('admin.team');
+        });
     });
 });
