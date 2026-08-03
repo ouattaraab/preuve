@@ -363,6 +363,60 @@ visible.
 Registre laissé vierge : 0 bien, 0 utilisateur, 0 jeton. Une entrée d'audit
 subsiste — la sonde d'inaltérabilité — et c'est normal : elle est inaltérable.
 
+## 7 ter. Exercice de restauration mené sur la cible — 03/08/2026
+
+Première restauration réelle sur `preuve.click`, dans une base d'exercice
+préparée à l'avance (`u726808002_drill`), **par un compte différent de celui qui
+a produit la sauvegarde**. C'est précisément ce point qui a révélé le défaut
+ci-dessous.
+
+### Le défaut : la sauvegarde n'était restaurable par personne d'autre
+
+```
+ERROR 1227 (42000): Access denied; you need (at least one of) the
+SET USER privilege(s) for this operation.
+```
+
+`mysqldump` fige dans chaque déclencheur le compte qui l'a créé
+(`DEFINER=`u...`@`127.0.0.1``). Les recréer sous un autre compte exige le
+privilège `SET USER`, qu'un hébergement mutualisé n'accorde jamais.
+
+**Le défaut est silencieux au possible** : la sauvegarde se produit chaque nuit,
+se chiffre, se dépose et pèse le bon nombre d'octets. Rien ne distingue une
+archive restaurable d'une archive qui ne l'est pas — jusqu'au jour où l'on
+essaie, c'est-à-dire le pire. Et une sauvegarde restaurable par le seul compte
+qui a disparu avec le serveur n'est pas une sauvegarde.
+
+Corrigé : `preuve:backup` retire désormais les clauses `DEFINER`. Les
+déclencheurs se recréent au nom du compte qui restaure, et survivent intacts —
+ce sont eux qui rendent le journal d'audit inaltérable.
+
+### Constat après correctif
+
+| Contrôle | Résultat |
+|---|---|
+| Chargement du dump par un AUTRE compte | ✅ |
+| Tables restaurées | 34 |
+| Déclencheurs restaurés | 4 |
+| `DEFINER` après restauration | le compte qui a restauré |
+| `UPDATE` sur `audit_log` | **refusé** |
+| `DELETE` sur `audit_log` | **refusé** |
+| Cohérence interne de la chaîne | intacte |
+| Ancrages confrontés | 1 concordant |
+
+Base d'exercice vidée après usage.
+
+### Pour rejouer l'exercice
+
+```sh
+php artisan preuve:backup
+php artisan preuve:restore-drill --database=u726808002_drill
+```
+
+La base d'exercice doit être **vide** : l'outil refuse d'écrire par-dessus des
+tables existantes, ce qui rendrait un mélange dont on ne pourrait rien conclure.
+Après un échec, la vider avant de recommencer.
+
 ## 8. Ce que ce runbook ne couvre pas
 
 - **`preuve:restore-drill` ne tournera pas** avec l'utilisateur applicatif : il
