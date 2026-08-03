@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\Admin\ClaimFeeController;
 use App\Http\Controllers\Api\V1\Admin\ClaimReviewController;
 use App\Http\Controllers\Api\V1\Admin\CompanyValidationController;
 use App\Http\Controllers\Api\V1\Admin\DocumentReviewController;
+use App\Http\Controllers\Api\V1\Admin\IdentityDisclosureController;
 use App\Http\Controllers\Api\V1\Admin\KycProviderController;
 use App\Http\Controllers\Api\V1\Admin\KycReviewController;
 use App\Http\Controllers\Api\V1\Admin\ObservabilityController;
@@ -193,6 +194,19 @@ Route::prefix('v1')->group(function (): void {
             // agent. Suspendre ne suspend jamais la protection des biens.
             Route::get('users', [UserDirectoryController::class, 'index']);
             Route::post('users/{user}/status', [UserDirectoryController::class, 'setStatus']);
+
+            /*
+             * Levée d'anonymat sur réquisition (Loi 2013-450).
+             *
+             * Réservée aux administrateurs — le contrôle est refait dans le
+             * contrôleur et ne s'en remet pas au seul routage. Elle vise UNE
+             * personne, contre un fondement structuré, et n'ouvre aucun accès
+             * durable : la seconde d'après, l'identité est de nouveau
+             * inaccessible.
+             */
+            Route::post('disclosures', [IdentityDisclosureController::class, 'store'])
+                ->middleware('throttle:10,60');
+            Route::get('disclosures', [IdentityDisclosureController::class, 'index']);
 
             Route::get('documents', [DocumentReviewController::class, 'index']);
             Route::post('documents/{document}/review', [DocumentReviewController::class, 'review']);
