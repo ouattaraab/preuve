@@ -196,8 +196,16 @@ final class OtpAuthController extends Controller
             }
         );
 
-        if ($existant !== null && $parSms && $utilisateur->phone_verified_at === null) {
-            $utilisateur->forceFill(['phone_verified_at' => now()])->save();
+        // Symétrique, et pour la même raison : un code vérifié atteste de la
+        // maîtrise du canal qui l'a porté. Un compte créé à la main par
+        // l'exploitant n'a rien prouvé tant que personne ne s'y est connecté ;
+        // c'est cette première connexion qui l'atteste, et elle doit s'inscrire.
+        if ($existant !== null) {
+            $colonne = $parSms ? 'phone_verified_at' : 'email_verified_at';
+
+            if ($utilisateur->getAttribute($colonne) === null) {
+                $utilisateur->forceFill([$colonne => now()])->save();
+            }
         }
 
         if ($request->boolean('revoke_other_devices')) {

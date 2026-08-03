@@ -178,3 +178,25 @@ function codeEmisParMail(string $telephone): string
 
     return $capture;
 }
+
+it('atteste la boîte d\'un compte existant à sa première connexion', function (): void {
+    // Un compte créé à la main par l'exploitant n'a rien prouvé tant que
+    // personne ne s'y est connecté. C'est cette première connexion qui
+    // l'atteste, et elle doit s'inscrire — symétriquement au SMS.
+    $compte = User::create(['phone' => '+2250701020304']);
+    $compte->forceFill(['email' => 'titulaire@exemple.ci'])->save();
+
+    expect($compte->email_verified_at)->toBeNull();
+
+    demanderCodeMail('+2250701020304')->assertOk();
+
+    test()->postJson('/api/v1/auth/otp/verify', [
+        'phone' => '+2250701020304',
+        'purpose' => 'login',
+        'code' => codeEmisParMail('+2250701020304'),
+    ])->assertOk();
+
+    expect($compte->fresh()?->email_verified_at)->not->toBeNull()
+        // Le numéro, lui, n'a toujours rien prouvé.
+        ->and($compte->fresh()?->phone_verified_at)->toBeNull();
+});
