@@ -221,6 +221,11 @@ it('trace le coût sans le destinataire', function (): void {
 });
 
 it('n\'échoue jamais quand la passerelle est en panne', function (): void {
+    // L'action métier ne doit jamais échouer à cause d'un acheminement, QUEL
+    // QUE SOIT le pilote de file. Avec un vrai pilote, l'échec a lieu dans le
+    // travailleur — où lever permet justement le réessai. Sur le pilote
+    // `sync`, il aurait lieu ici, et une déclaration de vol serait refusée
+    // parce qu'un agrégateur SMS répond mal.
     // Une déclaration de vol ne peut pas être refusée parce qu'un agrégateur
     // répond mal.
     Http::fake(['*' => Http::response(['erreur' => 'quota'], 500)]);

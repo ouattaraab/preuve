@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\NotificationType;
+use App\Jobs\DeliverNotification;
 use App\Mail\NotificationMail;
 use App\Models\Asset;
 use App\Models\Notification;
@@ -13,6 +14,7 @@ use App\Services\Delivery\PushTransport;
 use App\Services\Delivery\SmsGateway;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
 
@@ -33,6 +35,13 @@ use Throwable;
  * notification par consultation apprendrait au propriétaire le rythme exact des
  * visites — donc, par recoupement avec ce qu'il sait par ailleurs, qui regarde
  * et quand. Elle noierait aussi le signal utile sous le bruit.
+ *
+ * L'ACHEMINEMENT HORS DE L'APPLICATION PASSE PAR LA FILE `notifications`. Il
+ * ajoutait auparavant quelques centaines de millisecondes aux actions
+ * critiques, et une passerelle lente retenait l'utilisateur. La ligne du centre
+ * in-app, elle, reste écrite dans la requête : c'est la trace durable, et un
+ * propriétaire doit la trouver en ouvrant l'application même si aucune
+ * passerelle n'a répondu.
  *
  * Les préférences (ST-0107) permettent de se taire sur les types facultatifs.
  * Les types critiques n'y sont pas soumis : couper l'alerte d'une tentative
@@ -74,25 +83,48 @@ final class NotificationService
             'created_at' => now()->format('Y-m-d H:i:s'),
         ]);
 
-        $this->deliver($destinataire, $notification);
+        // La ligne du centre in-app est écrite ici, dans la requête : c'est la
+        // trace durable. L'acheminement HORS de l'application part en file —
+        // il ajoutait auparavant quelques centaines de millisecondes aux
+        // actions critiques, et une passerelle lente retenait l'utilisateur.
+        try {
+            DeliverNotification::dispatch($notification->id);
+        } catch (Throwable $e) {
+            /*
+             * L'ACTION MÉTIER NE DOIT JAMAIS ÉCHOUER À CAUSE D'UN
+             * ACHEMINEMENT, quel que soit le pilote de file.
+             *
+             * Avec un vrai pilote, `dispatch()` ne fait qu'écrire une ligne et
+             * ne lève pas : le travail — et son éventuelle relance — a lieu
+             * dans le travailleur, où lever est justement ce qui permet le
+             * réessai. Mais sur le pilote `sync`, le travail s'exécute ICI, et
+             * l'exception de la passerelle remonterait jusqu'à l'appelant :
+             * une déclaration de vol serait refusée parce qu'un agrégateur SMS
+             * répond mal. Ce garde-fou vaut aussi pour une file en panne.
+             */
+            Log::warning('Acheminement de notification non dépêché', ['exception' => $e::class]);
+        }
 
         return $notification;
     }
 
     /**
-     * Achemine hors de l'application (ST-1003, ST-1004).
+     * Achemine hors de l'application, depuis la file (ST-1003, ST-1004).
      *
-     * NE LÈVE JAMAIS. La notification in-app est déjà enregistrée : une
-     * passerelle indisponible ne doit pas faire échouer l'action métier qui l'a
-     * déclenchée — une déclaration de vol ne peut pas être refusée parce qu'un
-     * agrégateur SMS répond mal.
-     *
-     * L'envoi est synchrone faute de file : il ajoute quelques centaines de
-     * millisecondes aux actions critiques. À basculer sur la file
-     * `notifications` quand Horizon sera en place.
+     * APPELÉ PAR LE TRAVAILLEUR, jamais par la requête : c'est ce qui permet de
+     * LEVER en cas d'échec critique. En synchrone, lever aurait fait échouer
+     * l'action métier — une déclaration de vol ne peut pas être refusée parce
+     * qu'un agrégateur SMS répond mal — et absorber signifiait perdre l'alerte.
+     * La file rend le troisième choix possible : réessayer.
      */
-    private function deliver(User $destinataire, Notification $notification): void
+    public function deliverQueued(Notification $notification): void
     {
+        $destinataire = $notification->user;
+
+        if (! $destinataire instanceof User) {
+            return;
+        }
+
         $type = $notification->type;
 
         // Le push accompagne tout ce qui arrive au centre de notifications :
@@ -132,13 +164,19 @@ final class NotificationService
             $this->traceCost($type->value, 'sms', 'sent', null);
         } catch (Throwable $e) {
             $this->traceCost($type->value, 'sms', 'failed', $e::class);
+
+            // Relevé PUIS relancé : la tentative est consignée à chaque
+            // passage, et la file rejouera. Une alerte critique perdue peut
+            // coûter le bien ; un doublon n'est qu'un désagrément.
+            throw $e;
         }
     }
 
     /**
-     * Repli courriel. NE LÈVE JAMAIS, pour la même raison que le reste de
-     * `deliver()` : une déclaration de vol ne peut pas être refusée parce
-     * qu'une passerelle de messagerie répond mal.
+     * Repli courriel, tant qu'aucune passerelle SMS n'est arbitrée.
+     *
+     * LÈVE en cas d'échec, comme le SMS : nous sommes dans le travailleur, pas
+     * dans la requête métier. Personne n'attend, et la file rejouera.
      *
      * Le journal de coût distingue ce canal du SMS : savoir combien d'alertes
      * critiques partent par un canal de repli est ce qui permet d'arbitrer
@@ -165,6 +203,9 @@ final class NotificationService
             $this->traceCost($notification->type->value, 'mail', 'sent', null);
         } catch (Throwable $e) {
             $this->traceCost($notification->type->value, 'mail', 'failed', $e::class);
+
+            // Même raison que pour le SMS : la file doit pouvoir rejouer.
+            throw $e;
         }
     }
 

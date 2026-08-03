@@ -31,6 +31,24 @@ Artisan::command('inspire', function () {
  */
 Schedule::command('preuve:heartbeat')->everyFiveMinutes();
 
+/*
+ * Travailleur de la file `notifications` (ST-1003, ST-1004).
+ *
+ * L'hébergement mutualisé n'offre ni superviseur ni processus persistant : le
+ * travailleur est donc RELANCÉ chaque minute par le planificateur, vide la file
+ * et sort. `--stop-when-empty` évite qu'il attende pour rien, `--max-time=50`
+ * qu'il déborde sur le passage suivant, et `withoutOverlapping()` qu'ils
+ * s'empilent.
+ *
+ * Conséquence assumée : une alerte peut attendre jusqu'à une minute avant de
+ * quitter la plateforme. C'est le prix du mutualisé, et il est sans commune
+ * mesure avec ce qu'on y gagne — l'action métier ne paie plus l'attente d'une
+ * passerelle, et un échec est désormais rejoué au lieu d'être perdu.
+ */
+Schedule::command('queue:work --queue=notifications --stop-when-empty --max-time=50 --tries=3')
+    ->everyMinute()
+    ->withoutOverlapping();
+
 // Clôture des fenêtres de contestation arrivées à terme (ST-0402). Horaire
 // plutôt que quotidien : un bien enregistré à 14 h ne doit pas attendre le
 // lendemain matin pour devenir Actif au bout de ses 30 jours.
