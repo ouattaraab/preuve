@@ -266,6 +266,66 @@ php artisan preuve:backup-documents
 
 ---
 
+## 7 bis. Constats du déploiement du 03/08/2026
+
+Déploiement réel mené sur `preuve.click`. Trois écarts constatés, qui ne se
+voyaient pas depuis SSH.
+
+### PHP web ≠ PHP CLI
+
+Le sélecteur du compte annonce 8.4 et le CLI l'applique (8.4.19), mais le
+serveur web servait une version plus ancienne au domaine : les dépendances
+exigent `>= 8.4.1` et l'application rendait un **500 au premier appel**.
+
+Corrigé **dans le dépôt** (`public/.htaccess`) et non sur le serveur : posée à
+la main, la directive serait effacée au prochain `git reset --hard`, et le site
+casserait en silence.
+
+```apache
+<IfModule mod_mime.c>
+    AddHandler application/x-httpd-php84 .php
+</IfModule>
+```
+
+### `sendmail` désactivé par l'hébergeur
+
+```
+503 550 Local sendmail disabled for u726808002 contact support
+```
+
+**Bloquant** : l'OTP passe par courriel (D7), donc personne ne peut se
+connecter. Il faut une boîte SMTP réelle (hPanel → Emails) ou un fournisseur
+externe. `preuve:check-mail` a refusé de conclure — c'est son rôle.
+
+### Le CDN Hostinger met en cache
+
+`x-hcdn-cache-status: HIT` sur `/api/v1/config/categories`, avec un `age` de
+plusieurs minutes. C'est **voulu** pour le catalogue (`max-age=300`, ETag), mais
+il faut le savoir : une republication n'est visible qu'après expiration.
+
+La consultation, elle, ressort en `DYNAMIC` — non mise en cache au bord. Son
+`max-age=60` applicatif est délibéré et documenté dans `LookupController` : au
+delà d'une minute, une déclaration de vol mettrait trop de temps à devenir
+visible.
+
+### Ce qui a été vérifié en production
+
+| Contrôle | Résultat |
+|---|---|
+| `GET /api/v1/health` | 200, base `ok` |
+| Consultation sans compte | 200 |
+| `POST /assets` sans jeton | 401 |
+| Espace admin sans jeton | 401 |
+| Espace admin avec jeton non-admin | 403 |
+| `GET /.env` | 403 |
+| Trace d'exception sur route inconnue | aucune |
+| `UPDATE` sur `audit_log` | **refusé par déclencheur** |
+| `DELETE` sur `audit_log` | **refusé par déclencheur** |
+| Sanctum, bout en bout | 200 |
+
+Registre laissé vierge : 0 bien, 0 utilisateur, 0 jeton. Une entrée d'audit
+subsiste — la sonde d'inaltérabilité — et c'est normal : elle est inaltérable.
+
 ## 8. Ce que ce runbook ne couvre pas
 
 - **`preuve:restore-drill` ne tournera pas** avec l'utilisateur applicatif : il
