@@ -1,3 +1,15 @@
+# PHP 8.4 explicitement, sur l'hébergement mutualisé CloudLinux d'Hostinger.
+#
+# Le sélecteur du compte annonce 8.4 et le CLI l'applique, mais le serveur web
+# sert une version plus ancienne au domaine : les dépendances exigent >= 8.4.1
+# et l'application rendait un 500 au premier appel, sans que rien ne le laisse
+# prévoir depuis SSH. La ligne doit vivre DANS LE DÉPÔT : posée à la main sur
+# le serveur, le prochain déploiement l'effacerait et casserait le site en
+# silence.
+<IfModule mod_mime.c>
+    AddHandler application/x-httpd-php84 .php
+</IfModule>
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
