@@ -11,6 +11,7 @@ use App\Models\Asset;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\ClaimArbitrationService;
+use App\Services\Settings\SettingsRepository;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -24,6 +25,12 @@ use Illuminate\Support\Facades\Storage;
  * N'utilise pas RefreshDatabase : l'arbitrage écrit dans la chaîne d'audit.
  */
 beforeEach(function (): void {
+    // Ces tests portent sur l'ARBITRAGE, pas sur les frais : le recours y est
+    // gratuit, ce qui est un mode d'exploitation réel et non un artifice. La
+    // barrière des frais a ses propres tests (FraisDossierTest).
+    app(SettingsRepository::class)
+        ->set(ClaimArbitrationService::FEE_SETTING, 0);
+
     if (! Schema::hasTable('claims')) {
         Artisan::call('migrate', ['--force' => true]);
     }

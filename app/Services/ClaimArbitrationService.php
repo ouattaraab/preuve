@@ -13,11 +13,13 @@ use App\Enums\NotificationType;
 use App\Enums\PaymentPurpose;
 use App\Enums\PaymentStatus;
 use App\Enums\TriggerType;
+use App\Exceptions\FraisDossierImpayesException;
 use App\Models\Asset;
 use App\Models\Claim;
 use App\Models\ClaimEvidence;
 use App\Models\Payment;
 use App\Models\User;
+use App\Services\Settings\SettingsRepository;
 use DomainException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -64,24 +66,33 @@ final class ClaimArbitrationService
         private readonly AuditChain $auditChain,
         private readonly NotificationService $notifications,
         private readonly DocumentVault $vault,
+        private readonly SettingsRepository $settings,
     ) {}
 
+    /** Réglage du montant, modifiable depuis l'espace administrateur. */
+    public const FEE_SETTING = 'claims.fee_fcfa';
+
     /**
-     * Frais de dossier attendus (ST-0501), remboursés si la réclamation
-     * aboutit.
+     * Frais de dossier (ST-0501), remboursés si la réclamation aboutit.
      *
-     * ILS NE CONDITIONNENT PAS LE DÉPÔT. Leur rôle est de décourager les
-     * dossiers de nuisance — contester la propriété d'autrui doit coûter
-     * quelque chose — mais une victime démunie ne doit pas se voir fermer son
-     * seul recours faute de 2000 francs. Le dossier suit son cours ; le
-     * paiement est attendu, non exigé, et son absence est visible de l'agent.
+     * ILS CONDITIONNENT LE DÉPÔT depuis le 03/08/2026 (décision produit), et
+     * le dépôt SEULEMENT : ouvrir un dossier, y verser des pièces et consulter
+     * le montant dû restent libres. C'est au dépôt que la réclamation cesse
+     * d'être une affaire privée — le bien est gelé, donc invendable, et son
+     * détenteur est prévenu. Faire payer plus tôt ferait payer pour rien ; plus
+     * tard ferait travailler un agent pour rien.
      *
-     * @return array{amount_fcfa: int, paid: bool, refundable: bool}
+     * LE MONTANT EST RÉGLABLE EN EXPLOITATION, et peut être mis à ZÉRO. Ce
+     * n'est pas un détail commercial : c'est la soupape qui empêche le filtre
+     * anti-nuisance de devenir un filtre anti-pauvres. Une campagne, une
+     * région sinistrée, un lancement — l'administrateur ouvre gratuitement le
+     * recours sans livraison ni migration. À zéro, plus rien ne bloque.
+     *
+     * @return array{amount_fcfa: int, paid: bool, required: bool, refundable: bool}
      */
     public function fee(Claim $dossier): array
     {
-        $montant = config('preuve.claim_fee_fcfa');
-        $montant = is_numeric($montant) && (int) $montant > 0 ? (int) $montant : 2000;
+        $montant = $this->feeAmount();
 
         $regle = Payment::query()
             ->where('purpose', PaymentPurpose::ClaimFee->value)
@@ -92,10 +103,34 @@ final class ClaimArbitrationService
         return [
             'amount_fcfa' => $montant,
             'paid' => $regle,
+            // À zéro, il n'y a rien à exiger : le recours est ouvert.
+            'required' => $montant > 0 && ! $regle,
             // Remboursables si la réclamation est fondée : le réclamant a eu
             // raison de contester, il n'a pas à en supporter le coût.
             'refundable' => $dossier->decision === ClaimDecision::TransferToClaimant,
         ];
+    }
+
+    /**
+     * Montant en vigueur : le réglage d'exploitation prime sur la valeur par
+     * défaut de la configuration.
+     *
+     * Zéro est une valeur LÉGITIME, et non une absence de réglage — d'où le
+     * contrôle de type plutôt qu'un simple `?:` qui la confondrait avec « non
+     * renseigné » et rétablirait des frais que l'administrateur vient
+     * justement de lever.
+     */
+    public function feeAmount(): int
+    {
+        $regle = $this->settings->get(self::FEE_SETTING);
+
+        if (is_numeric($regle) && (int) $regle >= 0) {
+            return (int) $regle;
+        }
+
+        $defaut = config('preuve.claim_fee_fcfa');
+
+        return is_numeric($defaut) && (int) $defaut > 0 ? (int) $defaut : 2000;
     }
 
     /**
@@ -184,12 +219,22 @@ final class ClaimArbitrationService
     /**
      * Dépose le dossier et statue sur sa recevabilité.
      *
-     * @throws DomainException
+     * @throws FraisDossierImpayesException si les frais dus n'ont pas été réglés
+     * @throws DomainException si le dossier a déjà été déposé
      */
     public function submit(Claim $dossier): Claim
     {
         if ($dossier->status !== ClaimStatus::Draft) {
             throw new DomainException('Ce dossier a déjà été déposé.');
+        }
+
+        // Contrôlé AVANT toute écriture : un dépôt refusé ne gèle aucun bien,
+        // ne prévient personne et ne laisse aucune trace d'une instruction qui
+        // n'a pas commencé.
+        $frais = $this->fee($dossier);
+
+        if ($frais['required']) {
+            throw new FraisDossierImpayesException($frais);
         }
 
         $recevable = $this->isAutomaticallyAdmissible($dossier);

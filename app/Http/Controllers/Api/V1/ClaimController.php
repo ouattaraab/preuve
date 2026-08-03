@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\EvidenceType;
+use App\Exceptions\FraisDossierImpayesException;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\Claim;
@@ -95,6 +96,15 @@ final class ClaimController extends Controller
 
         try {
             $depose = $this->arbitrage->submit($dossier);
+        } catch (FraisDossierImpayesException $e) {
+            // 402 et non 422 : le dossier n'a rien d'incorrect, il attend un
+            // règlement. Le client doit router vers le paiement, et le montant
+            // l'accompagne — un refus qui ne dit pas combien ne laisse que
+            // l'abandon, c'est-à-dire une victime qui renonce à son recours.
+            return response()->json([
+                'message' => $e->getMessage(),
+                'fee' => $e->frais,
+            ], 402);
         } catch (DomainException $e) {
             throw ValidationException::withMessages(['claim' => $e->getMessage()]);
         }

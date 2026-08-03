@@ -16,6 +16,7 @@ use App\Models\ClaimEvidence;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\ClaimArbitrationService;
+use App\Services\Settings\SettingsRepository;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -31,6 +32,12 @@ use Illuminate\Support\Facades\Storage;
  * N'utilise pas RefreshDatabase : l'arbitrage écrit dans la chaîne d'audit.
  */
 beforeEach(function (): void {
+    // Ces tests portent sur l'ARBITRAGE, pas sur les frais : le recours y est
+    // gratuit, ce qui est un mode d'exploitation réel et non un artifice. La
+    // barrière des frais a ses propres tests (FraisDossierTest).
+    app(SettingsRepository::class)
+        ->set(ClaimArbitrationService::FEE_SETTING, 0);
+
     if (! Schema::hasTable('claims')) {
         Artisan::call('migrate', ['--force' => true]);
     }
@@ -419,63 +426,4 @@ it('refuse un appel hors délai', function (): void {
 
     expect(fn () => $this->arbitrage->appeal($dossier->fresh() ?? $dossier, $reclamant))
         ->toThrow(DomainException::class);
-});
-
-it('laisse le dossier suivre son cours sans le moindre paiement', function (): void {
-    // LES FRAIS SONT ANNONCÉS, JAMAIS OPPOSÉS (ST-0501). Leur rôle est de
-    // décourager les dossiers de nuisance — contester la propriété d'autrui
-    // doit coûter quelque chose — mais une victime démunie ne doit pas se voir
-    // fermer son seul recours faute de 2000 francs.
-    //
-    // Ce test verrouille cette propriété : elle n'était affirmée que par un
-    // commentaire, et rien n'empêchait qu'une porte de paiement s'ajoute un
-    // jour sans que personne ne le remarque.
-    $reclamant = partie();
-    $bien = bienConteste(partie());
-
-    // Ouverture, pièces, soumission : aucun paiement nulle part.
-    $dossier = dossierRecevable($reclamant, $bien);
-
-    expect($dossier->status)->not->toBe('draft');
-
-    // L'instruction et la décision aboutissent tout autant.
-    $this->arbitrage->decide(
-        $dossier->fresh() ?? $dossier,
-        agentArbitre(),
-        ClaimDecision::TransferToClaimant,
-        'Facture nominative concordante.',
-    );
-
-    expect(DB::table('payments')->count())->toBe(0);
-});
-
-it('annonce le montant des frais sans en faire une condition', function (): void {
-    $reclamant = partie();
-    $dossier = dossierRecevable($reclamant, bienConteste(partie()));
-
-    $frais = $this->arbitrage->fee($dossier);
-
-    expect($frais['amount_fcfa'])->toBe((int) config('preuve.claim_fee_fcfa'))
-        // Non réglés, et le dossier a pourtant été reçu et instruit : c'est
-        // exactement ce que « annoncés, jamais opposés » veut dire.
-        ->and($frais['paid'])->toBeFalse();
-});
-
-it('rend les frais remboursables quand le réclamant avait raison', function (): void {
-    // Le réclamant a eu raison de contester : il n'a pas à en supporter le
-    // coût. Le droit au remboursement est constaté par la plateforme ; le
-    // versement lui-même passe par l'opérateur de paiement.
-    $reclamant = partie();
-    $dossier = dossierRecevable($reclamant, bienConteste(partie()));
-
-    expect($this->arbitrage->fee($dossier)['refundable'])->toBeFalse();
-
-    $this->arbitrage->decide(
-        $dossier->fresh() ?? $dossier,
-        agentArbitre(),
-        ClaimDecision::TransferToClaimant,
-        'Facture nominative concordante.',
-    );
-
-    expect($this->arbitrage->fee($dossier->fresh() ?? $dossier)['refundable'])->toBeTrue();
 });

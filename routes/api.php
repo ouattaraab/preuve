@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Admin\AuditAnchorController;
 use App\Http\Controllers\Api\V1\Admin\CaptchaProviderController;
+use App\Http\Controllers\Api\V1\Admin\ClaimFeeController;
 use App\Http\Controllers\Api\V1\Admin\ClaimReviewController;
 use App\Http\Controllers\Api\V1\Admin\CompanyValidationController;
 use App\Http\Controllers\Api\V1\Admin\DocumentReviewController;
@@ -216,6 +217,12 @@ Route::prefix('v1')->group(function (): void {
         // périmée est un contrôle qui cesse d'exister sans que rien ne le dise.
         // Défi anti-automate (Turnstile). Le désactiver rouvre le balayage du
         // registre : le changement est journalisé dans la chaîne d'audit.
+        // Montant des frais de dossier (ST-0501). Zéro lève le blocage : c'est
+        // la soupape qui empêche le filtre anti-nuisance de devenir un filtre
+        // anti-pauvres. Chaque changement est journalisé.
+        Route::get('claim-fee', [ClaimFeeController::class, 'show']);
+        Route::put('claim-fee', [ClaimFeeController::class, 'update']);
+
         Route::get('captcha-provider', [CaptchaProviderController::class, 'show']);
         Route::put('captcha-provider', [CaptchaProviderController::class, 'update']);
 
