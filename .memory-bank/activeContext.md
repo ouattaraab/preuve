@@ -77,6 +77,57 @@ plus des stories.
 - ✅ **Cron rétabli le 03/08/2026** (commande corrigée dans hPanel : chemin absolu vers `artisan`, sans `cd`). Le témoin de passage confirme un battement toutes les cinq minutes, la sonde rend `scheduler: ok`. Débloque la bascule des notifications en file et l'import de flotte au-delà de 200 lignes. Historique du blocage, conservé pour mémoire :
 - 🔵 ~~BLOQUANT — les tâches cron ne s'exécutent pas sur l'hébergement~~ (constaté le 03/08/2026). Deux tâches indépendantes, dont un simple `/usr/bin/date`, créent leur fichier de sortie à `HH:MM:02` — signature d'un déclenchement — puis n'écrivent **jamais** un octet, sur des observations de 4 à 18 minutes. Ce n'est donc pas la commande : `date` ne peut pas échouer. Écrire directement dans `/var/spool/cron/` (qui appartient pourtant à l'utilisateur) n'est pas lu non plus, et aucun binaire `crontab` ni outil hPanel n'existe en ligne de commande. **Ticket support Hostinger à ouvrir.** Conséquence : aucune des 13 tâches planifiées ne tourne — promotion des biens provisoires, agrégation des consultations, pics, expiration des transferts, **ancrage quotidien**, purges de rétention. Impact immédiat nul (registre vide), inacceptable dès qu'il portera des biens. Repli possible : déclenchement HTTP externe par un service tiers, au prix d'un endpoint protégé par secret — à arbitrer.
 
+## Espace administrateur (construction par lots, en production)
+
+Console servie par Laravel, sans étape de construction — l'hébergement cible est
+un mutualisé sans Node, et la maquette (`docs/Preuve - Admin.html`) n'utilisait
+aucun framework. Palette et polices reprises telles quelles.
+
+**Authentification par cookie de session `httpOnly`, jamais par jeton en
+`localStorage`** : cette console affiche des cartes grises et des pièces
+d'identité ; un jeton y serait lisible par la première faille XSS.
+
+Les gabarits ne rendent AUCUNE donnée côté serveur : ils sont peuplés par le
+navigateur, qui interroge les mêmes `/api/v1/admin/*` que n'importe quel client.
+Deux chemins de lecture finiraient par diverger, et l'écart ne se verrait qu'au
+moment d'une décision d'agent.
+
+- ✅ **Lot 1 (03/08/2026)** : connexion OTP à deux temps, coquille, navigation, Modération, Supervision.
+- ✅ **Lot 2 (03/08/2026)** : Registre des biens (aucune colonne « détenteur »), Annuaire des comptes (coordonnées masquées, suspension motivée qui révoque les jetons sans jamais suspendre la protection des biens).
+- ✅ **Lot 3 (03/08/2026)** : Piste d'audit, Catégories & champs, Équipe & rôles — **fermés aux agents** : ils ne servent pas à instruire des dossiers mais à configurer la plateforme.
+- ⬜ **Lot 4** : Vue d'ensemble et Statistiques app.
+
+**Trois partis pris du lot 3, à ne pas rediscuter :**
+1. **La piste d'audit n'offre aucune route d'écriture** — pas seulement parce que les déclencheurs l'interdisent, mais parce qu'un bouton qui échouerait toujours enseignerait qu'une modification est concevable. L'export est diffusé en flux par lots de 500 : un journal d'exploitation atteint vite le million de lignes, et le charger en mémoire ferait échouer l'export précisément le jour où il compte. Chaque ligne porte son `chain_hash`, seul moyen de la rapprocher d'un ancrage externe.
+2. **Une catégorie se désactive, jamais ne se supprime**, et l'identifiant canonique ne se déplace pas : il porte l'unicité de l'enregistrement actif, et le déplacer sur une catégorie peuplée ferait apparaître des doublons rétroactivement.
+3. **Les pages visibles sont DÉDUITES du rôle et non stockées.** La maquette prévoyait quatre profils avec des pages cochables ; la plateforme en a trois (`user`, `agent`, `admin`) et tient ses accès par des middlewares. Une table d'habilitations serait une seconde source de vérité : le jour où elles divergeraient, l'écran afficherait un droit que le code refuse — ou l'inverse. La navigation cache aux agents ce qu'ils ne peuvent pas atteindre : un lien menant à un 403 n'est pas de la transparence.
+
+## Levée d'anonymat sur réquisition (03/08/2026)
+
+Elle existe **parce que l'alternative est pire** : une réquisition judiciaire
+arrivera, et sans chemin prévu l'exploitant y répondra par une requête SQL
+directe — sans fondement consigné, sans trace, sans registre.
+
+Délibérément plus difficile que tout le reste : réservée aux administrateurs
+(contrôle refait dans le contrôleur, pas seulement au routage) ; fondement
+**structuré et obligatoire** (autorité, référence, date, objet) parce qu'un champ
+libre unique se remplirait de « enquête » ; **une personne à la fois**, aucun
+listage ni export ; **aucun état « déverrouillé »** — la réponse est rendue une
+fois, et la seconde d'après l'identité est de nouveau inaccessible ; **double
+trace ineffaçable**, chaîne d'audit et table `identity_disclosures`, toutes deux
+append-only par déclencheurs (vérifiés en production le 03/08/2026 sur une ligne
+posée puis annulée en transaction).
+
+Le numéro de pièce n'est **pas restituable**, y compris sur réquisition : il
+n'est conservé qu'en SHA-256. La réponse le dit explicitement plutôt que de
+laisser chercher.
+
+Le sujet n'est pas prévenu, et ce silence est une décision : une réquisition
+s'accompagne le plus souvent d'une obligation de confidentialité. La contrepartie
+est le registre, lisible par les administrateurs sans procédure — un document de
+reddition de comptes qui exigerait une procédure pour être consulté ne servirait
+à rien.
+
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)
