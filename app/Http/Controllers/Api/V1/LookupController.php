@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\Captcha\CaptchaVerifier;
 use App\Services\LookupService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,7 +26,10 @@ use Illuminate\Http\Request;
  */
 final class LookupController extends Controller
 {
-    public function __construct(private readonly LookupService $lookups) {}
+    public function __construct(
+        private readonly LookupService $lookups,
+        private readonly CaptchaVerifier $captcha,
+    ) {}
 
     public function show(Request $request, string $identifier): JsonResponse
     {
@@ -36,6 +40,9 @@ final class LookupController extends Controller
             $request->ip() ?? '0.0.0.0',
             $consultant instanceof User ? $consultant : null,
             $request->query('source') === 'web' ? 'web' : 'app',
+            // Présenté par le client APRÈS un premier refus : le chemin
+            // nominal ne transporte aucun jeton et ne paie aucun aller-retour.
+            $this->captchaToken($request),
         );
 
         if ($resultat->invalidIdentifier) {
@@ -48,10 +55,18 @@ final class LookupController extends Controller
             // partagée — cas courant en Côte d'Ivoire, où un cybercafé ou un
             // partage de connexion mobile mutualise une seule adresse
             // publique. Le client doit donc présenter un défi, pas abandonner.
-            return response()->json(
-                [...$resultat->toPublicArray(), 'captcha_required' => true],
-                429,
-            )->header('Retry-After', '3600');
+            return response()->json([
+                ...$resultat->toPublicArray(),
+                'captcha_required' => true,
+                // La clé publique voyage AVEC le refus, et seulement là : le
+                // client n'a besoin d'afficher un défi qu'à ce moment, et rien
+                // ne l'oblige à charger un script tiers sur le chemin nominal.
+                'captcha' => $this->captcha->isConfigured()
+                    ? ['provider' => 'turnstile', 'site_key' => $this->captcha->siteKey()]
+                    // Non configuré : le refus tient, mais on ne promet pas une
+                    // échappatoire qui n'existe pas.
+                    : null,
+            ], 429)->header('Retry-After', '3600');
         }
 
         return response()
@@ -62,5 +77,17 @@ final class LookupController extends Controller
             // de temps à devenir visible — c'est précisément l'information la
             // plus urgente du produit.
             ->header('Cache-Control', 'public, max-age=60');
+    }
+
+    /** En-tête ou paramètre : un client web pose l'un, un client mobile l'autre. */
+    private function captchaToken(Request $request): ?string
+    {
+        foreach ([$request->header('X-Captcha-Token'), $request->query('captcha_token')] as $valeur) {
+            if (is_string($valeur) && $valeur !== '') {
+                return $valeur;
+            }
+        }
+
+        return null;
     }
 }

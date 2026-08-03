@@ -87,6 +87,21 @@ return [
         200 => 200,
     ],
 
+    /*
+    | Défi anti-automate (Cloudflare Turnstile). Retenu contre reCAPTCHA parce
+    | qu'il ne dépose pas de cookie publicitaire : faire passer par un régisseur
+    | les gens qui consultent SANS compte contredirait la minimisation que la
+    | plateforme s'impose partout ailleurs.
+    |
+    | `grant_lookups` borne ce qu'un défi résolu rend : un défi ne vaut PAS
+    | laissez-passer. Sans ce plafond, un automate en résoudrait un seul puis
+    | balaierait le registre — le défi n'aurait fait que retarder d'une minute
+    | ce qu'il devait empêcher.
+    */
+    'captcha' => [
+        'grant_lookups' => (int) env('PREUVE_CAPTCHA_GRANT', 10),
+    ],
+
     // Conservation des consultations : politique déclarée à l'ARTCI
     'lookup_retention_months' => 12,
 

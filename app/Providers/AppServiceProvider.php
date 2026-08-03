@@ -8,6 +8,8 @@ use App\Extensions\PreuveSessionHandler;
 use App\Services\Audit\MailAnchorChannel;
 use App\Services\Audit\StorageAnchorChannel;
 use App\Services\AuditAnchorService;
+use App\Services\Captcha\CaptchaVerifier;
+use App\Services\Captcha\TurnstileVerifier;
 use App\Services\Delivery\FcmPushTransport;
 use App\Services\Delivery\HttpSmsGateway;
 use App\Services\Delivery\PushTransport;
@@ -54,6 +56,11 @@ class AppServiceProvider extends ServiceProvider
         // l'utilisateur saisit son identifiant — ce qu'il aurait fait de toute
         // façon sans le scan.
         $this->app->bind(DocumentReader::class, MindeeDocumentReader::class);
+
+        // Défi anti-automate. Sans clés configurées, le vérificateur répond
+        // « non configuré » : le plafond de consultation tient alors seul, et
+        // le refus ne promet pas une échappatoire qui n'existe pas.
+        $this->app->bind(CaptchaVerifier::class, TurnstileVerifier::class);
 
         // Transports hors application (ST-1003, ST-1004). Tous deux répondent
         // « non configuré » tant qu'aucune clé n'est renseignée : le centre de

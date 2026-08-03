@@ -7,6 +7,8 @@ namespace App\Services;
 use App\Models\Asset;
 use App\Models\Lookup;
 use App\Models\User;
+use App\Services\Captcha\CaptchaVerifier;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Consultation publique du statut d'un bien (EP-03).
@@ -25,7 +27,10 @@ use App\Models\User;
  * 2. Le rythme est plafonné pour les visiteurs anonymes (§8) : sans cela, un
  *    concessionnaire pourrait cartographier le parc entier en balayant les
  *    identifiants. Les comptes authentifiés ne sont pas limités, leur usage
- *    étant déjà rattaché à une identité.
+ *    étant déjà rattaché à une identité. Un défi anti-automate rouvre le
+ *    passage à qui le résout — le plafond ne doit pas condamner un visiteur
+ *    légitime derrière une adresse partagée, cas courant en Côte d'Ivoire où
+ *    un cybercafé mutualise une seule adresse publique.
  * 3. Le verdict ne dit rien du détenteur (règle n° 4), et pas davantage de
  *    l'identifiant complet du bien.
  *
@@ -46,10 +51,31 @@ final class LookupService
     /** Longueur en deçà de laquelle une saisie ne peut désigner aucun bien. */
     private const MIN_IDENTIFIER_LENGTH = 6;
 
-    public function __construct(private readonly IdentifierNormalizer $normalizer) {}
+    /**
+     * Consultations rendues par un défi résolu. Un défi ne vaut PAS
+     * laissez-passer : sans ce plafond, un automate résoudrait un seul défi
+     * puis balaierait le registre à loisir, et le défi n'aurait fait que
+     * retarder d'une minute ce qu'il devait empêcher. Ce qui coûte à
+     * l'attaquant, c'est de devoir en résoudre un tous les dix.
+     */
+    private const CAPTCHA_GRANT_FALLBACK = 10;
 
-    public function lookup(string $identifier, string $ip, ?User $consultant = null, string $source = 'app'): LookupResult
-    {
+    public function __construct(
+        private readonly IdentifierNormalizer $normalizer,
+        private readonly CaptchaVerifier $captcha,
+    ) {}
+
+    /**
+     * @param  string|null  $captchaToken  jeton de défi, présenté seulement
+     *                                     après un refus pour dépassement
+     */
+    public function lookup(
+        string $identifier,
+        string $ip,
+        ?User $consultant = null,
+        string $source = 'app',
+        ?string $captchaToken = null,
+    ): LookupResult {
         // Chronomètre serveur : CT-01 promet moins d'une seconde au 95e
         // centile, et une promesse non mesurée n'est qu'une intention.
         $debut = hrtime(true);
@@ -64,8 +90,15 @@ final class LookupService
 
         $empreinte = $this->hashIp($ip);
 
-        if ($consultant === null && $this->hasExceededHourlyLimit($empreinte)) {
-            return LookupResult::rateLimited();
+        if ($consultant === null && $this->hasExceededAllowance($empreinte)) {
+            // Le jeton n'est vérifié QU'ICI : sur le chemin nominal, la
+            // consultation ne doit pas payer un aller-retour vers Cloudflare —
+            // CT-01 promet moins d'une seconde. Et un jeton Turnstile étant à
+            // usage unique, le brûler sans nécessité obligerait le visiteur à
+            // résoudre un défi qu'on ne lui a jamais demandé.
+            if ($captchaToken === null || ! $this->grantAfterChallenge($empreinte, $captchaToken)) {
+                return LookupResult::rateLimited();
+            }
         }
 
         $bien = $this->findActive($normalise, $identifier);
@@ -106,14 +139,64 @@ final class LookupService
             ->first();
     }
 
-    private function hasExceededHourlyLimit(string $empreinte): bool
+    /**
+     * Le plafond horaire, augmenté de ce qu'un défi résolu a rendu.
+     *
+     * Le comptage reste celui des consultations réellement journalisées :
+     * l'octroi ne les efface pas, il déplace la barre. Un visiteur qui a
+     * résolu un défi voit donc son quota reprendre normalement ensuite.
+     */
+    private function hasExceededAllowance(string $empreinte): bool
     {
         $consultations = Lookup::query()
             ->where('ip_hash', $empreinte)
             ->where('created_at', '>', now()->subHour())
             ->count();
 
-        return $consultations >= $this->anonymousHourlyLimit();
+        return $consultations >= $this->anonymousHourlyLimit() + $this->granted($empreinte);
+    }
+
+    /**
+     * Vérifie le défi et, s'il tient, rouvre le passage pour un nombre borné
+     * de consultations.
+     *
+     * L'octroi est porté par l'EMPREINTE de l'adresse, jamais par l'adresse :
+     * la même clé que le plafond, et donc la même protection (Loi 2013-450).
+     */
+    private function grantAfterChallenge(string $empreinte, string $token): bool
+    {
+        if (! $this->captcha->isConfigured() || ! $this->captcha->verify($token)) {
+            return false;
+        }
+
+        Cache::put(
+            $this->grantKey($empreinte),
+            $this->granted($empreinte) + $this->captchaGrant(),
+            now()->addHour(),
+        );
+
+        return true;
+    }
+
+    private function granted(string $empreinte): int
+    {
+        $octroi = Cache::get($this->grantKey($empreinte));
+
+        return is_numeric($octroi) ? max(0, (int) $octroi) : 0;
+    }
+
+    private function grantKey(string $empreinte): string
+    {
+        return 'preuve.captcha.grant.'.$empreinte;
+    }
+
+    private function captchaGrant(): int
+    {
+        $octroi = config('preuve.captcha.grant_lookups');
+
+        return is_numeric($octroi) && (int) $octroi > 0
+            ? (int) $octroi
+            : self::CAPTCHA_GRANT_FALLBACK;
     }
 
     private function anonymousHourlyLimit(): int

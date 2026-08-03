@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Admin\AuditAnchorController;
+use App\Http\Controllers\Api\V1\Admin\CaptchaProviderController;
 use App\Http\Controllers\Api\V1\Admin\ClaimReviewController;
 use App\Http\Controllers\Api\V1\Admin\CompanyValidationController;
 use App\Http\Controllers\Api\V1\Admin\DocumentReviewController;
@@ -213,6 +214,11 @@ Route::prefix('v1')->group(function (): void {
 
         // Destinataire des rapports d'exploitation (ST-0904). Une adresse
         // périmée est un contrôle qui cesse d'exister sans que rien ne le dise.
+        // Défi anti-automate (Turnstile). Le désactiver rouvre le balayage du
+        // registre : le changement est journalisé dans la chaîne d'audit.
+        Route::get('captcha-provider', [CaptchaProviderController::class, 'show']);
+        Route::put('captcha-provider', [CaptchaProviderController::class, 'update']);
+
         Route::get('ops-recipient', [OpsRecipientController::class, 'show']);
         Route::put('ops-recipient', [OpsRecipientController::class, 'update']);
     });
