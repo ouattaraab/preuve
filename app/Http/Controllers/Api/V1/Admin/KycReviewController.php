@@ -7,13 +7,13 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\KycSubmission;
 use App\Models\User;
+use App\Services\DocumentVault;
 use App\Services\KycService;
 use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\Response;
 use Illuminate\Validation\ValidationException;
-use Throwable;
 
 /**
  * File de vérification d'identité (ST-0103, versant back-office).
@@ -30,7 +30,10 @@ final class KycReviewController extends Controller
 {
     private const PAGE_SIZE = 25;
 
-    public function __construct(private readonly KycService $kyc) {}
+    public function __construct(
+        private readonly KycService $kyc,
+        private readonly DocumentVault $vault,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -108,9 +111,9 @@ final class KycReviewController extends Controller
             'extraction' => $dossier->ocr_payload,
             'liveness_score' => $dossier->liveness_score,
             'images' => [
-                'id_front' => $this->lien($dossier->id_front_ref),
-                'id_back' => $this->lien($dossier->id_back_ref),
-                'selfie' => $this->lien($dossier->selfie_ref),
+                'id_front' => $this->lien($dossier->id_front_ref, $dossier->id, 'front'),
+                'id_back' => $this->lien($dossier->id_back_ref, $dossier->id, 'back'),
+                'selfie' => $this->lien($dossier->selfie_ref, $dossier->id, 'selfie'),
             ],
             'review_reason' => $dossier->review_reason,
             'submitted_at' => $dossier->created_at?->toIso8601String(),
@@ -118,16 +121,44 @@ final class KycReviewController extends Controller
         ];
     }
 
-    /** Lien signé de courte durée : une pièce d'identité ne vit jamais derrière une URL publique. */
-    private function lien(string $reference): ?string
+    /**
+     * Sert une pièce d'identité en clair à un agent.
+     *
+     * Ce sont les pièces les plus sensibles du bucket : téléchargement
+     * authentifié, rôle vérifié à chaque requête, aucun cache, et rien n'est
+     * jamais réécrit en clair sur le disque.
+     */
+    public function file(int $submission, string $part): Response
     {
-        $disque = config('preuve.documents.disk');
-        $disque = is_string($disque) && $disque !== '' ? $disque : 's3';
+        $dossier = KycSubmission::find($submission);
 
-        try {
-            return Storage::disk($disque)->temporaryUrl($reference, now()->addMinutes(10));
-        } catch (Throwable) {
-            return null;
+        if (! $dossier instanceof KycSubmission) {
+            abort(404);
         }
+
+        $reference = match ($part) {
+            'front' => $dossier->id_front_ref,
+            'back' => $dossier->id_back_ref,
+            'selfie' => $dossier->selfie_ref,
+            default => null,
+        };
+
+        if (! is_string($reference) || $reference === '') {
+            abort(404);
+        }
+
+        $clair = $this->vault->get($reference);
+
+        return response($clair, 200, [
+            'Content-Type' => $this->vault->mimeOf($clair),
+            'Content-Disposition' => 'inline',
+            'Cache-Control' => 'no-store, private',
+        ]);
+    }
+
+    /** Téléchargement authentifié, jamais une URL signée : voir file(). */
+    private function lien(string $reference, int $submission, string $part): ?string
+    {
+        return $reference === '' ? null : '/api/v1/admin/kyc/'.$submission.'/file/'.$part;
     }
 }

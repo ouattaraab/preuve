@@ -94,14 +94,13 @@ MAIL_USERNAME=no-reply@preuve.click
 MAIL_PASSWORD=…
 MAIL_FROM_ADDRESS="no-reply@preuve.click"
 
-# Stockage des pièces : JAMAIS le disque local. Le compte est partagé avec neuf
-# autres sites ; une compromission de l'un d'eux exposerait les cartes grises et
-# les pièces d'identité.
-PREUVE_DOCUMENTS_DISK=s3
-AWS_ACCESS_KEY_ID=…
-AWS_SECRET_ACCESS_KEY=…
-AWS_BUCKET=…
-AWS_ENDPOINT=…                 # R2
+# Stockage des pièces. R2 n'est pas encore en place (décision du 03/08/2026) :
+# le disque local est utilisé en attendant, et les pièces y sont CHIFFRÉES AU
+# REPOS avec APP_KEY. Une lecture de fichier depuis un des neuf sites voisins
+# rend alors du chiffré, et non des cartes grises. Ce n'est pas l'équivalent
+# d'un bucket privé — cela limite les dégâts, cela ne les évite pas.
+PREUVE_DOCUMENTS_DISK=local
+PREUVE_DOCUMENTS_ENCRYPT=true  # ne pas désactiver sur un disque partagé
 
 # Le disque de sauvegarde doit être AILLEURS que la machine sauvegardée.
 PREUVE_BACKUP_DISK=…
@@ -260,6 +259,7 @@ php artisan preuve:backup-documents
 | À vérifier | Comment | Pourquoi ça ne se voit pas autrement |
 |---|---|---|
 | `.env` non servi sur le Web | `curl -s https://preuve.click/.env` → doit rendre 404 | Un document root mal placé n'a aucun symptôme applicatif |
+| Pièces chiffrées sur le disque | déposer un justificatif, puis `grep` son contenu dans `storage/app/` → rien | Une pièce en clair se lit et s'affiche normalement : le défaut ne se voit que depuis le disque |
 | `APP_DEBUG=false` | une URL inexistante ne doit pas afficher de trace | Une trace expose les identifiants de base |
 | Pièces sur R2, pas en local | `php artisan preuve:reconcile-documents` | Un `PREUVE_DOCUMENTS_DISK` erroné écrit sur le disque partagé |
 | Cron réellement à la minute | attendre l'heure suivante, contrôler qu'une tâche horaire a tourné | Une granularité de 5 min ne produit aucune erreur |

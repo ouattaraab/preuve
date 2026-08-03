@@ -13,9 +13,7 @@ use App\Models\AssetDocument;
 use App\Models\User;
 use Illuminate\Http\File;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
-use Throwable;
 
 /**
  * Dépôt et revue des justificatifs (ST-0207, ST-0208).
@@ -34,6 +32,7 @@ final class DocumentReviewService
         private readonly TrustLevelEngine $trustLevel,
         private readonly AuditChain $auditChain,
         private readonly NotificationService $notifications,
+        private readonly DocumentVault $vault,
     ) {}
 
     /**
@@ -73,13 +72,7 @@ final class DocumentReviewService
         DocumentType $type,
         File|UploadedFile $fichier,
     ): AssetDocument {
-        $chemin = Storage::disk($this->disk())->putFile('assets/'.$bien->id, $fichier);
-
-        if (! is_string($chemin) || $chemin === '') {
-            throw new InvalidArgumentException(
-                "Le justificatif n'a pas pu être stocké : le dépôt est annulé plutôt qu'enregistré à vide."
-            );
-        }
+        $chemin = $this->vault->put('assets/'.$bien->id, $fichier);
 
         $reel = $fichier->getRealPath();
         $empreinte = $reel === false ? false : hash_file('sha256', $reel);
@@ -212,23 +205,18 @@ final class DocumentReviewService
         );
     }
 
-    private function disk(): string
+    /**
+     * Contenu en clair d'une pièce, pour la revue par un agent.
+     *
+     * Il n'y a plus d'URL signée. Une pièce chiffrée au repos servie par un
+     * lien direct rendrait du charabia, et un lien signé est de toute façon une
+     * capacité au porteur : recopié, il ouvre la pièce à qui n'est pas agent.
+     * Le téléchargement authentifié vérifie le rôle à chaque requête.
+     *
+     * @throws \RuntimeException si la pièce est introuvable ou indéchiffrable
+     */
+    public function readable(AssetDocument $document): string
     {
-        $disque = config('preuve.documents.disk');
-
-        return is_string($disque) && $disque !== '' ? $disque : 's3';
-    }
-
-    /** Chemin de lecture temporaire d'une pièce, pour la revue par un agent. */
-    public function temporaryUrl(AssetDocument $document, int $minutes = 10): ?string
-    {
-        try {
-            return Storage::disk($this->disk())->temporaryUrl($document->file_ref, now()->addMinutes($minutes));
-        } catch (Throwable) {
-            // Tous les disques n'exposent pas d'URL signée — un disque local
-            // lève ici. L'agent passera alors par le téléchargement
-            // authentifié plutôt que par un lien.
-            return null;
-        }
+        return $this->vault->get($document->file_ref);
     }
 }

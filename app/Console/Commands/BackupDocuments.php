@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Services\DocumentInventory;
+use App\Services\DocumentVault;
 use App\Services\OpsReporter;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Crypt;
@@ -57,6 +58,7 @@ final class BackupDocuments extends Command
     public function __construct(
         private readonly DocumentInventory $inventaire,
         private readonly OpsReporter $rapports,
+        private readonly DocumentVault $vault,
     ) {
         parent::__construct();
     }
@@ -307,7 +309,7 @@ final class BackupDocuments extends Command
     private function lire(string $source, array $objet, array &$manquants): ?string
     {
         try {
-            if (! Storage::disk($source)->exists($objet['ref'])) {
+            if (! $this->vault->exists($objet['ref'])) {
                 // Une pièce référencée mais absente du bucket veut dire qu'une
                 // décision s'appuie sur un document que plus personne ne peut
                 // produire.
@@ -316,7 +318,11 @@ final class BackupDocuments extends Command
                 return null;
             }
 
-            return (string) Storage::disk($source)->get($objet['ref']);
+            // Par le coffre : les pièces sont chiffrées au repos, et
+            // l'empreinte figée au dépôt porte sur le CLAIR. Lire le fichier
+            // brut ferait échouer chaque comparaison, et rapporter tout le
+            // parc comme altéré.
+            return $this->vault->get($objet['ref']);
         } catch (Throwable $e) {
             $manquants[] = $objet['label'].' → '.$objet['ref'].' ('.$e::class.')';
 

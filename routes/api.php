@@ -181,6 +181,13 @@ Route::prefix('v1')->group(function (): void {
 
             Route::get('documents', [DocumentReviewController::class, 'index']);
             Route::post('documents/{document}/review', [DocumentReviewController::class, 'review']);
+
+            // Téléchargement authentifié des pièces. Remplace les URL signées :
+            // les pièces sont chiffrées au repos — un lien direct rendrait du
+            // charabia — et un lien signé est une capacité au porteur, qui
+            // ouvre la pièce à quiconque le recopie.
+            Route::get('documents/{document}/file', [DocumentReviewController::class, 'file']);
+            Route::get('kyc/{submission}/file/{part}', [KycReviewController::class, 'file']);
             Route::post('assets/{asset}/verify', [DocumentReviewController::class, 'verify']);
         });
 

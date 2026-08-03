@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Services\DocumentInventory;
+use App\Services\DocumentVault;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
@@ -44,8 +45,10 @@ final class RestoreDocuments extends Command
 
     protected $description = 'Remonte les pièces sauvegardées vers le bucket de documents';
 
-    public function __construct(private readonly DocumentInventory $inventaire)
-    {
+    public function __construct(
+        private readonly DocumentInventory $inventaire,
+        private readonly DocumentVault $vault,
+    ) {
         parent::__construct();
     }
 
@@ -83,7 +86,7 @@ final class RestoreDocuments extends Command
         foreach ($this->inventaire->objets() as $objet) {
             $total++;
 
-            if (Storage::disk($cible)->exists($objet['ref'])) {
+            if ($this->vault->exists($objet['ref'])) {
                 $presentes++;
 
                 continue;
@@ -124,7 +127,9 @@ final class RestoreDocuments extends Command
                 continue;
             }
 
-            Storage::disk($cible)->put($objet['ref'], $contenu);
+            // Par le coffre : la référence attendue par la base doit être
+            // reproduite à l'identique, chiffrement compris.
+            $this->vault->putRaw($objet['ref'], $contenu);
             $remontees++;
         }
 

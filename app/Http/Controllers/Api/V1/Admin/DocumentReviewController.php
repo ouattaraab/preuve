@@ -10,9 +10,11 @@ use App\Models\Asset;
 use App\Models\AssetDocument;
 use App\Models\User;
 use App\Services\DocumentReviewService;
+use App\Services\DocumentVault;
 use App\Services\TrustLevelEngine;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
@@ -31,6 +33,7 @@ final class DocumentReviewController extends Controller
     public function __construct(
         private readonly DocumentReviewService $documents,
         private readonly TrustLevelEngine $trustLevel,
+        private readonly DocumentVault $vault,
     ) {}
 
     /** File d'attente, les plus anciennes d'abord — personne ne doit être oublié. */
@@ -127,6 +130,33 @@ final class DocumentReviewController extends Controller
         return $utilisateur;
     }
 
+    /**
+     * Sert la pièce en clair à un agent.
+     *
+     * Le contenu est déchiffré à la volée et n'est jamais réécrit en clair sur
+     * le disque : un fichier temporaire déchiffré survivrait à la requête et
+     * annulerait le chiffrement au repos pour quiconque lit le disque partagé.
+     */
+    public function file(int $document): Response
+    {
+        $piece = AssetDocument::find($document);
+
+        if (! $piece instanceof AssetDocument) {
+            abort(404);
+        }
+
+        $clair = $this->documents->readable($piece);
+
+        return response($clair, 200, [
+            // Type deviné sur le CLAIR : le chiffré n'en a aucun.
+            'Content-Type' => $this->vault->mimeOf($clair),
+            // `inline` et non `attachment` : l'agent regarde, il ne collecte
+            // pas. Et jamais en cache — ni navigateur, ni relais.
+            'Content-Disposition' => 'inline',
+            'Cache-Control' => 'no-store, private',
+        ]);
+    }
+
     /** @return array<string, mixed> */
     private function present(AssetDocument $document): array
     {
@@ -138,9 +168,11 @@ final class DocumentReviewController extends Controller
             'review_status' => $document->review_status->value,
             'review_reason' => $document->review_reason,
             'file_sha256' => $document->file_sha256,
-            // Lien signé de courte durée : la pièce ne transite jamais par une
-            // URL publique, et le lien ne survit pas à la session de revue.
-            'file_url' => $this->documents->temporaryUrl($document),
+            // Téléchargement authentifié, et non lien signé : la pièce est
+            // chiffrée au repos — un lien direct rendrait du charabia — et un
+            // lien signé est une capacité au porteur, qui ouvre la pièce à
+            // quiconque le recopie. Ici le rôle est vérifié à chaque requête.
+            'file_url' => '/api/v1/admin/documents/'.$document->id.'/file',
             'submitted_at' => $document->created_at?->toIso8601String(),
             'reviewed_at' => $document->reviewed_at?->toIso8601String(),
         ];

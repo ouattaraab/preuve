@@ -41,6 +41,7 @@ final class KycService
         private readonly AuditChain $auditChain,
         private readonly NotificationService $notifications,
         private readonly TrustLevelEngine $trustLevel,
+        private readonly DocumentVault $vault,
     ) {}
 
     /**
@@ -82,9 +83,11 @@ final class KycService
         $dossier = KycSubmission::create([
             'user_id' => $utilisateur->id,
             'status' => 'pending',
-            'id_front_ref' => (string) $recto->store('kyc/'.$utilisateur->id, $disque),
-            'id_back_ref' => (string) $verso->store('kyc/'.$utilisateur->id, $disque),
-            'selfie_ref' => (string) $selfie->store('kyc/'.$utilisateur->id, $disque),
+            // Les pièces d'identité sont les plus sensibles du bucket : elles
+            // passent par le coffre, qui les chiffre au repos.
+            'id_front_ref' => $this->vault->put('kyc/'.$utilisateur->id, $recto),
+            'id_back_ref' => $this->vault->put('kyc/'.$utilisateur->id, $verso),
+            'selfie_ref' => $this->vault->put('kyc/'.$utilisateur->id, $selfie),
             'id_front_sha256' => $this->fileHash($recto),
             'id_back_sha256' => $this->fileHash($verso),
             'selfie_sha256' => $this->fileHash($selfie),

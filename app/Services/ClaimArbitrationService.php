@@ -63,6 +63,7 @@ final class ClaimArbitrationService
         private readonly TransferService $transfers,
         private readonly AuditChain $auditChain,
         private readonly NotificationService $notifications,
+        private readonly DocumentVault $vault,
     ) {}
 
     /**
@@ -165,7 +166,7 @@ final class ClaimArbitrationService
         $empreinte = null;
 
         if ($fichier instanceof UploadedFile) {
-            $chemin = (string) $fichier->store('claims/'.$dossier->id, $this->disk());
+            $chemin = $this->vault->put('claims/'.$dossier->id, $fichier);
             $empreinte = hash_file('sha256', $fichier->getRealPath());
         }
 

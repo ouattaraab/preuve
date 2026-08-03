@@ -130,6 +130,19 @@ return [
         // modeste : le dépôt se fait souvent en 3G (CT-05), et une carte grise
         // photographiée y tient largement.
         'max_kb' => (int) env('PREUVE_DOCUMENTS_MAX_KB', 8192),
+        /*
+        | Chiffrement au repos, avec APP_KEY. Vrai par défaut, et ce défaut
+        | compte : la cible est un mutualisé partagé avec neuf autres sites, où
+        | une lecture de fichier chez un voisin doit rendre du chiffré et non
+        | des cartes grises.
+        |
+        | Ne le désactiver que pour un stockage objet privé qui chiffre déjà au
+        | repos ET dont on veut conserver les URL signées — une URL signée vers
+        | un fichier chiffré rendrait du charabia. Le suffixe `.enc` étant porté
+        | par chaque fichier, basculer ce réglage ne rend jamais illisibles les
+        | pièces déjà déposées.
+        */
+        'encrypt_at_rest' => (bool) env('PREUVE_DOCUMENTS_ENCRYPT', true),
     ],
 
     /*
