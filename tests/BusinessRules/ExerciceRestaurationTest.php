@@ -98,3 +98,43 @@ it('dit clairement qu\'il n\'y a rien à éprouver', function (): void {
     expect($code)->toBe(1)
         ->and(Artisan::output())->toContain('Aucune sauvegarde');
 });
+
+it('s\'exécute en production quand la base d\'exercice est fournie', function (): void {
+    // Le refus de la production portait sur la création et la suppression de
+    // bases, pas sur l'exercice. Avec une base préparée par l'exploitant,
+    // l'outil n'en crée ni n'en supprime aucune — et maintenir le refus aurait
+    // rendu la dette « restauration jamais éprouvée sur la cible »
+    // définitivement inclosable.
+    Storage::disk('sauvegardes')->put(
+        'backups/preuve-2026-01-01-000000.sql.enc',
+        Crypt::encryptString('-- peu importe'),
+    );
+
+    app()->detectEnvironment(fn (): string => 'production');
+
+    // Échoue parce que la base n'existe pas, PAS parce qu'on est en production.
+    $code = Artisan::call('preuve:restore-drill', [
+        '--database' => 'preuve_exercice_inexistant_'.bin2hex(random_bytes(4)),
+    ]);
+    $sortie = Artisan::output();
+
+    app()->detectEnvironment(fn (): string => 'testing');
+
+    expect($code)->toBe(1)
+        ->and($sortie)->not->toContain('base préparée à l\'avance');
+});
+
+it('refuse en production sans base fournie', function (): void {
+    Storage::disk('sauvegardes')->put(
+        'backups/preuve-2026-01-01-000000.sql.enc',
+        Crypt::encryptString('-- peu importe'),
+    );
+
+    app()->detectEnvironment(fn (): string => 'production');
+    $code = Artisan::call('preuve:restore-drill');
+    $sortie = Artisan::output();
+    app()->detectEnvironment(fn (): string => 'testing');
+
+    expect($code)->toBe(1)
+        ->and($sortie)->toContain('base préparée à l\'avance');
+});

@@ -55,10 +55,23 @@ final class RestoreDrill extends Command
 
     public function handle(AuditChain $chain): int
     {
-        if (app()->isProduction()) {
+        $fournie = $this->option('database');
+        $fournie = is_string($fournie) && $fournie !== '' ? $fournie : null;
+
+        // Le refus de la production portait sur la CRÉATION et la SUPPRESSION
+        // de bases, pas sur l'exercice lui-même. Avec une base préparée par
+        // l'exploitant, l'outil n'en crée aucune et n'en supprime aucune : la
+        // sûreté ne vient plus de l'environnement mais des trois contrôles qui
+        // suivent — nom différent de la base en service, base obligatoirement
+        // vide, et rien n'est jamais supprimé qui n'ait été créé ici.
+        //
+        // Maintenir le refus aurait rendu la dette « restauration jamais
+        // éprouvée sur la cible » définitivement inclosable, ce qui est le
+        // contraire du but.
+        if (app()->isProduction() && $fournie === null) {
             $this->components->error(
-                "Cet exercice crée et supprime des bases : il ne s'exécute pas en production. Lancez-le sur ".
-                'un environnement de préproduction alimenté par les sauvegardes de production.'
+                "En production, cet exercice exige une base préparée à l'avance : il ne doit pas pouvoir en ".
+                'créer ni en supprimer ici. Créez une base vide et passez --database=nom.'
             );
 
             return self::FAILURE;
@@ -96,12 +109,11 @@ final class RestoreDrill extends Command
             return self::FAILURE;
         }
 
-        $fournie = $this->option('database');
-        $base = is_string($fournie) && $fournie !== '' ? $fournie : $this->drillDatabaseName();
+        $base = $fournie ?? $this->drillDatabaseName();
         $echecs = [];
 
         try {
-            $this->prepareDatabase($base, is_string($fournie) && $fournie !== '');
+            $this->prepareDatabase($base, $fournie !== null);
             $this->loadDump($base, $dump);
             $this->connect($base);
 
