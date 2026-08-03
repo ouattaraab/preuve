@@ -287,15 +287,33 @@ casserait en silence.
 </IfModule>
 ```
 
-### `sendmail` désactivé par l'hébergeur
+### `sendmail` désactivé par l'hébergeur — résolu par SMTP
 
 ```
 503 550 Local sendmail disabled for u726808002 contact support
 ```
 
-**Bloquant** : l'OTP passe par courriel (D7), donc personne ne peut se
-connecter. Il faut une boîte SMTP réelle (hPanel → Emails) ou un fournisseur
-externe. `preuve:check-mail` a refusé de conclure — c'est son rôle.
+Hostinger désactive `sendmail` local. Comme l'OTP passe par courriel (D7),
+personne ne pouvait se connecter. `preuve:check-mail` a refusé de conclure —
+c'est son rôle.
+
+**Résolu** par une boîte réelle (hPanel → Emails) et SMTP :
+`smtp.hostinger.com:465` en `smtps`. Vérifié par envoi réel le 03/08/2026, puis
+par une demande d'OTP de bout en bout : code émis, `channel = email`,
+destination = le numéro (l'identité), aucune erreur journalisée.
+
+### La tâche cron ne peut PAS être créée en ligne de commande
+
+Vérifié, pas supposé :
+
+- aucun binaire `crontab` sur le système ;
+- `/var/spool/cron/` appartient bien à l'utilisateur, mais un fichier de
+  crontab écrit à la main **n'y est pas lu** — quatre minutes d'observation,
+  aucun passage ;
+- aucun outil hPanel en ligne de commande.
+
+**Elle se crée donc exclusivement depuis hPanel → Avancé → Tâches Cron.** C'est
+une action d'interface, qu'aucun accès SSH ne remplace.
 
 ### Le CDN Hostinger met en cache
 
