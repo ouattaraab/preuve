@@ -334,7 +334,40 @@ Vérifié, pas supposé :
 **Elle se crée donc exclusivement depuis hPanel → Avancé → Tâches Cron.** C'est
 une action d'interface, qu'aucun accès SSH ne remplace.
 
-### Le CDN Hostinger met en cache
+### Le CDN Hostinger doit être DÉSACTIVÉ
+
+**Constat du 03/08/2026.** Depuis un même poste, au même instant :
+
+| Chemin | 1er octet |
+|---|---|
+| Origine directe (`62.72.37.247`) | 0,47 s · 0,53 s · 0,60 s |
+| **Via CDN** | **5,03 s · échec · 5,15 s** |
+
+Le CDN n'accélérait rien : il ajoutait plusieurs secondes **et échouait par
+intermittence**. Mesure depuis Abidjan avant désactivation : **2,55 s** au
+premier octet, pour une application qui répond en **2 ms**.
+
+Le trajet passait par un edge lointain (`bnk-edge*`, Bangkok) pour un serveur
+situé en France.
+
+**Après désactivation** (hPanel → Performance → CDN), `preuve.click` résout
+directement sur l'origine :
+
+| | Avant | Après |
+|---|---|---|
+| 1er octet médian | 3,2 s | **536 ms** |
+| 1er octet 95e centile | 9,6 s | **647 ms** |
+| CT-01 (< 1 000 ms) | **non tenu** | **tenu** |
+
+Ce qui est perdu est mince : la mise en cache au bord du catalogue de
+catégories — que l'origine sert en 2 ms — et un bouclier anti-DDoS de base, que
+le plafond de consultation et le défi Turnstile couvrent en partie.
+
+**À revérifier après toute intervention d'Hostinger sur le domaine** : une
+réactivation du CDN casserait CT-01 sans qu'aucune alerte ne se déclenche, la
+sonde de santé étant interrogée côté serveur.
+
+### Ce que le CDN mettait en cache (historique)
 
 `x-hcdn-cache-status: HIT` sur `/api/v1/config/categories`, avec un `age` de
 plusieurs minutes. C'est **voulu** pour le catalogue (`max-age=300`, ETag), mais
