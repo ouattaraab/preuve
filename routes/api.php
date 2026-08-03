@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Admin\AssetRegistryController;
 use App\Http\Controllers\Api\V1\Admin\AuditAnchorController;
 use App\Http\Controllers\Api\V1\Admin\CaptchaProviderController;
 use App\Http\Controllers\Api\V1\Admin\ClaimFeeController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\Api\V1\Admin\OpsRecipientController;
 use App\Http\Controllers\Api\V1\Admin\PlatformStateController;
 use App\Http\Controllers\Api\V1\Admin\PushProviderController;
 use App\Http\Controllers\Api\V1\Admin\SmsProviderController;
+use App\Http\Controllers\Api\V1\Admin\UserDirectoryController;
 use App\Http\Controllers\Api\V1\AssetController;
 use App\Http\Controllers\Api\V1\AssetDocumentController;
 use App\Http\Controllers\Api\V1\AssetLifecycleController;
@@ -183,6 +185,14 @@ Route::prefix('v1')->group(function (): void {
             Route::post('claims/{claim}/admissibility', [ClaimReviewController::class, 'admissibility']);
             Route::post('claims/{claim}/decide', [ClaimReviewController::class, 'decide']);
             Route::post('claim-evidences/{evidence}/discard', [ClaimReviewController::class, 'discardEvidence']);
+
+            // Registre des biens : ne dit rien du détenteur (règle n° 4).
+            Route::get('assets', [AssetRegistryController::class, 'index']);
+
+            // Annuaire des comptes : coordonnées masquées, y compris pour un
+            // agent. Suspendre ne suspend jamais la protection des biens.
+            Route::get('users', [UserDirectoryController::class, 'index']);
+            Route::post('users/{user}/status', [UserDirectoryController::class, 'setStatus']);
 
             Route::get('documents', [DocumentReviewController::class, 'index']);
             Route::post('documents/{document}/review', [DocumentReviewController::class, 'review']);

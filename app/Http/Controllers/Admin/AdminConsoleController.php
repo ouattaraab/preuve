@@ -32,9 +32,9 @@ final class AdminConsoleController extends Controller
     private const ECRANS = [
         ['key' => 'overview', 'nom' => "Vue d'ensemble", 'route' => null, 'disponible' => false],
         ['key' => 'moderation', 'nom' => 'Modération', 'route' => 'admin.moderation', 'disponible' => true],
-        ['key' => 'registry', 'nom' => 'Registre des biens', 'route' => null, 'disponible' => false],
+        ['key' => 'registry', 'nom' => 'Registre des biens', 'route' => 'admin.registry', 'disponible' => true],
         ['key' => 'categories', 'nom' => 'Catégories & champs', 'route' => null, 'disponible' => false],
-        ['key' => 'users', 'nom' => 'Utilisateurs', 'route' => null, 'disponible' => false],
+        ['key' => 'users', 'nom' => 'Utilisateurs', 'route' => 'admin.users', 'disponible' => true],
         ['key' => 'stats', 'nom' => 'Statistiques app', 'route' => null, 'disponible' => false],
         ['key' => 'monitoring', 'nom' => 'Supervision', 'route' => 'admin.monitoring', 'disponible' => true],
         ['key' => 'audit', 'nom' => "Piste d'audit", 'route' => null, 'disponible' => false],
@@ -44,6 +44,16 @@ final class AdminConsoleController extends Controller
     public function moderation(Request $request): View
     {
         return view('admin.moderation', $this->contexte($request, 'moderation', 'Modération'));
+    }
+
+    public function registry(Request $request): View
+    {
+        return view('admin.registry', $this->contexte($request, 'registry', 'Registre des biens'));
+    }
+
+    public function users(Request $request): View
+    {
+        return view('admin.users', $this->contexte($request, 'users', 'Utilisateurs'));
     }
 
     public function monitoring(Request $request): View

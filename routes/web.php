@@ -33,6 +33,8 @@ Route::prefix('admin')->group(function (): void {
     Route::middleware(['auth', EnsureUserHasBackOfficeAccess::class])->group(function (): void {
         Route::get('/', fn () => redirect()->route('admin.moderation'));
         Route::get('moderation', [AdminConsoleController::class, 'moderation'])->name('admin.moderation');
+        Route::get('registre', [AdminConsoleController::class, 'registry'])->name('admin.registry');
+        Route::get('comptes', [AdminConsoleController::class, 'users'])->name('admin.users');
         Route::get('supervision', [AdminConsoleController::class, 'monitoring'])->name('admin.monitoring');
     });
 });

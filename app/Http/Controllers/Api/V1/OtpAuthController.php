@@ -168,6 +168,15 @@ final class OtpAuthController extends Controller
 
         // La chaîne d'audit englobe la création du compte : sans transaction
         // commune, un compte pourrait exister sans trace d'audit, ou l'inverse.
+        // UN COMPTE SUSPENDU NE SE RECONNECTE PAS. Sans ce contrôle, la
+        // suspension ne serait qu'une étiquette : le titulaire redemanderait un
+        // code et reprendrait la main. Le refus est volontairement indistinct
+        // d'un refus de code — dire « vous êtes suspendu » à qui présente un
+        // code valide confirmerait que le compte existe.
+        if ($existant instanceof User && $existant->getAttribute('status') === 'suspended') {
+            abort(403, 'Ce compte est suspendu.');
+        }
+
         $adresseVerifiee = $parSms ? null : $this->pendingEmail($request);
 
         $utilisateur = $existant ?? $this->auditChain->transaction(

@@ -129,9 +129,15 @@ final class AdminAuthController extends Controller
         return redirect()->route('admin.login');
     }
 
+    /**
+     * Un compte suspendu n'entre pas, quel que soit son rôle : sans ce
+     * contrôle, suspendre un agent ne l'empêcherait pas de revenir dès le
+     * prochain code.
+     */
     private function peutEntrer(User $compte): bool
     {
-        return in_array($compte->role->value, ['admin', 'agent'], true);
+        return $compte->getAttribute('status') !== 'suspended'
+            && in_array($compte->role->value, ['admin', 'agent'], true);
     }
 
     private function canalCourriel(): bool
