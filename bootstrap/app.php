@@ -19,19 +19,37 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         /*
-         * AUCUNE REDIRECTION POUR UN VISITEUR NON AUTHENTIFIÉ.
+         * OÙ ENVOYER UN VISITEUR NON AUTHENTIFIÉ — et la réponse diffère selon
+         * la porte qu'il pousse.
          *
-         * Par défaut, le middleware d'authentification construit une
-         * redirection vers une route nommée `login` — qu'une application
-         * uniquement API n'a pas. L'appel à `route('login')` a lieu DANS le
-         * middleware, avant que le moindre gestionnaire d'exception ne voie
-         * quoi que ce soit : le refus d'accès se transforme alors en 500 et en
-         * page HTML, et aucun réglage du côté des exceptions ne le rattrape.
+         * Sur l'API, NULLE PART : par défaut le middleware construit une
+         * redirection vers une route nommée `login`, et cet appel a lieu DANS
+         * le middleware, avant que le moindre gestionnaire d'exception ne voie
+         * quoi que ce soit. Le refus d'accès se transformait en 500 et en page
+         * HTML. En rendant `null`, l'exception parvient au gestionnaire, qui
+         * répond 401 en JSON.
          *
-         * En rendant `null`, l'exception d'authentification parvient au
-         * gestionnaire, qui répond 401 en JSON.
+         * Sur la console d'administration, vers son écran de connexion : un
+         * agent dont la session a expiré doit se retrouver devant un champ de
+         * saisie, pas devant une erreur.
          */
-        $middleware->redirectGuestsTo(static fn (): ?string => null);
+        $middleware->redirectGuestsTo(static fn (Request $requete): ?string => $requete->is('api/*') || $requete->expectsJson()
+            ? null
+            : route('admin.login'));
+
+        /*
+         * La console d'administration s'authentifie par SESSION, pas par jeton.
+         *
+         * Ce middleware fait reconnaître le cookie de session par le garde
+         * Sanctum lorsque la requête vient du domaine de la plateforme : la
+         * console peut alors interroger les mêmes `/api/v1/admin/*` que
+         * n'importe quel client, sans qu'aucun jeton ne transite par le
+         * navigateur — où la première faille XSS le lirait.
+         *
+         * Les clients mobiles n'en sont pas affectés : le traitement ne
+         * s'applique qu'aux requêtes portant une origine déclarée « stateful ».
+         */
+        $middleware->statefulApi();
     })
     ->withExceptions(function (Exceptions $exceptions) {
         /*
