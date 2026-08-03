@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\CompanyRole;
 use App\Http\Controllers\Controller;
 use App\Models\Company;
+use App\Models\FleetImport;
 use App\Models\User;
 use App\Services\CompanyMemberService;
 use App\Services\FleetService;
@@ -46,7 +47,10 @@ final class FleetController extends Controller
     public function import(Request $request, int $company): JsonResponse
     {
         $request->validate([
-            'file' => ['required', 'file', 'max:2048', 'mimes:csv,txt'],
+            // Relevé de 2 Mo : un parc de plusieurs milliers de véhicules ne
+            // tient plus dans l'ancienne borne, et l'import ne se fait plus
+            // dans la requête.
+            'file' => ['required', 'file', 'max:8192', 'mimes:csv,txt'],
         ]);
 
         $societe = $this->societe($request, $company);
@@ -56,22 +60,83 @@ final class FleetController extends Controller
             abort(422);
         }
 
+        $operateur = $this->utilisateur($request);
+
         try {
-            $rapport = $this->flotte->import($societe, $this->utilisateur($request), $fichier);
+            /*
+             * Petit fichier : traité dans la requête, et le loueur voit son
+             * résultat. Lui rendre un identifiant de suivi à interroger pour
+             * douze véhicules serait une régression d'usage déguisée en
+             * progrès technique.
+             *
+             * Gros fichier : mis en file. Chaque enregistrement prend le
+             * verrou nommé de la chaîne d'audit, dont le plafond mesuré est
+             * d'une quinzaine d'actions simultanées — mille lignes traitées
+             * d'un bloc rejetteraient les actions de tous les autres
+             * utilisateurs pendant leur durée.
+             */
+            if ($this->flotte->countRows($fichier) <= FleetService::MAX_ROWS) {
+                $rapport = $this->flotte->import($societe, $operateur, $fichier);
+
+                return response()->json([
+                    // Le rapport est rendu ligne à ligne : le loueur corrige
+                    // son fichier et réimporte, sans que les véhicules déjà
+                    // entrés ne soient recréés.
+                    'report' => $rapport,
+                    'message' => 'Import terminé.',
+                ]);
+            }
+
+            $import = $this->flotte->queueImport($societe, $operateur, $fichier);
         } catch (DomainException $e) {
             throw ValidationException::withMessages(['file' => $e->getMessage()]);
         }
 
+        // 202 : accepté, pas terminé. Le client doit suivre, pas afficher un
+        // résultat qui n'existe pas encore.
         return response()->json([
-            // Le rapport d'erreurs est rendu ligne à ligne : le loueur corrige
-            // son fichier et réimporte, sans que les véhicules déjà entrés ne
-            // soient recréés.
-            'report' => $rapport,
-            'message' => $rapport['truncated']
-                ? 'Import partiel : seules les '.FleetService::MAX_ROWS.' premières lignes ont été traitées. '
-                    .'Réimportez le reste du fichier.'
-                : 'Import terminé.',
-        ]);
+            'import' => $this->presentImport($import),
+            'message' => sprintf(
+                '%s lignes acceptées. L\'import se fait en arrière-plan : suivez son avancement.',
+                number_format($import->total_rows, 0, ',', ' '),
+            ),
+        ], 202);
+    }
+
+    /** Avancement d'un import différé. */
+    public function importStatus(Request $request, int $company, int $import): JsonResponse
+    {
+        $societe = $this->societe($request, $company);
+
+        $suivi = FleetImport::query()
+            ->whereKey($import)
+            // Rattaché à SA société : un identifiant d'import ne doit pas
+            // laisser lire l'inventaire d'un autre loueur.
+            ->where('company_id', $societe->id)
+            ->first();
+
+        if (! $suivi instanceof FleetImport) {
+            abort(404);
+        }
+
+        return response()->json(['import' => $this->presentImport($suivi)]);
+    }
+
+    /** @return array<string, mixed> */
+    private function presentImport(FleetImport $import): array
+    {
+        return [
+            'id' => $import->id,
+            'status' => $import->status,
+            'total_rows' => $import->total_rows,
+            'processed_rows' => $import->processed_rows,
+            'imported' => $import->imported,
+            'skipped' => $import->skipped,
+            'failed' => $import->failed,
+            // Bornées : un fichier entièrement fautif ne doit pas produire une
+            // réponse de plusieurs mégaoctets.
+            'errors' => $import->errors ?? [],
+        ];
     }
 
     public function markRented(Request $request, int $company): JsonResponse

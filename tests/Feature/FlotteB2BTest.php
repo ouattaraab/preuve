@@ -188,14 +188,15 @@ it('signale un véhicule enregistré par un tiers', function (): void {
     expect($reponse->json('report.errors.0.reason'))->toContain('réclamation');
 });
 
-it('borne l\'import et le dit', function (): void {
-    // Un fichier traité d'un bloc rejetterait les actions des autres
-    // utilisateurs pendant toute sa durée : chaque enregistrement prend le
-    // verrou de la chaîne d'audit. Le tronquer en silence se lirait comme
-    // « tout est passé ».
+it('met un gros fichier en file plutôt que de le tronquer', function (): void {
+    // Le fichier était auparavant TRONQUÉ à 200 lignes, le loueur devant
+    // découper et réimporter lui-même. Un import traité d'un bloc rejetterait
+    // les actions de tous les autres utilisateurs pendant sa durée — chaque
+    // enregistrement prend le verrou de la chaîne d'audit. Découpé en tranches
+    // par la file, il rend le verrou entre chacune.
     //
     // Les lignes sont volontairement vides d'identifiant : elles sont rejetées
-    // avant tout enregistrement, ce qui éprouve la borne sans prendre le
+    // avant tout enregistrement, ce qui éprouve le chemin sans prendre le
     // verrou deux cents fois.
     [, $societe] = loueurConnecte();
 
@@ -206,11 +207,12 @@ it('borne l\'import et le dit', function (): void {
     }
 
     $reponse = $this->post("/api/v1/fleet/{$societe->id}/import", ['file' => csv($lignes)])
-        ->assertOk()
-        ->assertJsonPath('report.truncated', true);
+        // 202 : accepté, pas terminé. Le client doit suivre, pas afficher un
+        // résultat qui n'existe pas encore.
+        ->assertStatus(202);
 
-    expect($reponse->json('report.failed'))->toBe(FleetService::MAX_ROWS)
-        ->and($reponse->json('message'))->toContain('Réimportez le reste');
+    expect($reponse->json('import.total_rows'))->toBe(FleetService::MAX_ROWS + 5)
+        ->and($reponse->json('message'))->toContain('arrière-plan');
 });
 
 it('marque une sélection de véhicules en location', function (): void {

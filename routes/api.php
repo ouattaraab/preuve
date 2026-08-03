@@ -145,6 +145,9 @@ Route::prefix('v1')->group(function (): void {
         // enregistrement prend le verrou de la chaîne d'audit.
         Route::get('fleet/{company}/dashboard', [FleetController::class, 'dashboard']);
         Route::post('fleet/{company}/import', [FleetController::class, 'import']);
+        // Suivi d'un import différé : au-delà de 200 lignes, l'import se fait
+        // en arrière-plan et le loueur en suit l'avancement.
+        Route::get('fleet/{company}/imports/{import}', [FleetController::class, 'importStatus']);
         Route::post('fleet/{company}/rented', [FleetController::class, 'markRented']);
 
         // Délégation aux collaborateurs (ST-0705) : déléguer sans partager son
