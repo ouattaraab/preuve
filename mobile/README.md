@@ -86,7 +86,7 @@ basse vision, et ses caractères sont distinguables deux à deux — le 1 et le 
 le 0 et le O. Sur une application où l'on recopie des numéros de châssis gravés,
 c'est une fonction, pas une décoration.
 
-## Deux règles à ne pas franchir
+## Trois règles à ne pas franchir
 
 **La consultation ne demande jamais rien.** Ni compte, ni version à jour, ni
 défi sur le chemin nominal. Toute condition ajoutée à cet écran trahirait la

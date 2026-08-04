@@ -365,10 +365,28 @@ prévoir avec quelques ajustements.
 lecture de la version exigée, verdict « pas enregistré », refus d'une saisie trop
 courte.
 
-**Reste au mobile** : connexion OTP, enregistrement d'un bien, file d'envoi
-différée avec reprise, déclaration de vol, transfert, réclamation. Et **déposer
-les polices DJASSA** sous `assets/fonts/` — non déclarées pour l'instant, car
-déclarer une police sans son fichier fait échouer la construction.
+**Lot 2 du cœur livré le 04/08/2026** (41 tests) : connexion par code avec coffre
+à jeton injecté, catalogue à ETag, enregistrement avec chronomètre CT-02, et
+**file d'envoi différée avec reprise** (ST-0206, CT-05).
+
+- L'identifiant de session est tiré par le CLIENT : un `POST` rejoué retrouve la
+  session au lieu d'en ouvrir une seconde — sans quoi chaque coupure laisserait
+  une session orpheline sur le disque du mutualisé.
+- Sur conflit, **la position rendue par le serveur fait autorité**, jamais le
+  compteur local : le client peut avoir cru envoyer un morceau jamais arrivé.
+- **Défaut trouvé en écrivant cette file** : le client traduisait TOUT 409 en
+  « déjà enregistré », alors qu'un 409 d'envoi signifie « position
+  désynchronisée ». Deux conflits de sens opposé sous le même code, désormais
+  distingués par le CORPS et non par le chemin.
+- Le coffre à jeton est une INTERFACE. Si l'écriture échoue, la session ne
+  s'ouvre pas ; à l'inverse, une déconnexion efface le jeton local même quand le
+  serveur ne répond pas — on se déconnecte souvent parce qu'on prête son
+  téléphone.
+
+**Reste au mobile** : les ÉCRANS de connexion, d'enregistrement et de suivi des
+envois ; puis vol, transfert, réclamation. Et **déposer les polices DJASSA** sous
+`assets/fonts/` — non déclarées pour l'instant, car déclarer une police sans son
+fichier fait échouer la construction.
 
 ## Documentation écrite (04/08/2026)
 
