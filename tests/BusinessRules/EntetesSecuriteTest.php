@@ -151,3 +151,19 @@ it('ne recouvre pas le référent plus strict des pages publiques', function ():
         ->and($this->get('/admin/connexion')->headers->get('Referrer-Policy'))
         ->toBe('strict-origin-when-cross-origin');
 });
+
+it('double la politique dans la copie que le serveur recopie', function (): void {
+    /*
+     * L'hébergeur REMPLACE `Content-Security-Policy` après le passage de PHP.
+     * `.htaccess` la rétablit depuis `X-Preuve-CSP`. Les deux doivent donc
+     * porter exactement la même valeur : si elles divergeaient, la politique
+     * appliquée en production ne serait plus celle que ces tests vérifient —
+     * et rien ne le dirait, puisque le serveur de test ne rejoue pas
+     * `mod_headers`.
+     */
+    $reponse = $this->get('/admin/connexion');
+
+    expect($reponse->headers->get('X-Preuve-CSP'))
+        ->toBe($reponse->headers->get('Content-Security-Policy'))
+        ->not->toBeNull();
+});

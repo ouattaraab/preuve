@@ -77,6 +77,47 @@ plus des stories.
 - ✅ **Cron rétabli le 03/08/2026** (commande corrigée dans hPanel : chemin absolu vers `artisan`, sans `cd`). Le témoin de passage confirme un battement toutes les cinq minutes, la sonde rend `scheduler: ok`. Débloque la bascule des notifications en file et l'import de flotte au-delà de 200 lignes. Historique du blocage, conservé pour mémoire :
 - 🔵 ~~BLOQUANT — les tâches cron ne s'exécutent pas sur l'hébergement~~ (constaté le 03/08/2026). Deux tâches indépendantes, dont un simple `/usr/bin/date`, créent leur fichier de sortie à `HH:MM:02` — signature d'un déclenchement — puis n'écrivent **jamais** un octet, sur des observations de 4 à 18 minutes. Ce n'est donc pas la commande : `date` ne peut pas échouer. Écrire directement dans `/var/spool/cron/` (qui appartient pourtant à l'utilisateur) n'est pas lu non plus, et aucun binaire `crontab` ni outil hPanel n'existe en ligne de commande. **Ticket support Hostinger à ouvrir.** Conséquence : aucune des 13 tâches planifiées ne tourne — promotion des biens provisoires, agrégation des consultations, pics, expiration des transferts, **ancrage quotidien**, purges de rétention. Impact immédiat nul (registre vide), inacceptable dès qu'il portera des biens. Repli possible : déclenchement HTTP externe par un service tiers, au prix d'un endpoint protégé par secret — à arbitrer.
 
+## En-têtes de sécurité et incident du 403 (04/08/2026)
+
+**INCIDENT — `https://preuve.click/admin/` rendait un 403 du serveur.** Les
+polices et le script de la console vivaient dans `public/admin/`. LiteSpeed y
+résolvait `/admin/` — dossier réel, sans index et sans listage autorisé — et
+répondait AVANT que Laravel ne voie la requête. `/admin/connexion` et les écrans
+nommés fonctionnaient : seule la racine était murée, ce qui ne se voyait que pour
+qui tapait l'adresse à la main. **Règle : un préfixe de route et un dossier de la
+racine servie ne doivent jamais porter le même nom.** Les ressources vivent
+désormais sous `/console/`. Un test regarde le disque — aucun test d'intégration
+ne pouvait l'attraper, le serveur de test ne servant pas de fichiers statiques.
+
+**En-têtes de sécurité** posés par le middleware global `SecurityHeaders`, donc
+par l'application et non par le serveur : sur un mutualisé la configuration ne
+nous appartient pas, et ce qui est posé à la main disparaît au prochain
+redéploiement.
+
+- `frame-ancestors 'none'` + `X-Frame-Options: DENY` — le clique-détournement vise
+  la console : un cadre invisible superposé à l'écran des comptes ferait cliquer
+  un agent sur « Suspendre » en lui faisant croire qu'il ferme une bannière.
+- `script-src 'self'` **sans** `'unsafe-inline'`. C'est ce qui a justifié de
+  retirer les attributs `onsubmit` des gabarits d'administration : une console qui
+  affiche des pièces d'identité n'a pas les moyens d'autoriser ce qu'une faille
+  XSS injecte. `style-src` garde `'unsafe-inline'` — compromis assumé, la maquette
+  est écrite en styles en ligne, et un style ne s'exécute pas.
+- L'origine du défi anti-automate n'est ouverte **que sur la page qui l'affiche**
+  (attribut de requête posé par le contrôleur public). L'autoriser en permanence
+  rendrait invérifiable la promesse « aucune ressource tierce sur le chemin
+  nominal ».
+- HSTS un an, **sans `includeSubDomains`** : la directive engagerait des
+  sous-domaines que nous ne servons pas.
+
+**PIÈGE DE L'HÉBERGEUR, à ne pas réintroduire :** LiteSpeed **remplace**
+`Content-Security-Policy` par la sienne et **réinjecte** `X-Powered-By` après le
+passage de PHP — tous les autres en-têtes de l'application arrivaient intacts.
+`mod_headers` s'exécute après et a le dernier mot : `public/.htaccess` recopie la
+politique depuis `X-Preuve-CSP`, posé par le middleware, plutôt que de l'écrire en
+dur — elle varie d'une réponse à l'autre. Un test verrouille l'égalité des deux
+en-têtes, sans quoi la politique appliquée en production cesserait d'être celle
+que les tests vérifient.
+
 ## Front public de consultation (ST-0306, 04/08/2026)
 
 `preuve.click/` servait encore le gabarit par défaut de Laravel : une plateforme
