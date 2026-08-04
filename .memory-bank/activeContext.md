@@ -454,6 +454,35 @@ côtés, annuler) · réclamation (ouvrir, annoncer ses pièces, déposer)**.
 n'a même jamais reçu un `pub get` — aucune analyse statique n'est possible sur
 ces écrans. `preuve_core`, lui, reste vérifié (65 tests, `dart analyze` propre).
 
+## Détail d'un bien, et une file de modération qui décide enfin (04/08/2026)
+
+**Côté détenteur** : `GET /assets/{id}/documents` et la pièce elle-même, servie
+en clair par une route AUTHENTIFIÉE — jamais un lien signé, qui serait une
+capacité au porteur sur un titre de propriété. La fiche mobile montre les photos
+ARRIVÉES et celles EN ATTENTE d'envoi, distinguées : ne montrer que les unes
+ferait croire les autres perdues. On peut en ajouter à tout moment — une voiture
+change en trois ans.
+
+**Côté back-office** : `GET /admin/assets/{id}` ouvre le dossier complet, et les
+lignes du registre sont cliquables. **IL NE DIT TOUJOURS RIEN DU DÉTENTEUR**, ni
+de qui a agi : la règle métier absolue n° 4 n'a pas d'exception interne. La
+réponse porte à la place l'adresse du chemin prévu — levée sur réquisition,
+administrateurs seuls, fondement consigné, double trace. Deux tests le
+verrouillent, dont un qui relit la réponse entière.
+
+**La file de modération ne décidait de RIEN.** L'API était complète depuis le
+début — file, images, décision — mais la console se contentait de lister : les
+trois images d'un dossier d'identité n'étaient pas même atteignables, et aucun
+bouton n'existait. Quelqu'un déposait sa pièce, personne ne pouvait la valider,
+et la promesse « examiné sous 48 heures » ne tenait à rien. Vignettes,
+extraction et décisions sont là, **motif exigé au refus** — un refus sans raison
+se redépose à l'identique. Les gestionnaires sont posés en JavaScript et jamais
+en attribut (`script-src 'unsafe-inline'` est interdit) : un test l'exige.
+
+Les réclamations restent hors de cette file : elles se tranchent sur une grille
+pondérée, et les réduire à deux boutons ferait décider d'un transfert de
+propriété d'un clic.
+
 ## Déploiement du 04/08/2026 — et le piège d'adresse qui a coûté une heure
 
 **Tout le travail serveur de la session est en production** (`a16f412`). Avant
