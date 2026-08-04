@@ -323,6 +323,53 @@ est le registre, lisible par les administrateurs sans procédure — un document
 reddition de comptes qui exigerait une procédure pour être consulté ne servirait
 à rien.
 
+## Client mobile — socle et consultation (04/08/2026)
+
+`mobile/`, deux paquets :
+
+| Paquet | Ce qu'il porte | Vérifiable sans appareil |
+|---|---|---|
+| `preuve_core` | Contrats d'API, modèles, contrôle local des identifiants, versions | **Oui** — `dart analyze` + 24 tests |
+| `preuve_app` | Application Flutter : thème DJASSA, saisie, verdict | Non |
+
+**LA SÉPARATION N'EST PAS DÉCORATIVE.** Les règles qui décident ce qu'un acheteur
+voit vivent en Dart pur, sans dépendance à Flutter : elles s'exécutent en une
+seconde dans une console, sans émulateur. Ne jamais faire remonter une règle
+métier dans `preuve_app`.
+
+**Partis pris à ne pas rediscuter :**
+1. **Erreurs traduites en CONDUITES, pas en codes** (`exceptions.dart`). Un
+   client qui ne verrait que des nombres traiterait un quota épuisé comme une
+   faute de saisie. 402 → payer · 409 → réclamer, jamais réessayer · 426 →
+   mettre à jour SANS bloquer la consultation · 429 → défi si proposé.
+2. **`getAnonymous()` : le jeton n'accompagne jamais une consultation.** Un
+   porteur de jeton échappe au plafond horaire, mais ce confort ne vaut pas de
+   transformer une consultation anonyme en historique nominatif.
+3. **Le contrôle local n'est jamais plus sévère que le serveur.** Un client trop
+   strict rendrait inconsultables des biens enregistrés, et le défaut serait
+   invisible côté serveur — aucune requête n'y parviendrait. En cas de doute,
+   laisser passer.
+4. **Aucune dépendance externe** : `dart:io` suffit. Une bibliothèque HTTP de
+   plus est une chaîne d'approvisionnement de plus dans une application qui
+   transporte des pièces d'identité.
+5. **Libellés et couleurs de statut viennent du serveur** (CT-04). Une table
+   locale se périmerait au premier statut ajouté, sur des téléphones qui ne se
+   mettent pas à jour.
+
+**⚠️ `preuve_app` N'A JAMAIS ÉTÉ COMPILÉE** : le SDK Flutter n'est pas installé
+sur la machine de développement. Elle n'emploie que des composants du cœur de
+Flutter, sans paquet tiers — risque borné, pas nul. Premier `flutter run` à
+prévoir avec quelques ajustements.
+
+Éprouvé contre la production via `preuve_core/tool/sonde_production.dart` :
+lecture de la version exigée, verdict « pas enregistré », refus d'une saisie trop
+courte.
+
+**Reste au mobile** : connexion OTP, enregistrement d'un bien, file d'envoi
+différée avec reprise, déclaration de vol, transfert, réclamation. Et **déposer
+les polices DJASSA** sous `assets/fonts/` — non déclarées pour l'instant, car
+déclarer une police sans son fichier fait échouer la construction.
+
 ## Documentation écrite (04/08/2026)
 
 Trois documents qui n'existaient pas, et dont l'absence bloquait quelqu'un d'autre
