@@ -95,12 +95,41 @@ moment d'une décision d'agent.
 - ✅ **Lot 1 (03/08/2026)** : connexion OTP à deux temps, coquille, navigation, Modération, Supervision.
 - ✅ **Lot 2 (03/08/2026)** : Registre des biens (aucune colonne « détenteur »), Annuaire des comptes (coordonnées masquées, suspension motivée qui révoque les jetons sans jamais suspendre la protection des biens).
 - ✅ **Lot 3 (03/08/2026)** : Piste d'audit, Catégories & champs, Équipe & rôles — **fermés aux agents** : ils ne servent pas à instruire des dossiers mais à configurer la plateforme.
-- ⬜ **Lot 4** : Vue d'ensemble et Statistiques app.
+- ✅ **Lot 4 (04/08/2026)** : Vue d'ensemble (ouverte aux agents) et Statistiques app (administrateurs seuls). **Les neuf écrans de la maquette sont servis** ; l'affordance « à venir » a été retirée avec ce qu'elle annonçait, et la console ouvre désormais sur la vue d'ensemble.
+
+**Deux partis pris du lot 4, à ne pas rediscuter :**
+1. **La vue d'ensemble ouvre sur ce qui attend une décision humaine**, pas sur des volumes. Chaque file porte son ancienneté : trois dossiers déposés ce matin et trois oubliés depuis douze jours donnent le même compteur et n'appellent pas la même journée. Aucun chiffre ne désigne quelqu'un.
+2. **Les « téléchargements » de la maquette ne sont pas mesurables** : ce chiffre appartient aux magasins d'applications. Le reconstituer à partir des comptes créés donnerait un nombre plausible et faux — on déciderait dessus. L'écran montre le **parc d'appareils** (`device_tokens`, total et vus sous 30 jours) et le dit explicitement dans son `notice`. Brancher les API des magasins reste possible plus tard ; inventer le chiffre, non.
 
 **Trois partis pris du lot 3, à ne pas rediscuter :**
 1. **La piste d'audit n'offre aucune route d'écriture** — pas seulement parce que les déclencheurs l'interdisent, mais parce qu'un bouton qui échouerait toujours enseignerait qu'une modification est concevable. L'export est diffusé en flux par lots de 500 : un journal d'exploitation atteint vite le million de lignes, et le charger en mémoire ferait échouer l'export précisément le jour où il compte. Chaque ligne porte son `chain_hash`, seul moyen de la rapprocher d'un ancrage externe.
 2. **Une catégorie se désactive, jamais ne se supprime**, et l'identifiant canonique ne se déplace pas : il porte l'unicité de l'enregistrement actif, et le déplacer sur une catégorie peuplée ferait apparaître des doublons rétroactivement.
 3. **Les pages visibles sont DÉDUITES du rôle et non stockées.** La maquette prévoyait quatre profils avec des pages cochables ; la plateforme en a trois (`user`, `agent`, `admin`) et tient ses accès par des middlewares. Une table d'habilitations serait une seconde source de vérité : le jour où elles divergeraient, l'écran afficherait un droit que le code refuse — ou l'inverse. La navigation cache aux agents ce qu'ils ne peuvent pas atteindre : un lien menant à un 403 n'est pas de la transparence.
+
+## Forçage de mise à jour des applications (04/08/2026)
+
+Version minimale exigée, réglable depuis Statistiques app (`app.minimum_version`),
+annoncée publiquement par `GET /api/v1/config/app` **sans authentification** —
+l'application doit pouvoir afficher son écran de mise à jour au démarrage, plutôt
+que de laisser l'utilisateur saisir un bien pendant quatre-vingt-dix secondes pour
+se heurter au refus à l'envoi.
+
+**IL NE TOUCHE JAMAIS À LA CONSULTATION.** La règle métier absolue n° 1 dit qu'un
+verdict est gratuit, anonyme et sans compte ; elle ne dit pas « sauf si votre
+téléphone est vieux ». `EnsureAppIsSupported` est posé sur le seul groupe
+d'écritures authentifiées, à côté de `EnsurePlatformIsWritable`, et laisse en
+outre passer les **lectures** (`isMethodSafe`) : l'application doit pouvoir
+expliquer POURQUOI elle ne peut plus écrire, une coquille vide ressemblerait à
+une panne. Refus en **426** portant la version exigée, pas en 403 — on demande une
+action réalisable, on ne refuse pas un droit.
+
+Trois garde-fous : une version **illisible ou absente passe** (refuser sur un
+en-tête qu'on n'a pas su lire punirait l'utilisateur pour un défaut de la
+plateforme) ; le défaut est **« aucune exigence »** (une version mal saisie
+mettrait sinon tout le parc hors service d'un seul réglage) ; **vider le champ
+lève l'exigence**, manœuvre de repli sans livraison serveur. Chaque changement est
+journalisé avec l'ancienne ET la nouvelle exigence. **Rien n'est exigé en
+production au 04/08/2026.**
 
 ## Levée d'anonymat sur réquisition (03/08/2026)
 
