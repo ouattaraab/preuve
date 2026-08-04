@@ -323,6 +323,26 @@ est le registre, lisible par les administrateurs sans procédure — un document
 reddition de comptes qui exigerait une procédure pour être consulté ne servirait
 à rien.
 
+## Documentation écrite (04/08/2026)
+
+Trois documents qui n'existaient pas, et dont l'absence bloquait quelqu'un d'autre
+que moi :
+
+- **`docs/infrastructure/deploiement.md`** — procédure, vérification par `curl`,
+  retour en arrière, interdits. Surtout : les **quatre pièges de l'hébergement**
+  trouvés en regardant les réponses du serveur et jamais en lisant le code
+  (version PHP du web ≠ CLI, dossier de `public/` masquant un préfixe de route,
+  LiteSpeed qui réécrit CSP et `X-Powered-By`, planificateur invoqué deux fois).
+- **`docs/api/integration-client.md`** — intégration par PARCOURS et non par
+  route : cent-deux routes ne disent pas dans quel ordre appeler. Ne documente
+  que ce qui ne se devine pas, et se termine par ce que l'API ne rendra jamais.
+- **`README.md`** — c'était encore celui du squelette Laravel sur un dépôt public.
+
+**Prochain chantier : l'application Flutter.** Le guide d'intégration en est le
+prérequis et il est prêt. Restent à trancher côté produit : le fournisseur de
+détection de vivacité (KYC), et le calendrier de la file d'envoi différée côté
+client.
+
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)
