@@ -16,7 +16,10 @@ it("n'écrit jamais l'adresse IP en clair dans la table sessions", function (): 
 
     $identifiantsAvant = DB::table('sessions')->pluck('id')->all();
 
-    $reponse = $this->call('GET', '/', [], [], [], ['REMOTE_ADDR' => $adresseIpDeTest]);
+    // La connexion à la console, et non la page d'accueil : les pages
+    // publiques n'ouvrent volontairement AUCUNE session (voir FrontPublicTest),
+    // et l'endroit où les sessions existent vraiment est le back-office.
+    $reponse = $this->call('GET', '/admin/connexion', [], [], [], ['REMOTE_ADDR' => $adresseIpDeTest]);
 
     $reponse->assertOk();
 
