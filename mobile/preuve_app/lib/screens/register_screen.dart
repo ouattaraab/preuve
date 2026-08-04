@@ -1,26 +1,32 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:preuve_core/preuve_core.dart';
 
+import '../data/fichiers.dart';
 import '../data/session.dart';
 import '../ui/code_action.dart';
+import '../ui/photo_choice.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 
-/// Enregistrement express d'un bien (ST-0201, CT-02 : moins de 90 s au médian).
+/// Enregistrement express, en quatre temps (ST-0201, CT-02 : moins de 90 s).
+///
+/// LE CHRONOMÈTRE EST AFFICHÉ, ET C'EST UNE DÉCISION DE PRODUIT. La promesse
+/// « moins de quatre-vingt-dix secondes » n'engage à rien si personne ne la
+/// voit ; affichée, elle engage l'équipe autant que l'utilisateur. Elle part à
+/// l'ouverture du formulaire, pas à l'envoi — c'est le temps réellement passé,
+/// et c'est lui qui alimente la mesure côté serveur.
+///
+/// LE BIEN EST CRÉÉ À LA FIN DE L'ÉTAPE 2, avant les photos. Ce n'est pas un
+/// détail technique : une photo se rattache à un bien qui existe, et surtout
+/// quelqu'un dont le réseau tombe pendant la prise de vue a DÉJÀ son bien
+/// enregistré. Attendre la quatrième photo pour enregistrer ferait perdre
+/// l'essentiel pour cause d'accessoire.
 ///
 /// LES CHAMPS VIENNENT DU CATALOGUE, JAMAIS DU CODE (décision D6). Une nouvelle
-/// catégorie doit apparaître sans passer par les magasins d'applications ;
-/// embarquer la liste annulerait ce bénéfice sur le parc déjà installé,
-/// c'est-à-dire sur la majorité des téléphones.
-///
-/// UN TYPE DE CHAMP INCONNU SE RABAT SUR UNE SAISIE LIBRE, il ne disparaît
-/// jamais. Masquer un champ qu'une vieille version ne sait pas dessiner ferait
-/// échouer l'enregistrement sans que personne puisse y remédier.
-///
-/// LE CHRONOMÈTRE PART À L'OUVERTURE DU FORMULAIRE, pas à l'envoi : c'est le
-/// temps que l'utilisateur passe réellement, et c'est lui qui mesure CT-02. Une
-/// promesse produit qu'on ne mesure pas n'est qu'une intention.
+/// catégorie doit apparaître sans passer par les magasins d'applications.
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({required this.session, super.key});
 
@@ -34,22 +40,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final Stopwatch _chrono = Stopwatch();
   final Map<String, TextEditingController> _champs = <String, TextEditingController>{};
 
+  Timer? _tic;
   CategoryCatalog? _catalogue;
   AssetCategory? _categorie;
+
+  int _etape = 1;
   bool _enCours = true;
   bool _envoi = false;
   String? _erreur;
   Map<String, String> _erreursParChamp = const <String, String>{};
 
+  OwnedAsset? _cree;
+  Duration _duree = Duration.zero;
+  final Set<int> _photosPrises = <int>{};
+
+  /// Les quatre prises de vue demandées.
+  ///
+  /// ELLES SONT GÉNÉRIQUES À DESSEIN : le catalogue des catégories est servi à
+  /// distance, et nommer « le compteur » ou « la plaque » ne vaudrait que pour
+  /// les véhicules. Ce qui compte est qu'il y en ait QUATRE, sous des angles
+  /// différents — une seule photo prouve moins qu'on ne croit.
+  static const List<(String, String, String)> _prises = <(String, String, String)>[
+    ('📸', 'Vue d\'ensemble', 'photo'),
+    ('🔎', 'Le numéro', 'photo'),
+    ('↩️', 'De l\'autre côté', 'photo'),
+    ('📄', 'Les papiers', 'registration_card'),
+  ];
+
   @override
   void initState() {
     super.initState();
     _chrono.start();
+    // Une seconde suffit : la promesse se compte en secondes, pas en dixièmes,
+    // et rafraîchir plus vite ne ferait que réveiller l'écran pour rien.
+    _tic = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && _chrono.isRunning) {
+        setState(() {});
+      }
+    });
     _chargerCatalogue();
   }
 
   @override
   void dispose() {
+    _tic?.cancel();
+
     for (final TextEditingController controleur in _champs.values) {
       controleur.dispose();
     }
@@ -65,17 +100,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
         setState(() {
           _catalogue = catalogue;
 
-          // Une seule catégorie : on la choisit pour l'utilisateur. Lui faire
-          // cocher l'unique option disponible serait un geste de plus pour rien
-          // (CT-02).
           final categories = catalogue?.categories ?? const <AssetCategory>[];
-          _categorie = categories.length == 1 ? categories.first : null;
-          _preparerChamps();
+
+          // Une seule catégorie : on la choisit pour l'utilisateur et on passe
+          // directement au numéro. Lui faire cocher l'unique option disponible
+          // serait un geste de plus pour rien (CT-02).
+          if (categories.length == 1) {
+            _choisir(categories.first, avancer: true);
+          }
         });
       }
     } on PreuveException catch (e) {
       if (mounted) {
-        setState(() => _erreur = e.message);
+        setState(() => _erreur = messageDeRefus(e));
       }
     } finally {
       if (mounted) {
@@ -84,13 +121,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  void _preparerChamps() {
-    for (final CategoryField champ in _categorie?.fields ?? const <CategoryField>[]) {
+  void _choisir(AssetCategory categorie, {bool avancer = true}) {
+    _categorie = categorie;
+
+    for (final CategoryField champ in categorie.fields) {
       _champs.putIfAbsent(champ.key, TextEditingController.new);
+    }
+
+    if (avancer) {
+      _etape = 2;
     }
   }
 
-  Future<void> _envoyer() async {
+  Future<void> _enregistrer() async {
     final categorie = _categorie;
 
     if (categorie == null) {
@@ -134,14 +177,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       });
 
-      await widget.session.assets.register(
+      final inscription = await widget.session.assets.register(
         category: categorie.key,
         attributes: attributs,
         elapsed: _chrono.elapsed,
       );
 
       if (mounted) {
-        Navigator.of(context).pop(true);
+        setState(() {
+          // Le bien rendu porte son identifiant interne : c'est lui qui permet
+          // d'y rattacher les photos, à l'étape suivante.
+          _cree = inscription.asset;
+          _duree = _chrono.elapsed;
+          _etape = 3;
+        });
+
+        // LE CHRONOMÈTRE S'ARRÊTE À L'ENREGISTREMENT, pas aux photos : c'est ce
+        // moment que CT-02 mesure. Le laisser courir pendant la prise de vue
+        // ferait paraître le parcours plus long qu'il ne l'est, et pousserait à
+        // sabrer les photos pour gagner un chiffre.
+        _chrono.stop();
       }
     } on AlreadyRegistered catch (e) {
       // LA SEULE ISSUE EST LA RÉCLAMATION, et il faut le dire ainsi : réessayer
@@ -149,7 +204,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       // protège le premier détenteur, pas un caprice du serveur.
       if (mounted) {
         setState(() => _erreur = '${e.message}\n\nSi ce bien est le tien, ouvre une '
-            'réclamation depuis la fiche publique : un agent instruira le dossier.');
+            'réclamation depuis sa fiche publique : un agent instruira le dossier.');
       }
     } on InvalidRequest catch (e) {
       if (mounted) {
@@ -174,6 +229,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  Future<void> _prendrePhoto(int index) async {
+    final bien = _cree;
+
+    if (bien == null) {
+      return;
+    }
+
+    final (String _, String nom, String type) = _prises[index];
+    final photo = await choisirPhoto(context, titre: nom);
+
+    if (photo == null || !mounted) {
+      return;
+    }
+
+    try {
+      // EN FILE, JAMAIS EN DIRECT (ST-0206, CT-05). Le bien est déjà
+      // enregistré : la photo peut partir quand le réseau le permettra, et une
+      // coupure ne coûte rien de plus qu'un envoi à reprendre.
+      await widget.session.envois.enqueue(
+        await preparerEnvoi(photo: photo, assetId: bien.id, docType: type),
+      );
+
+      if (mounted) {
+        setState(() => _photosPrises.add(index));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _erreur = 'Cette photo n\'a pas pu être mise en file ($e). Reprends-la.');
+      }
+    }
+  }
+
   static String _messageLocal(LocalCheck controle) {
     return switch (controle) {
       LocalCheck.tooShort => 'Ce numéro est trop court. Vérifie que tu l\'as saisi en entier.',
@@ -186,142 +273,379 @@ class _RegisterScreenState extends State<RegisterScreen> {
     };
   }
 
+  String get _minuterie {
+    final d = _chrono.isRunning ? _chrono.elapsed : _duree;
+
+    return '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final categories = _catalogue?.categories ?? const <AssetCategory>[];
-
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Djassa.creme,
-        surfaceTintColor: Djassa.creme,
-        title: const Text('Enregistrer un bien', style: TextStyle(fontWeight: FontWeight.w800)),
-      ),
       body: SafeArea(
-        child: _enCours
-            ? const EnCours()
-            : SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    if (_erreur != null) ...<Widget>[
-                      EncadreErreur(_erreur!),
-                      const SizedBox(height: 16),
-                    ],
-                    if (categories.length > 1) ...<Widget>[
-                      const Text(
-                        'Quel type de bien ?',
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-                      ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: categories
-                            .map((AssetCategory c) => _Choix(
-                                  categorie: c,
-                                  choisie: _categorie?.key == c.key,
-                                  onChoisir: () => setState(() {
-                                    _categorie = c;
-                                    _preparerChamps();
-                                  }),
-                                ))
-                            .toList(growable: false),
-                      ),
-                      const SizedBox(height: 22),
-                    ],
-                    if (_categorie != null) ..._formulaire(_categorie!),
-                  ],
-                ),
-              ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              _Entete(minuterie: _minuterie, depasse: _chrono.elapsed.inSeconds > 90),
+              const SizedBox(height: 16),
+              _Jalons(etape: _etape),
+              const SizedBox(height: 20),
+              if (_erreur != null) ...<Widget>[
+                EncadreErreur(_erreur!),
+                const SizedBox(height: 16),
+              ],
+              if (_enCours)
+                const EnCours()
+              else
+                ...switch (_etape) {
+                  1 => _etapeType(),
+                  2 => _etapeNumero(),
+                  3 => _etapePhotos(),
+                  _ => _etapeFin(),
+                },
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  List<Widget> _formulaire(AssetCategory categorie) {
-    final champs = <Widget>[];
+  List<Widget> _etapeType() {
+    final categories = _catalogue?.categories ?? const <AssetCategory>[];
 
-    for (final CategoryField champ in categorie.fields) {
-      final erreur = _erreursParChamp[champ.key];
+    return <Widget>[
+      Text('C\'est quoi, ton bien ?', style: Djassa.affiche(30)),
+      const SizedBox(height: 16),
+      ...categories.map(
+        (AssetCategory c) => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _CarteType(
+            categorie: c,
+            onChoisir: () => setState(() => _choisir(c)),
+          ),
+        ),
+      ),
+      const SizedBox(height: 18),
+      const Text(
+        'Pas de pièce d\'identité. 90 secondes, montre en main.',
+        style: TextStyle(
+          fontFamily: Djassa.texte,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: Djassa.etiquette,
+        ),
+      ),
+    ];
+  }
 
-      champs
-        ..add(
-          TextField(
-            controller: _champs[champ.key],
-            // L'identifiant canonique prend le focus : c'est par lui qu'on
-            // commence, et c'est le seul dont une faute change l'identité du
-            // bien.
-            autofocus: champ.canonical,
-            textCapitalization: champ.canonical || champ.type == 'identifier'
-                ? TextCapitalization.characters
-                : TextCapitalization.sentences,
-            autocorrect: !champ.canonical,
-            enableSuggestions: !champ.canonical,
-            keyboardType: switch (champ.type) {
+  List<Widget> _etapeNumero() {
+    final categorie = _categorie;
+
+    if (categorie == null) {
+      return <Widget>[const EnCours()];
+    }
+
+    final canonique = categorie.canonical;
+    final autres = categorie.fields.where((CategoryField f) => !f.canonical);
+
+    return <Widget>[
+      Text('Le numéro', style: Djassa.affiche(30)),
+      const SizedBox(height: 6),
+      Text(
+        canonique == null
+            ? 'Le numéro qui identifie ton bien.'
+            : 'Le ${canonique.label.toLowerCase()} — celui qui identifie ton bien, '
+                'et qu\'un acheteur tapera pour le vérifier.',
+        style: const TextStyle(
+          fontFamily: Djassa.texte,
+          fontSize: 16,
+          height: 1.4,
+          color: Djassa.sourdine,
+        ),
+      ),
+      const SizedBox(height: 16),
+      // Le scan n'est pas encore branché côté application ; le serveur, lui,
+      // sait déjà pré-remplir (ST-0202). Le cadre reste, désactivé et dit
+      // pourquoi : une cible qui disparaît d'une version à l'autre se cherche.
+      const _CadreScan(),
+      const SizedBox(height: 14),
+      const Center(
+        child: Text(
+          '— ou j\'écris —',
+          style: TextStyle(
+            fontFamily: Djassa.texte,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: Djassa.etiquette,
+          ),
+        ),
+      ),
+      const SizedBox(height: 14),
+      if (canonique != null)
+        ChampRelief(
+          controller: _champs[canonique.key]!,
+          indication: canonique.label,
+          erreur: _erreursParChamp[canonique.key],
+          majuscules: true,
+          autofocus: true,
+          tailleTexte: 18,
+          formateurs: <TextInputFormatter>[
+            TextInputFormatter.withFunction(
+              (_, TextEditingValue next) => next.copyWith(text: next.text.toUpperCase()),
+            ),
+          ],
+        ),
+      ...autres.map(
+        (CategoryField champ) => Padding(
+          padding: const EdgeInsets.only(top: 14),
+          child: ChampRelief(
+            controller: _champs[champ.key]!,
+            libelle: champ.label.toUpperCase(),
+            indication: champ.required ? champ.label : '${champ.label} (facultatif)',
+            erreur: _erreursParChamp[champ.key],
+            tailleTexte: 18,
+            clavier: switch (champ.type) {
               'number' => TextInputType.number,
               'date' => TextInputType.datetime,
               // Un type que cette version ne connaît pas se saisit librement
-              // plutôt que de disparaître.
+              // plutôt que de disparaître : un champ masqué ferait échouer
+              // l'enregistrement sans que personne puisse y remédier.
               _ => TextInputType.text,
             },
-            inputFormatters: champ.canonical || champ.type == 'identifier'
-                ? <TextInputFormatter>[
-                    TextInputFormatter.withFunction(
-                      (_, TextEditingValue next) =>
-                          next.copyWith(text: next.text.toUpperCase()),
-                    ),
-                  ]
-                : null,
-            style: TextStyle(fontSize: champ.canonical ? 22 : 18),
-            decoration: InputDecoration(
-              labelText: champ.required ? champ.label : '${champ.label} (facultatif)',
-              errorText: erreur,
-              errorMaxLines: 4,
-            ),
           ),
-        )
-        ..add(const SizedBox(height: 14));
-    }
+        ),
+      ),
+      const SizedBox(height: 16),
+      BoutonRelief(
+        libelle: 'Continuer',
+        enCours: _envoi,
+        onPressed: _enregistrer,
+      ),
+    ];
+  }
+
+  List<Widget> _etapePhotos() {
+    return <Widget>[
+      Text('4 photos', style: Djassa.affiche(30)),
+      const SizedBox(height: 6),
+      const Text(
+        'Touche chaque case pour prendre la photo. Ton bien est DÉJÀ enregistré : '
+        'les photos partiront quand le réseau le permettra.',
+        style: TextStyle(
+          fontFamily: Djassa.texte,
+          fontSize: 16,
+          height: 1.4,
+          color: Djassa.sourdine,
+        ),
+      ),
+      const SizedBox(height: 16),
+      GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        children: List<Widget>.generate(_prises.length, (int i) {
+          final (String icone, String nom, String _) = _prises[i];
+
+          return _CasePhoto(
+            icone: icone,
+            nom: nom,
+            prise: _photosPrises.contains(i),
+            onTap: () => _prendrePhoto(i),
+          );
+        }),
+      ),
+      const SizedBox(height: 16),
+      BoutonRelief(
+        libelle: 'C\'est bon (${_photosPrises.length}/4)',
+        // JAMAIS BLOQUANT. Les photos renforcent la preuve, elles ne la
+        // constituent pas : quelqu'un dont le téléphone n'a plus de batterie
+        // doit pouvoir finir. Le bouton avance, et l'écran suivant rappelle ce
+        // qu'il reste à faire.
+        onPressed: () => setState(() => _etape = 4),
+      ),
+    ];
+  }
+
+  List<Widget> _etapeFin() {
+    final bien = _cree;
 
     return <Widget>[
-      ...champs,
-      const SizedBox(height: 6),
-      FilledButton(
-        onPressed: _envoi ? null : _envoyer,
-        child: _envoi
-            ? const SizedBox(
-                height: 24,
-                width: 24,
-                child: CircularProgressIndicator(strokeWidth: 3, color: Djassa.encre),
-              )
-            : const Text('Enregistrer'),
+      Container(
+        padding: const EdgeInsets.all(26),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E8A4C),
+          border: Border.all(color: Djassa.encre, width: Djassa.trait),
+          borderRadius: BorderRadius.circular(Djassa.rayonPanneau),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(color: Djassa.encre, offset: Offset(0, 5)),
+          ],
+        ),
+        child: Column(
+          children: <Widget>[
+            Text('✓', style: Djassa.affiche(52, couleur: Djassa.creme, hauteur: 1)),
+            const SizedBox(height: 8),
+            Text(
+              'C\'est enregistré !',
+              textAlign: TextAlign.center,
+              style: Djassa.affiche(26, couleur: Djassa.creme),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${bien?.publicRef ?? ''} · fait en $_minuterie',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: Djassa.texte,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: Djassa.creme,
+              ),
+            ),
+          ],
+        ),
       ),
-      const SizedBox(height: 22),
-      const Text(
-        'Ton bien sera visible pendant 30 jours comme « enregistrement récent » : '
-        'c\'est le délai pendant lequel quelqu\'un peut le contester. Passé ce délai, '
-        'il devient actif.',
-        style: TextStyle(color: Djassa.sourdine, height: 1.5),
+      const SizedBox(height: 24),
+      Text('Renforce ta preuve 💪', style: Djassa.affiche(22)),
+      const SizedBox(height: 12),
+      // CE QUE CHAQUE GESTE FAIT GAGNER est écrit à côté. Sans cela, « ajoute ta
+      // facture » est une corvée sans contrepartie ; avec, c'est un échange.
+      _Renfort(
+        libelle: 'Ajoute ta facture',
+        gain: '→ DOCUMENTÉ',
+        couleurGain: const Color(0xFF1D4ED8),
+        onTap: () => Navigator.of(context).pop(true),
+      ),
+      const SizedBox(height: 10),
+      _Renfort(
+        libelle: 'Pièce d\'identité + selfie',
+        gain: '→ VÉRIFIÉ',
+        couleurGain: const Color(0xFF1E8A4C),
+        onTap: () => Navigator.of(context).pop(true),
+      ),
+      const SizedBox(height: 10),
+      _Renfort(
+        libelle: 'Envoyer les photos maintenant',
+        gain: 'FILE D\'ENVOI',
+        couleurGain: Djassa.etiquette,
+        onTap: () => Navigator.of(context).pop(true),
       ),
       const SizedBox(height: 14),
-      const Text(
-        'Personne ne saura que ce bien est à toi. Un acheteur qui vérifie le numéro '
-        'voit son statut, jamais ton nom.',
-        style: TextStyle(color: Djassa.sourdine, height: 1.5),
+      Center(
+        child: TextButton(
+          style: TextButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text(
+            'Plus tard → Mes biens',
+            style: TextStyle(
+              fontFamily: Djassa.texte,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              decoration: TextDecoration.underline,
+            ),
+          ),
+        ),
       ),
     ];
   }
 }
 
-class _Choix extends StatelessWidget {
-  const _Choix({
-    required this.categorie,
-    required this.choisie,
-    required this.onChoisir,
-  });
+class _Entete extends StatelessWidget {
+  const _Entete({required this.minuterie, required this.depasse});
+
+  final String minuterie;
+  final bool depasse;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: <Widget>[
+        OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(0, 44),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            side: const BorderSide(color: Djassa.encre, width: 2),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+            textStyle: const TextStyle(
+              fontFamily: Djassa.texte,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('← Quitter'),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: Djassa.encre,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text.rich(
+            TextSpan(
+              children: <TextSpan>[
+                TextSpan(
+                  text: '⏱ $minuterie ',
+                  style: TextStyle(
+                    fontFamily: Djassa.texte,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    // Le dépassement se voit, il ne se punit pas : c'est la
+                    // mesure d'une promesse d'équipe, pas une note donnée à
+                    // l'utilisateur.
+                    color: depasse ? Djassa.alerte : Djassa.ambre,
+                  ),
+                ),
+                const TextSpan(
+                  text: '/ 1:30',
+                  style: TextStyle(
+                    fontFamily: Djassa.texte,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xA6FFF6E8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Jalons extends StatelessWidget {
+  const _Jalons({required this.etape});
+
+  final int etape;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: List<Widget>.generate(4, (int i) {
+        return Expanded(
+          child: Container(
+            height: 8,
+            margin: EdgeInsets.only(right: i == 3 ? 0 : 6),
+            decoration: BoxDecoration(
+              color: i < etape ? Djassa.accent : Colors.white,
+              border: Border.all(color: Djassa.encre, width: 2),
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class _CarteType extends StatelessWidget {
+  const _CarteType({required this.categorie, required this.onChoisir});
 
   final AssetCategory categorie;
-  final bool choisie;
   final VoidCallback onChoisir;
 
   @override
@@ -329,24 +653,156 @@ class _Choix extends StatelessWidget {
     return InkWell(
       onTap: onChoisir,
       child: Container(
-        constraints: const BoxConstraints(minHeight: Djassa.cible),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        constraints: const BoxConstraints(minHeight: 72),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: choisie ? Djassa.accent : Colors.white,
-          border: Border.all(color: Djassa.encre, width: 3),
-          borderRadius: BorderRadius.circular(12),
+          color: Colors.white,
+          border: Border.all(color: Djassa.encre, width: Djassa.trait),
+          borderRadius: BorderRadius.circular(Djassa.rayon),
+          boxShadow: Djassa.relief(),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             // L'icône vient du catalogue : elle change avec lui, sans livraison.
-            if (categorie.icon.isNotEmpty) ...<Widget>[
-              Text(categorie.icon, style: const TextStyle(fontSize: 22)),
-              const SizedBox(width: 8),
-            ],
+            Text(categorie.icon, style: const TextStyle(fontSize: 30)),
+            const SizedBox(width: 16),
+            Expanded(child: Text(categorie.name, style: Djassa.affiche(21))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CadreScan extends StatelessWidget {
+  const _CadreScan();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 130,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Djassa.etiquette, width: Djassa.trait),
+        borderRadius: BorderRadius.circular(Djassa.rayon),
+      ),
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Text('▣', style: TextStyle(fontSize: 34, color: Djassa.etiquette)),
+          SizedBox(height: 8),
+          Text(
+            'Scan de la carte grise — bientôt',
+            style: TextStyle(
+              fontFamily: Djassa.texte,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Djassa.etiquette,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CasePhoto extends StatelessWidget {
+  const _CasePhoto({
+    required this.icone,
+    required this.nom,
+    required this.prise,
+    required this.onTap,
+  });
+
+  final String icone;
+  final String nom;
+  final bool prise;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: prise ? Djassa.accent : Colors.white,
+          border: Border.all(color: Djassa.encre, width: Djassa.trait),
+          borderRadius: BorderRadius.circular(Djassa.rayon),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Text(prise ? '✓' : icone, style: const TextStyle(fontSize: 32)),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                nom,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: Djassa.texte,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: prise ? Djassa.creme : Djassa.encre,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Renfort extends StatelessWidget {
+  const _Renfort({
+    required this.libelle,
+    required this.gain,
+    required this.couleurGain,
+    required this.onTap,
+  });
+
+  final String libelle;
+  final String gain;
+  final Color couleurGain;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 60),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: Djassa.encre, width: Djassa.trait),
+          borderRadius: BorderRadius.circular(Djassa.rayon),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                libelle,
+                style: const TextStyle(
+                  fontFamily: Djassa.texte,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Djassa.encre,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
             Text(
-              categorie.name,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              gain,
+              style: TextStyle(
+                fontFamily: Djassa.texte,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: couleurGain,
+              ),
             ),
           ],
         ),

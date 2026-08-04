@@ -11,12 +11,13 @@ import '../ui/widgets.dart';
 /// C'EST LA SEULE FORME SOUS LAQUELLE ON APPREND QU'ON REGARDE SON BIEN, et
 /// elle est délibérément pauvre : « consulté 3 fois aujourd'hui », jamais par
 /// qui ni depuis où. L'anonymat est symétrique — le consultant y a autant droit
-/// que le détenteur — et cet écran ne doit jamais laisser espérer davantage.
+/// que le détenteur — et cet écran ne doit jamais laisser espérer davantage. La
+/// phrase en pied le dit, plutôt que de laisser chercher.
 ///
-/// LES ALERTES QUI APPELLENT UN GESTE SONT DISTINGUÉES. Une tentative
-/// d'enregistrement en doublon signifie que quelqu'un a essayé de déclarer un
-/// bien qui est le vôtre : la noyer parmi les compteurs de consultation
-/// reviendrait à ne pas la donner.
+/// LES ALERTES QUI APPELLENT UN GESTE SONT DISTINGUÉES par leur pastille. Une
+/// tentative d'enregistrement en doublon signifie que quelqu'un a essayé de
+/// déclarer un bien qui est le vôtre : la noyer parmi les compteurs de
+/// consultation reviendrait à ne pas la donner.
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({required this.session, super.key});
 
@@ -95,40 +96,60 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final fil = _fil;
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Djassa.creme,
-        surfaceTintColor: Djassa.creme,
-        title: const Text('Alertes', style: TextStyle(fontWeight: FontWeight.w800)),
-        actions: <Widget>[
-          if ((fil?.unreadCount ?? 0) > 0)
-            TextButton(
-              onPressed: _toutMarquer,
-              child: const Text(
-                'Tout marquer',
-                style: TextStyle(fontWeight: FontWeight.w800, color: Djassa.encre),
-              ),
-            ),
-          IconButton(
-            onPressed: () => Navigator.of(context).push<void>(
-              MaterialPageRoute<void>(
-                builder: (_) => NotificationPreferencesScreen(session: widget.session),
-              ),
-            ),
-            icon: const Icon(Icons.tune, color: Djassa.encre),
-            tooltip: 'Préférences',
-          ),
-        ],
-      ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _charger,
           color: Djassa.encre,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+            padding: const EdgeInsets.fromLTRB(22, 24, 22, 40),
             children: <Widget>[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 44),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      side: const BorderSide(color: Djassa.encre, width: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      textStyle: const TextStyle(
+                        fontFamily: Djassa.texte,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('← Retour'),
+                  ),
+                  Row(
+                    children: <Widget>[
+                      if ((fil?.unreadCount ?? 0) > 0)
+                        TextButton(
+                          onPressed: _toutMarquer,
+                          child: const Text('Tout marquer'),
+                        ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                NotificationPreferencesScreen(session: widget.session),
+                          ),
+                        ),
+                        icon: const Icon(Icons.tune, color: Djassa.encre),
+                        tooltip: 'Préférences',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text('Notifications', style: Djassa.affiche(30)),
+              const SizedBox(height: 14),
               if (_erreur != null) ...<Widget>[
                 EncadreErreur(_erreur!),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
               ],
               if (_enCours && fil == null)
                 const EnCours()
@@ -137,8 +158,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   titre: 'Aucune alerte',
                   explication:
                       'Tu seras prévenu quand un de tes biens est consulté, quand quelqu\'un '
-                      'tente de l\'enregistrer, ou quand une réclamation le vise. Jamais de '
-                      'qui il s\'agit : personne ne saura non plus que tu consultes.',
+                      'tente de l\'enregistrer, ou quand une réclamation le vise.',
                 )
               else
                 ...fil.notifications.map(
@@ -147,6 +167,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     child: _Ligne(notification: n, onLire: () => _marquer(n)),
                   ),
                 ),
+              const SizedBox(height: 8),
+              const Text(
+                'On ne te dit jamais QUI a consulté : seulement combien de fois, et quand.',
+                style: TextStyle(
+                  fontFamily: Djassa.texte,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  height: 1.4,
+                  color: Djassa.etiquette,
+                ),
+              ),
             ],
           ),
         ),
@@ -163,70 +194,85 @@ class _Ligne extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final critique = notification.isCritical;
+    final (String symbole, Color fond) = switch (notification.type) {
+      'duplicate_attempt' => ('!', Djassa.alerte),
+      'lookup_spike' => ('!', const Color(0xFFC77700)),
+      'claim_opened' || 'claim_decided' => ('⚖', const Color(0xFFC77700)),
+      'asset_lookup' => ('👀', Djassa.accent),
+      'kyc_result' || 'transfer_completed' => ('✓', const Color(0xFF1E8A4C)),
+      _ => ('•', Djassa.encre),
+    };
 
-    return InkWell(
-      onTap: onLire,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(
-            // Le rouge est réservé à ce qui appelle un geste. L'appliquer à un
-            // compteur de consultation le banaliserait, et le jour où une vraie
-            // alerte arrive, elle ne se distinguerait plus.
-            color: critique ? Djassa.alerte : Djassa.encre,
-            width: 3,
+    return Opacity(
+      // Le lu s'estompe, il ne disparaît pas : l'historique reste consultable,
+      // et ce qui appelle un geste garde le contraste.
+      opacity: notification.read ? 0.75 : 1,
+      child: InkWell(
+        onTap: onLire,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: Djassa.encre, width: Djassa.trait),
+            borderRadius: BorderRadius.circular(Djassa.rayon),
           ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                if (!notification.read) ...<Widget>[
-                  Container(
-                    margin: const EdgeInsets.only(top: 7, right: 10),
-                    height: 11,
-                    width: 11,
-                    decoration: const BoxDecoration(
-                      color: Djassa.accent,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
-                Expanded(
-                  child: Text(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: fond, shape: BoxShape.circle),
+                child: Text(
+                  symbole,
+                  style: Djassa.affiche(20, couleur: Djassa.creme, hauteur: 1),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
                     // TITRE ET CORPS SONT RÉDIGÉS PAR LE SERVEUR (CT-04) : les
                     // recomposer ici embarquerait les règles d'agrégation dans
                     // une version qui se périmera.
-                    notification.title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      height: 1.3,
+                    Text(
+                      notification.body.isEmpty ? notification.title : notification.body,
+                      style: const TextStyle(
+                        fontFamily: Djassa.texte,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        height: 1.35,
+                      ),
                     ),
+                    if (notification.createdAt != null) ...<Widget>[
+                      const SizedBox(height: 4),
+                      Text(
+                        _quand(notification.createdAt!),
+                        style: const TextStyle(
+                          fontFamily: Djassa.texte,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Djassa.etiquette,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (!notification.read)
+                Container(
+                  margin: const EdgeInsets.only(left: 8, top: 6),
+                  width: 11,
+                  height: 11,
+                  decoration: const BoxDecoration(
+                    color: Djassa.accent,
+                    shape: BoxShape.circle,
                   ),
                 ),
-              ],
-            ),
-            if (notification.body.isNotEmpty) ...<Widget>[
-              const SizedBox(height: 6),
-              Text(
-                notification.body,
-                style: const TextStyle(height: 1.45),
-              ),
             ],
-            if (notification.createdAt != null) ...<Widget>[
-              const SizedBox(height: 8),
-              Text(
-                _quand(notification.createdAt!),
-                style: const TextStyle(color: Djassa.sourdine, fontSize: 15),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );
@@ -329,14 +375,10 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
     final preferences = _preferences;
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Djassa.creme,
-        surfaceTintColor: Djassa.creme,
-        title: const Text('Préférences', style: TextStyle(fontWeight: FontWeight.w800)),
-      ),
+      appBar: const BarrePreuve(titre: 'Préférences'),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+          padding: const EdgeInsets.fromLTRB(22, 12, 22, 40),
           children: <Widget>[
             if (_erreur != null) ...<Widget>[
               EncadreErreur(_erreur!),
@@ -351,12 +393,14 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
                   activeThumbColor: Djassa.accent,
                   title: Text(
                     option.label,
-                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      fontFamily: Djassa.texte,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   value: preferences.enabled(option.type),
-                  onChanged: _enCours
-                      ? null
-                      : (bool actif) => _basculer(option.type, actif),
+                  onChanged: _enCours ? null : (bool actif) => _basculer(option.type, actif),
                 ),
               ),
               const SizedBox(height: 20),
@@ -368,7 +412,12 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
                 'sur un bien qui est le tien, une réclamation qui le vise, un vol '
                 'constaté. Ce sont celles sur lesquelles il y a quelque chose à faire, '
                 'et souvent peu de temps pour le faire.',
-                style: TextStyle(color: Djassa.sourdine, height: 1.5),
+                style: TextStyle(
+                  fontFamily: Djassa.texte,
+                  color: Djassa.sourdine,
+                  height: 1.5,
+                  fontSize: 15,
+                ),
               ),
             ],
           ],

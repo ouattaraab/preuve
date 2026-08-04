@@ -18,6 +18,7 @@ use App\Services\CategoryRegistry;
 use App\Services\QuotaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
@@ -80,8 +81,33 @@ final class AssetController extends Controller
             ->orderByDesc('registered_at')
             ->paginate(self::PAR_PAGE, ['*'], 'page', (int) $request->integer('page', 1));
 
+        // Consultations des 30 derniers jours, en UNE requête groupée : un
+        // compte par ligne ferait vingt-cinq requêtes par page, sur la table qui
+        // grossit le plus vite de la base.
+        //
+        // C'EST UN NOMBRE, JAMAIS UNE LISTE. Le détenteur apprend que son bien
+        // est regardé — ce qui est le signal utile, et parfois le seul indice
+        // d'un vol qui se prépare — sans rien apprendre de qui regarde.
+        // L'anonymat est symétrique : le consultant y a autant droit que lui
+        // (règle métier absolue n° 4).
+        $identifiants = [];
+
+        foreach ($page->getCollection() as $bien) {
+            $identifiants[] = $bien->identifier_normalized;
+        }
+
+        $consultations = $this->consultationsSur30Jours($identifiants);
+
+        $biens = [];
+
+        foreach ($page->getCollection() as $bien) {
+            $biens[] = (new OwnedAssetResource($bien))->toArray($request) + [
+                'lookups_30d' => $consultations[$bien->identifier_normalized] ?? 0,
+            ];
+        }
+
         return response()->json([
-            'assets' => OwnedAssetResource::collection($page->getCollection())->resolve(),
+            'assets' => $biens,
             'pagination' => [
                 'page' => $page->currentPage(),
                 'per_page' => $page->perPage(),
@@ -93,6 +119,37 @@ final class AssetController extends Controller
             // au refus après quatre-vingt-dix secondes de saisie.
             'quota' => $this->quotas->forUser($proprietaire),
         ]);
+    }
+
+    /**
+     * @param  list<string>  $identifiants
+     * @return array<string, int>
+     */
+    private function consultationsSur30Jours(array $identifiants): array
+    {
+        if ($identifiants === []) {
+            return [];
+        }
+
+        $lignes = DB::table('lookups')
+            ->select('identifier_normalized', DB::raw('COUNT(*) as total'))
+            ->whereIn('identifier_normalized', $identifiants)
+            ->where('created_at', '>=', now()->subDays(30)->format('Y-m-d H:i:s'))
+            ->groupBy('identifier_normalized')
+            ->get();
+
+        $compte = [];
+
+        foreach ($lignes as $ligne) {
+            $cle = $ligne->identifier_normalized ?? null;
+            $total = $ligne->total ?? 0;
+
+            if (is_string($cle) && is_numeric($total)) {
+                $compte[$cle] = (int) $total;
+            }
+        }
+
+        return $compte;
     }
 
     public function store(Request $request): JsonResponse
@@ -190,10 +247,17 @@ final class AssetController extends Controller
             throw ValidationException::withMessages(['attributes' => $e->getMessage()]);
         }
 
+        // LA VUE DU DÉTENTEUR, PAS LA VUE PUBLIQUE : cette réponse part à celui
+        // qui vient d'enregistrer le bien. Sans son identifiant interne, il ne
+        // pourrait rattacher NI photo, NI justificatif à ce qu'il vient de
+        // créer — il faudrait relire tout l'inventaire pour retrouver un bien
+        // dont on sort à l'instant. Le 409 juste au-dessus, lui, part à
+        // quelqu'un qui n'est pas le détenteur : il garde la vue publique.
+        //
         // Le quota accompagne la réponse : l'utilisateur voit ce qu'il lui
         // reste avant d'être arrêté, plutôt que de le découvrir au refus.
         return response()->json([
-            'asset' => new PublicAssetResource($bien),
+            'asset' => new OwnedAssetResource($bien),
             'quota' => $this->quotas->forUser($proprietaire),
         ], 201);
     }

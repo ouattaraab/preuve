@@ -233,8 +233,13 @@ class EnteteMarque extends StatelessWidget {
     required this.onCloche,
     this.pastille,
     this.alerte = false,
+    this.motMarque = true,
     super.key,
   });
+
+  /// Le mot-marque n'apparaît que sur l'accueil : ailleurs, la page a déjà son
+  /// titre, et le répéter volerait la place de ce qu'on est venu lire.
+  final bool motMarque;
 
   final VoidCallback onCloche;
 
@@ -246,6 +251,10 @@ class EnteteMarque extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!motMarque) {
+      return _Cloche(onTap: onCloche, alerte: alerte);
+    }
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: <Widget>[

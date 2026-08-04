@@ -1,5 +1,4 @@
 import '../models/catalog.dart';
-import '../models/lookup.dart';
 import '../models/owned_asset.dart';
 import 'exceptions.dart';
 import 'transport.dart';
@@ -98,7 +97,7 @@ class AssetService {
       final asset = body['asset'];
 
       return Registration(
-        asset: PublicAsset.fromJson(
+        asset: OwnedAsset.fromJson(
           asset is Map<String, Object?> ? asset : const <String, Object?>{},
         ),
         quota: body['quota'] is Map<String, Object?>
@@ -142,7 +141,9 @@ class Inventory {
 class Registration {
   const Registration({required this.asset, this.quota});
 
-  final PublicAsset asset;
+  /// LA VUE DU DÉTENTEUR, avec son identifiant interne : sans lui, on ne
+  /// pourrait rattacher ni photo ni justificatif au bien qu'on vient de créer.
+  final OwnedAsset asset;
 
   /// Rendu par le serveur avec la création : l'utilisateur voit ce qu'il lui
   /// reste AVANT d'être arrêté, plutôt que de le découvrir au refus.

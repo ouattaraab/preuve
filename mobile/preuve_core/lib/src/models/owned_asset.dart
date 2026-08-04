@@ -20,6 +20,7 @@ class OwnedAsset {
     required this.attributes,
     this.registeredAt,
     this.stolenDeclaredAt,
+    this.lookups30d = 0,
   });
 
   factory OwnedAsset.fromJson(Map<String, Object?> json) {
@@ -35,6 +36,7 @@ class OwnedAsset {
       attributes: attributs is Map<String, Object?> ? attributs : const <String, Object?>{},
       registeredAt: DateTime.tryParse(_string(json['registered_at'])),
       stolenDeclaredAt: DateTime.tryParse(_string(json['stolen_declared_at'])),
+      lookups30d: json['lookups_30d'] is int ? json['lookups_30d']! as int : 0,
     );
   }
 
@@ -61,6 +63,11 @@ class OwnedAsset {
 
   final DateTime? registeredAt;
   final DateTime? stolenDeclaredAt;
+
+  /// Nombre de consultations sur 30 jours. UN NOMBRE, JAMAIS UNE LISTE : le
+  /// détenteur apprend que son bien est regardé — le signal utile, parfois le
+  /// seul indice d'un vol qui se prépare — sans rien apprendre de qui regarde.
+  final int lookups30d;
 
   /// Un libellé lisible, à défaut d'un numéro que personne ne reconnaît dans
   /// une liste. Le numéro reste affiché à côté : c'est lui qui fait foi.

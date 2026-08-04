@@ -5,7 +5,7 @@ import 'package:preuve_core/preuve_core.dart';
 
 import 'data/secure_token_store.dart';
 import 'data/session.dart';
-import 'screens/lookup_screen.dart';
+import 'screens/shell_screen.dart';
 import 'ui/theme.dart';
 
 /// Version installée, annoncée au serveur à chaque écriture.
@@ -69,7 +69,7 @@ class PreuveApp extends StatelessWidget {
       title: 'Preuve',
       debugShowCheckedModeBanner: false,
       theme: Djassa.build(),
-      home: LookupScreen(session: session),
+      home: ShellScreen(session: session),
     );
   }
 }
