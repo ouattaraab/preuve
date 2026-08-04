@@ -1,0 +1,9 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+build/
+*.iml
+
+# Générés par `flutter create` : les dossiers natifs se régénèrent, mais on les
+# versionne dès qu'ils portent une configuration propre au produit (identifiant
+# de paquet, permissions, clés). À revoir au premier `flutter create`.

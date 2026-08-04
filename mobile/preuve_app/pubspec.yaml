@@ -1,0 +1,31 @@
+name: preuve_app
+description: >-
+  PREUVE — vérifier un bien avant d'acheter. Registre déclaratif de propriété
+  et de statut des biens, Côte d'Ivoire.
+publish_to: none
+
+# La version est lue par le serveur (`X-App-Version`) pour appliquer, le cas
+# échéant, une version minimale exigée. Elle doit donc suivre la réalité des
+# livraisons, pas rester à 1.0.0.
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Le cœur métier, en Dart pur : il s'analyse et se teste sans appareil.
+  preuve_core:
+    path: ../preuve_core
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  # Les polices DJASSA (Bricolage Grotesque, Atkinson Hyperlegible) ne sont pas
+  # encore déposées : les déclarer sans les fichiers ferait échouer la
+  # construction. Voir README.
