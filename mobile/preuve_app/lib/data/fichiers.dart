@@ -1,8 +1,3 @@
-import 'dart:io';
-
-import 'package:image_picker/image_picker.dart';
-import 'package:preuve_core/preuve_core.dart';
-
 /// Ce que le cœur ne sait pas faire, et n'a pas à savoir : lire un fichier et
 /// ouvrir l'appareil photo.
 ///
@@ -10,6 +5,11 @@ import 'package:preuve_core/preuve_core.dart';
 /// plomberie de plateforme — c'est la frontière qui permet d'éprouver les
 /// règles métier dans une console, sans émulateur.
 library;
+
+import 'dart:io';
+
+import 'package:image_picker/image_picker.dart';
+import 'package:preuve_core/preuve_core.dart';
 
 /// Une photo choisie ou prise, prête à partir.
 class PhotoLocale {

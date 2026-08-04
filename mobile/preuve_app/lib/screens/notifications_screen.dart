@@ -348,7 +348,7 @@ class _NotificationPreferencesScreenState extends State<NotificationPreferencesS
               ...preferences.available.map(
                 (OptionalNotification option) => SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  activeColor: Djassa.accent,
+                  activeThumbColor: Djassa.accent,
                   title: Text(
                     option.label,
                     style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),

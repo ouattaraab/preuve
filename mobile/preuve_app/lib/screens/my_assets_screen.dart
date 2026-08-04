@@ -235,11 +235,15 @@ class _MyAssetsScreenState extends State<MyAssetsScreen> {
               ),
               TextButton(
                 onPressed: () async {
-                  await widget.session.fermer();
+                  // Le navigateur est saisi AVANT la déconnexion : après elle,
+                  // ce contexte peut ne plus être monté, et `mounted` porte sur
+                  // l'état, pas sur lui. La déconnexion, elle, doit fermer
+                  // l'écran quoi qu'il arrive — c'est souvent qu'on prête son
+                  // téléphone.
+                  final navigateur = Navigator.of(context);
 
-                  if (mounted) {
-                    Navigator.of(context).pop();
-                  }
+                  await widget.session.fermer();
+                  navigateur.pop();
                 },
                 child: const Text('Se déconnecter'),
               ),

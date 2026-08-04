@@ -40,6 +40,17 @@ class Djassa {
     return entier == null ? encre : Color(0xFF000000 | entier);
   }
 
+  /// Un thème de texte COMPLET : géométrie (les tailles) et couleurs réunies.
+  ///
+  /// C'est ce que `ThemeData` fait lui-même au moment de bâtir l'écran, en
+  /// fonction de la langue. Le faire ici nous permet d'agrandir les tailles —
+  /// impossible sur un thème qui n'en porte aucune.
+  static TextTheme _typographie(ThemeData base) {
+    final typographie = Typography.material2021(platform: base.platform);
+
+    return typographie.englishLike.merge(typographie.black);
+  }
+
   static ThemeData build() {
     final base = ThemeData.light(useMaterial3: true);
 
@@ -51,11 +62,22 @@ class Djassa {
         surface: creme,
         error: alerte,
       ),
-      textTheme: base.textTheme.apply(
+      // LA GÉOMÉTRIE EST FOURNIE ICI, ET C'EST OBLIGATOIRE.
+      //
+      // `ThemeData.textTheme` ne porte que les COULEURS : les tailles sont
+      // fusionnées plus tard, par locale, à partir de la typographie. Y
+      // appliquer un facteur d'agrandissement lève une assertion
+      // (`fontSize != null || fontSizeFactor == 1.0`) et faisait planter
+      // l'application au démarrage — sur tous les écrans, y compris la
+      // consultation, qui ne doit jamais tomber. On part donc de la géométrie
+      // explicite, à laquelle on ajoute les couleurs, avant d'agrandir.
+      //
+      // L'agrandissement lui-même n'est pas cosmétique : la basse littératie et
+      // la lecture en plein soleil coûtent plus qu'un pouce d'écran. Il
+      // s'ajoute au réglage d'accessibilité du téléphone, il ne le remplace pas.
+      textTheme: _typographie(base).apply(
         bodyColor: encre,
         displayColor: encre,
-        // Une taille de base plus grande que le défaut : la basse littératie et
-        // la lecture en plein soleil coûtent plus qu'un pouce d'écran.
         fontSizeFactor: 1.15,
       ),
       inputDecorationTheme: const InputDecorationTheme(
