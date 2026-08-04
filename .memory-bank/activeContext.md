@@ -454,6 +454,68 @@ côtés, annuler) · réclamation (ouvrir, annoncer ses pièces, déposer)**.
 n'a même jamais reçu un `pub get` — aucune analyse statique n'est possible sur
 ces écrans. `preuve_core`, lui, reste vérifié (65 tests, `dart analyze` propre).
 
+## SDK Flutter installé — l'application compile et tourne (04/08/2026)
+
+**Flutter 3.44.8 / Dart 3.12**, cloné dans `~/development/flutter`. Le clone
+superficiel oblige l'outil à récupérer tout l'historique pour se dater : n'en
+fetcher que les ÉTIQUETTES (`git fetch --depth 1 origin '+refs/tags/*:…'`) rend
+la version en une seconde. `preuve_app` n'avait aucun dossier de plateforme ;
+générés par `flutter create --platforms=ios,android --org click.preuve`.
+
+**Le défaut trouvé à la première compilation est le plus grave possible** :
+`Djassa.build()` levait une assertion, donc **l'application ne démarrait sur
+aucun écran**, consultation comprise. `ThemeData.textTheme` ne porte que les
+COULEURS — les tailles sont fusionnées plus tard, par locale — et y appliquer un
+`fontSizeFactor` est interdit. La géométrie est désormais fournie explicitement,
+et deux tests la verrouillent.
+
+Deux autres corrections faites en regardant l'écran réel, invisibles autrement :
+l'`autofocus` de l'accueil ouvrait le clavier au lancement et poussait le titre
+et la promesse hors écran ; et un `minHeight` sur les onglets laissait la barre
+de navigation **prendre tout l'écran** — la contrainte verticale qu'elle reçoit
+n'est pas bornée.
+
+Autorisations d'images déclarées (sans elles : plantage à l'ouverture de
+l'appareil photo et rejet par l'App Store) et `INTERNET` ajouté au manifeste
+Android — le gabarit ne le déclare qu'en débogage, et l'absence ne se voit
+qu'après publication. **`flutter analyze` vert, 6 tests d'écran.**
+
+## Alignement sur la maquette mobile (04/08/2026)
+
+`docs/Preuve - Mobile.html` est un paquet auto-décompressant ; le prototype en a
+été extrait, et **les jetons recopiés plutôt que réinventés** : crème `#FFF6E8`,
+encre `#2B1D12`, accent `#D97706`, sourdine `#5A4632`, étiquette `#8A7358`,
+rayon 16, contour 3, cible 64, et l'**ombre dure** décalée sans flou. Un
+`elevation` de Material aurait rendu un dégradé générique, qui disparaît au
+soleil — c'est ce trait net qui fait reconnaître l'application.
+
+**Polices déposées** : Bricolage Grotesque, instanciée en deux graisses FIXES
+depuis la variable officielle (Flutter n'applique les axes d'une variable que si
+on les nomme un à un), et Atkinson Hyperlegible — dessinée par le Braille
+Institute pour distinguer 0/O et 1/I, ce qui est exactement ce qu'on lit ici.
+
+Écrans refaits : accueil, verdict (pleine couleur, symbole et mot qui tranche),
+connexion en deux temps, **inscription** (écran que l'application n'avait pas),
+enregistrement **en quatre étapes** avec chronomètre CT-02 affiché, alertes,
+inventaire, et **barre de navigation persistante** à trois onglets.
+
+**Trois écarts assumés à la maquette :**
+1. Le compteur « 3 208 vols déclarés » n'est pas mesurable. L'écran dit ce que la
+   plateforme FAIT, plutôt qu'un chiffre plausible et faux — même raison que les
+   « téléchargements » de la console.
+2. Les puces de démonstration deviennent « où trouver le numéro » : un prototype
+   propose des exemples, un produit sert quelqu'un debout devant une moto.
+3. Le scan (accueil et étape 2) est **désactivé et le dit**. Le serveur sait déjà
+   pré-remplir (ST-0202) ; c'est le client qui manque. Une cible qui disparaît
+   d'une version à l'autre se cherche.
+
+**Deux manques serveur trouvés en écrivant ces écrans**, tous deux corrigés :
+`POST /assets` rendait la vue publique — sans identifiant interne, impossible de
+rattacher une photo au bien qu'on vient de créer, alors que la réponse part au
+propriétaire lui-même ; et l'inventaire ne portait aucun compteur de
+consultations, que la maquette affiche à deux endroits. Ajouté en une requête
+groupée, **en nombre et jamais en liste**.
+
 ## Photos, empreintes et file persistante (04/08/2026)
 
 **`image_picker` ajouté — SECONDE ET DERNIÈRE EXCEPTION** au principe « aucune
