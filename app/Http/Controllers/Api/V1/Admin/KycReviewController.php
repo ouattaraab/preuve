@@ -103,10 +103,37 @@ final class KycReviewController extends Controller
     /** @return array<string, mixed> */
     private function present(KycSubmission $dossier): array
     {
+        $personne = $dossier->user;
+
         return [
             'id' => $dossier->id,
             'user_id' => $dossier->user_id,
             'status' => $dossier->status,
+            // CE QUE LA PERSONNE A DÉCLARÉ, à comparer avec ce que la pièce dit.
+            //
+            // CE N'EST PAS UNE ENTORSE À LA RÈGLE MÉTIER ABSOLUE N° 4, et il
+            // faut le dire précisément : cette règle protège le lien « ce bien
+            // ↔ cette personne » — le consultant ne voit pas le déclarant, le
+            // propriétaire ne voit pas le consultant, le rapport payant ne nomme
+            // personne. Un dossier d'identité ne porte AUCUN bien, et n'en
+            // révèle aucun : rien ici ne rattache cette personne à quoi que ce
+            // soit du registre.
+            //
+            // SANS CES CHAMPS, LA REVUE EST IMPOSSIBLE. L'agent voit déjà le nom
+            // — il est imprimé sur la pièce qu'on lui affiche, et l'extraction
+            // le porte souvent. Le masquer ne protégeait donc rien ; cela
+            // empêchait seulement la seule vérification qui compte : le nom
+            // déclaré correspond-il au document présenté ?
+            //
+            // MINIMISÉ À CE QUI SERT À DÉCIDER (Loi 2013-450) : le nom et
+            // l'ancienneté du compte. Ni téléphone, ni adresse — ils n'aident
+            // en rien à comparer un visage et un document, et les afficher
+            // ferait du back-office un annuaire.
+            'holder' => [
+                'full_name' => $personne?->full_name,
+                'account_created_at' => $personne?->created_at?->toIso8601String(),
+                'kyc_status' => $personne?->kyc_status,
+            ],
             // Extraction minimisée : le numéro de pièce n'y figure pas.
             'extraction' => $dossier->ocr_payload,
             'liveness_score' => $dossier->liveness_score,

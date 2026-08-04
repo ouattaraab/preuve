@@ -266,3 +266,15 @@ it('laisse revoir un dossier déjà tranché', function (): void {
         // les confondre ferait disparaître celui qu'on relit le plus.
         ->and($console)->toContain('suspected_forgery');
 });
+
+it('affiche le nom déclaré en face des pièces d\'identité', function (): void {
+    // Une revue d'identité qui ne montre pas le nom déclaré ne vérifie rien :
+    // l'agent constate qu'une image existe, il ne peut pas la COMPARER.
+    $console = file_get_contents(public_path('console/app.js'));
+
+    expect($console)->toContain('DÉCLARÉ PAR LA PERSONNE')
+        ->toContain('full_name')
+        // Et il doit dire quoi faire de cette comparaison, pas seulement
+        // l'afficher.
+        ->toContain('Compare ce nom');
+});

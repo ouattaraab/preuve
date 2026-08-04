@@ -172,6 +172,9 @@ const Moderation = {
           images: k.images || {},
           extraction: k.extraction || null,
           liveness: k.liveness_score,
+          // CE QUE LA PERSONNE A DÉCLARÉ : sans lui, l'agent ne peut que
+          // constater qu'une image existe. Il ne peut pas VÉRIFIER.
+          declare: k.holder || {},
           decide: (k.status || 'pending') !== 'pending',
           decision: k.status === 'verified' ? 'Identité validée' : k.status === 'rejected' ? 'Dossier refusé' : '',
           decideLe: k.reviewed_at, motif: k.review_reason,
@@ -252,7 +255,21 @@ const Moderation = {
       ? Object.entries(e.extraction).map(([c, v]) => `${txt(c)} : <strong>${txt(v)}</strong>`).join(' · ')
       : null;
 
+    const declare = e.declare || {};
+    const anciennete = declare.account_created_at
+      ? new Date(declare.account_created_at).toLocaleDateString('fr-FR')
+      : '—';
+
     return `
+      <div style="background:#FFF;border-radius:10px;padding:14px 16px">
+        <div style="font-size:12px;font-weight:700;color:#7A6A55;letter-spacing:.4px">DÉCLARÉ PAR LA PERSONNE</div>
+        <div style="font-size:20px;font-weight:700;margin-top:4px">${txt(declare.full_name || '— aucun nom renseigné —')}</div>
+        <div style="font-size:13px;color:#5C4A33;margin-top:4px">Compte ouvert le ${txt(anciennete)}</div>
+        <div style="font-size:12px;color:#7A6A55;margin-top:8px;line-height:1.5">
+          ↓ Compare ce nom avec celui imprimé sur la pièce. S'ils diffèrent, refuse en le disant :
+          c'est le motif qui permettra à la personne de corriger.
+        </div>
+      </div>
       <div style="display:flex;gap:10px">
         ${vignette(e.images.id_front, 'Pièce — recto')}
         ${vignette(e.images.id_back, 'Pièce — verso')}

@@ -90,6 +90,20 @@ Décision : écart ≥ 20 pts → transfert ou maintien ; < 20 pts → **« liti
 - Le propriétaire ne voit JAMAIS l'identité du consultant — même acheteur d'un rapport payant.
 - Rapport détaillé (payant) : historique des statuts, NOMBRE de détenteurs et dates de transfert (jamais les identités), incidents.
 - Levée d'anonymat : uniquement autorité judiciaire sur réquisition (dossier complet).
+- **CE QUE CETTE RÈGLE PROTÈGE EST LE LIEN « ce bien ↔ cette personne »**, et il faut le
+  dire précisément, sans quoi on l'étend là où elle empêche de travailler :
+  - **Registre des biens (back-office)** : aucune identité, jamais. Un agent voit le bien,
+    son statut, sa fiabilité, son historique — jamais qui le détient, jamais qui a agi.
+    C'est là que la règle mord, et elle n'a pas d'exception interne.
+  - **Revue d'identité (KYC)** : le nom déclaré EST rendu à l'agent, et c'est
+    nécessaire. La personne a soumis son identité pour qu'elle soit examinée ; le nom
+    est de toute façon imprimé sur la pièce affichée. Le masquer ne protégeait rien et
+    rendait la vérification impossible — l'agent ne pouvait que constater qu'une image
+    existe. **Le dossier d'identité ne laisse jamais remonter les BIENS de la personne** :
+    c'est là que passe la frontière, et un test la garde (`RevueIdentiteTest`).
+  - Minimisé à ce qui sert à décider : nom et ancienneté du compte. Ni téléphone, ni
+    adresse — ils ne comparent rien, et les afficher ferait du back-office un annuaire.
+    Le numéro de pièce reste non restituable, y compris sur réquisition.
 
 ## 5. Notifications (NotificationService)
 - `asset_lookup` : job d'agrégation HORAIRE des lookups par bien → une notification avec compteur ("consultée 3 fois aujourd'hui"). Jamais unitaire, jamais d'identité/IP.
