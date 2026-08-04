@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
+use App\Models\AssetDocument;
+use App\Models\AssetStatusHistory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -67,6 +69,105 @@ final class AssetRegistryController extends Controller
                 'per_page' => $page->perPage(),
                 'total' => $page->total(),
                 'last_page' => $page->lastPage(),
+            ],
+        ]);
+    }
+
+    /**
+     * Le dossier complet d'un bien, vu du back-office.
+     *
+     * IL NE DIT TOUJOURS RIEN DU DÉTENTEUR — ni nom, ni numéro, ni identifiant
+     * de compte. La règle métier absolue n° 4 ne connaît pas d'exception
+     * interne : un back-office qui lèverait l'anonymat en ferait un outil de
+     * traque à disposition de quiconque obtient un compte agent. Ce n'est pas
+     * un oubli, et cela ne se « complète » pas.
+     *
+     * CE QUI EXISTE À LA PLACE est un chemin prévu, tracé et opposable : la
+     * levée d'anonymat sur réquisition (`/admin/identity-disclosures`),
+     * réservée aux administrateurs, exigeant un fondement structuré, rendant
+     * l'identité UNE FOIS, et laissant une double trace inaltérable. Cette
+     * réponse porte l'adresse de ce chemin plutôt que l'identité : un agent qui
+     * en a besoin doit passer par là, et laisser une trace en le faisant.
+     *
+     * L'HISTORIQUE ET LES PIÈCES SONT LÀ, EUX. Ce sont eux qui permettent
+     * d'instruire : ce qui est arrivé au bien, quand, et sur quelles pièces.
+     */
+    public function show(Request $request, int $asset): JsonResponse
+    {
+        $bien = Asset::query()->whereKey($asset)->first();
+
+        if (! $bien instanceof Asset) {
+            abort(404);
+        }
+
+        $attributs = $bien->getAttribute('attributes');
+        $attributs = is_array($attributs) ? $attributs : [];
+
+        $historique = AssetStatusHistory::query()
+            ->where('asset_id', $bien->id)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
+        $pieces = AssetDocument::query()
+            ->where('asset_id', $bien->id)
+            ->orderByDesc('id')
+            ->get();
+
+        return response()->json([
+            'asset' => [
+                'id' => $bien->id,
+                'public_ref' => $bien->public_ref,
+                'identifier' => $bien->identifier_normalized,
+                'identifier_type' => $bien->identifier_type,
+                'category' => $bien->asset_category_key,
+                // Les champs déclarés par la catégorie : marque, modèle, année.
+                // Ils décrivent le BIEN, jamais la personne.
+                'attributes' => $attributs,
+                'life_status' => $bien->life_status->value,
+                'life_status_label' => $bien->life_status->label(),
+                'life_status_color' => $bien->life_status->color(),
+                'trust_level' => $bien->trust_level->value,
+                'trust_level_label' => $bien->trust_level->label(),
+                'registered_at' => $bien->registered_at->toIso8601String(),
+                'provisional_until' => $bien->provisional_until?->toIso8601String(),
+                'stolen_declared_at' => $bien->stolen_declared_at?->toIso8601String(),
+                // `active_flag` dit si CET enregistrement est celui qui fait
+                // foi : un agent qui instruit un litige doit pouvoir distinguer
+                // l'actif d'un maillon archivé de la chaîne des détenteurs.
+                'is_active' => $bien->active_flag !== null,
+                'lookups_30d' => $this->consultationsSur30Jours([$bien->identifier_normalized])[$bien->identifier_normalized] ?? 0,
+            ],
+            'history' => $historique->map(fn (AssetStatusHistory $ligne): array => [
+                'from_status' => $ligne->from_status?->value,
+                'to_status' => $ligne->to_status->value,
+                'to_status_label' => $ligne->to_status->label(),
+                'trigger_type' => $ligne->trigger_type->value,
+                'reason' => $ligne->reason,
+                'at' => $ligne->created_at?->toIso8601String(),
+                // NI `actor_user_id`, NI son nom : qui a agi relève de la même
+                // règle que qui détient.
+            ])->all(),
+            'documents' => $pieces->map(fn (AssetDocument $piece): array => [
+                'id' => $piece->id,
+                'doc_type' => $piece->doc_type->value,
+                'doc_type_label' => $piece->doc_type->label(),
+                'review_status' => $piece->review_status->value,
+                'review_status_label' => $piece->review_status->label(),
+                'review_reason' => $piece->review_reason,
+                'submitted_at' => $piece->created_at?->toIso8601String(),
+                'reviewed_at' => $piece->reviewed_at?->toIso8601String(),
+                'file_url' => '/api/v1/admin/documents/'.$piece->id.'/file',
+            ])->all(),
+            // Dit explicitement ce qui n'est pas rendu, et par où passer. Un
+            // champ absent sans explication se lit comme un défaut ; expliqué,
+            // il se lit comme la protection qu'il est.
+            'holder' => [
+                'disclosed' => false,
+                'notice' => "L'identité du détenteur n'est jamais rendue par le registre ".
+                    '(règle métier absolue n° 4). Elle ne peut être levée que sur réquisition '.
+                    "d'une autorité, par un administrateur, avec fondement consigné et double trace.",
+                'disclosure_path' => '/api/v1/admin/identity-disclosures',
             ],
         ]);
     }

@@ -10,9 +10,11 @@ use App\Models\Asset;
 use App\Models\AssetDocument;
 use App\Models\User;
 use App\Services\DocumentReviewService;
+use App\Services\DocumentVault;
 use App\Services\TrustLevelEngine;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
 
@@ -28,7 +30,69 @@ final class AssetDocumentController extends Controller
     public function __construct(
         private readonly DocumentReviewService $documents,
         private readonly TrustLevelEngine $trustLevel,
+        private readonly DocumentVault $vault,
     ) {}
+
+    /**
+     * Les pièces déposées sur un bien, vues par SON détenteur.
+     *
+     * SANS ELLE, PERSONNE NE PEUT REVOIR CE QU'IL A ENVOYÉ. Quelqu'un qui a
+     * photographié sa carte grise il y a six mois n'a aucun moyen de savoir si
+     * elle est arrivée, ni si un agent l'a acceptée — et il la renverra, ou
+     * pire, il croira son bien documenté alors qu'il ne l'est pas.
+     */
+    public function index(Request $request, int $asset): JsonResponse
+    {
+        $bien = $this->ownedAsset($request, $asset);
+
+        $pieces = AssetDocument::query()
+            ->where('asset_id', $bien->id)
+            ->orderByDesc('id')
+            ->get();
+
+        return response()->json([
+            'documents' => $pieces->map(fn (AssetDocument $piece): array => $this->present($piece))->all(),
+            'trust' => $this->trustLevel->progress($bien),
+        ]);
+    }
+
+    /**
+     * Rend la pièce EN CLAIR à son déposant.
+     *
+     * Le contenu est déchiffré à la volée et n'est jamais réécrit sur le
+     * disque : un fichier temporaire déchiffré survivrait à la requête et
+     * annulerait le chiffrement au repos pour quiconque lit le disque partagé —
+     * or ce compte en héberge huit autres.
+     *
+     * LE BIEN EST VÉRIFIÉ AVANT LA PIÈCE, et la pièce doit lui appartenir : un
+     * identifiant de document deviné ne doit pas ouvrir la carte grise d'un
+     * inconnu. Le refus est un 404, jamais un 403 — confirmer l'existence d'une
+     * pièce apprendrait déjà quelque chose.
+     */
+    public function file(Request $request, int $asset, int $document): Response
+    {
+        $bien = $this->ownedAsset($request, $asset);
+
+        $piece = AssetDocument::query()
+            ->whereKey($document)
+            ->where('asset_id', $bien->id)
+            ->first();
+
+        if (! $piece instanceof AssetDocument) {
+            abort(404);
+        }
+
+        $clair = $this->documents->readable($piece);
+
+        return response($clair, 200, [
+            // Type deviné sur le CLAIR : le chiffré n'en a aucun.
+            'Content-Type' => $this->vault->mimeOf($clair),
+            'Content-Disposition' => 'inline',
+            // Jamais en cache — ni navigateur, ni relais : c'est une pièce
+            // d'identité ou un titre de propriété.
+            'Cache-Control' => 'no-store, private',
+        ]);
+    }
 
     public function store(Request $request, int $asset): JsonResponse
     {
@@ -126,6 +190,12 @@ final class AssetDocumentController extends Controller
             // de corriger, et ce qui rend la décision contestable.
             'review_reason' => $document->review_reason,
             'submitted_at' => $document->created_at?->toIso8601String(),
+            // Téléchargement AUTHENTIFIÉ, et non lien signé : la pièce est
+            // chiffrée au repos — un lien direct rendrait du charabia — et un
+            // lien signé est une capacité au porteur, qui ouvre la pièce à
+            // quiconque le recopie. Ici la propriété est revérifiée à chaque
+            // requête.
+            'file_url' => '/api/v1/assets/'.$document->asset_id.'/documents/'.$document->id.'/file',
         ];
     }
 }

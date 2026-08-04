@@ -18,6 +18,7 @@ export 'src/api/transport.dart';
 export 'src/crypto/sha256.dart';
 export 'src/identifiers.dart';
 export 'src/models/catalog.dart';
+export 'src/models/document.dart';
 export 'src/models/evidence.dart';
 export 'src/models/lookup.dart';
 export 'src/models/notification.dart';

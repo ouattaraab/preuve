@@ -144,6 +144,12 @@ const Moderation = {
           titre: `Dossier d'identité #${k.id}`,
           meta: `Déposé le ${k.submitted_at ? new Date(k.submitted_at).toLocaleDateString('fr-FR') : '—'}`,
           id: k.id,
+          // LES TROIS IMAGES SONT LE DOSSIER. Sans elles, l'agent ne peut ni
+          // valider ni refuser : il ne lui reste qu'un numéro de ligne, et une
+          // décision prise sur un numéro de ligne ne vaut rien.
+          images: k.images || {},
+          extraction: k.extraction || null,
+          liveness: k.liveness_score,
         })),
         ...(claims.claims || []).map(c => ({
           source: 'claims', tag: 'RÉCLAMATION',
@@ -171,18 +177,157 @@ const Moderation = {
     }
 
     zone.innerHTML = vus.map(e => `
-      <article style="background:#FFF6E8;border-radius:12px;padding:16px 18px;display:flex;align-items:center;gap:16px">
-        <span style="background:#2B1D12;color:#FFF6E8;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;flex-shrink:0">${txt(e.tag)}</span>
-        <span style="flex:1;min-width:0">
-          <span style="display:block;font-size:15px;font-weight:700">${txt(e.titre)}</span>
-          <span style="display:block;font-size:13px;color:#7A6A55;margin-top:2px">${txt(e.meta)}</span>
-        </span>
-        ${e.lien ? `<a href="${txt(e.lien)}" target="_blank" rel="noopener"
-             style="font-size:13px;font-weight:700;text-decoration:underline;flex-shrink:0">Voir la pièce</a>` : ''}
+      <article style="background:#FFF6E8;border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;align-items:center;gap:16px">
+          <span style="background:#2B1D12;color:#FFF6E8;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;flex-shrink:0">${txt(e.tag)}</span>
+          <span style="flex:1;min-width:0">
+            <span style="display:block;font-size:15px;font-weight:700">${txt(e.titre)}</span>
+            <span style="display:block;font-size:13px;color:#7A6A55;margin-top:2px">${txt(e.meta)}</span>
+          </span>
+          ${e.lien ? `<a href="${txt(e.lien)}" target="_blank" rel="noopener"
+               style="font-size:13px;font-weight:700;text-decoration:underline;flex-shrink:0">Voir la pièce</a>` : ''}
+        </div>
+        ${e.source === 'kyc' ? this.dossierIdentite(e) : ''}
+        ${this.decisions(e)}
       </article>`).join('');
   },
 
+  /**
+   * Le dossier d'identité : recto, verso, selfie, et ce que l'extraction a lu.
+   *
+   * LES IMAGES SONT SERVIES PAR UNE ROUTE AUTHENTIFIÉE, jamais par un lien
+   * signé : elles sont chiffrées au repos, et un lien signé est une capacité au
+   * porteur — quiconque le recopie ouvre la pièce d'identité de quelqu'un. Ici
+   * le rôle est revérifié à chaque requête, et rien n'est mis en cache.
+   *
+   * LE NUMÉRO DE PIÈCE N'EST NULLE PART, et ne peut pas y être : le serveur n'en
+   * garde qu'une empreinte. C'est la CONCORDANCE entre le visage et le document
+   * que l'agent apprécie, pas un numéro qu'il recopierait.
+   */
+  dossierIdentite(e) {
+    const vignette = (url, libelle) => url
+      ? `<figure style="margin:0;flex:1;min-width:0">
+           <a href="${txt(url)}" target="_blank" rel="noopener">
+             <img src="${txt(url)}" alt="${txt(libelle)}" loading="lazy"
+                  style="width:100%;height:150px;object-fit:cover;border:2px solid #2B1D12;border-radius:10px;background:#FFF">
+           </a>
+           <figcaption style="font-size:12px;font-weight:700;color:#7A6A55;margin-top:4px">${txt(libelle)}</figcaption>
+         </figure>`
+      : `<figure style="margin:0;flex:1;min-width:0">
+           <div style="width:100%;height:150px;border:2px dashed #B9A98E;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#B9A98E">Absente</div>
+           <figcaption style="font-size:12px;font-weight:700;color:#7A6A55;margin-top:4px">${txt(libelle)}</figcaption>
+         </figure>`;
+
+    const extraits = e.extraction && typeof e.extraction === 'object'
+      ? Object.entries(e.extraction).map(([c, v]) => `${txt(c)} : <strong>${txt(v)}</strong>`).join(' · ')
+      : null;
+
+    return `
+      <div style="display:flex;gap:10px">
+        ${vignette(e.images.id_front, 'Pièce — recto')}
+        ${vignette(e.images.id_back, 'Pièce — verso')}
+        ${vignette(e.images.selfie, 'Selfie')}
+      </div>
+      <p style="margin:0;font-size:13px;color:#5C4A33;line-height:1.6">
+        ${extraits ? extraits : 'Aucune extraction automatique : apprécie la concordance à l\'œil.'}
+      </p>
+      <p style="margin:0;font-size:12px;color:#7A6A55;line-height:1.5">
+        ⚠️ Aucune détection de vivacité n'est en place : une photo de photo peut passer.
+        Regarde la cohérence entre le visage, le document et l'éclairage.
+        Le numéro de la pièce n'est pas conservé en clair, il ne peut pas t'être montré.
+      </p>`;
+  },
+
+  /**
+   * Les boutons de décision. SANS EUX, LA FILE NE SERT À RIEN : quelqu'un dépose
+   * son dossier, personne ne peut le valider, et la promesse « vérifié sous
+   * 48 heures » ne tient à rien.
+   *
+   * Les libellés disent la CONSÉQUENCE, pas l'action : « Valider l'identité »
+   * plutôt que « OK ». Un agent enchaîne des dizaines de dossiers ; c'est
+   * exactement là qu'un libellé vague fait cliquer à côté.
+   */
+  decisions(e) {
+    const bouton = (action, libelle, fond, encre) =>
+      `<button type="button" data-decision="${txt(e.source)}" data-id="${txt(e.id)}" data-action="${txt(action)}"
+               style="background:${fond};color:${encre};border:2px solid #2B1D12;border-radius:999px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer">${txt(libelle)}</button>`;
+
+    if (e.source === 'kyc') {
+      return `<div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${bouton('verified', "Valider l'identité", '#3F8F5B', '#FFF6E8')}
+        ${bouton('rejected', 'Refuser — motif obligatoire', '#FFF', '#2B1D12')}
+      </div>`;
+    }
+
+    if (e.source === 'documents') {
+      return `<div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${bouton('accepted', 'Accepter la pièce', '#3F8F5B', '#FFF6E8')}
+        ${bouton('rejected', 'Refuser — motif obligatoire', '#FFF', '#2B1D12')}
+        ${bouton('suspected_forgery', 'Falsification suspectée', '#B23A3A', '#FFF6E8')}
+      </div>`;
+    }
+
+    // Les réclamations se tranchent sur une grille pondérée, pas sur deux
+    // boutons : les y réduire ferait décider d'un transfert de propriété d'un
+    // clic. Elles restent listées, et s'instruisent ailleurs.
+    return `<p style="margin:0;font-size:12px;color:#7A6A55">Une réclamation se tranche sur la grille d'arbitrage, pas depuis cette file.</p>`;
+  },
+
+  /**
+   * Applique une décision.
+   *
+   * LE MOTIF EST EXIGÉ AU REFUS, jamais à l'acceptation : un dossier refusé sans
+   * raison se redépose à l'identique, et se fait refuser à l'identique. C'est
+   * aussi ce qui rend la décision contestable.
+   */
+  async decider(source, id, action) {
+    let motif = null;
+
+    if (action !== 'verified' && action !== 'accepted') {
+      motif = window.prompt('Motif du refus (il sera rendu à la personne) :');
+
+      if (motif === null) return;
+
+      motif = motif.trim();
+
+      if (motif === '') {
+        window.alert('Un refus sans motif ne se corrige pas. Indique la raison.');
+        return;
+      }
+    }
+
+    try {
+      if (source === 'kyc') {
+        await Api.post(`/api/v1/admin/kyc/${id}/review`, { verified: action === 'verified', reason: motif });
+      } else {
+        await Api.post(`/api/v1/admin/documents/${id}/review`, { status: action, reason: motif });
+      }
+
+      // On RECHARGE plutôt que de retirer la ligne : la décision peut avoir fait
+      // monter le niveau de fiabilité de plusieurs biens, et un écran qui garde
+      // un état deviné finit par mentir.
+      await this.charger();
+    } catch (err) {
+      window.alert(err.message || 'La décision n\'a pas pu être enregistrée.');
+    }
+  },
+
   init() {
+    // Délégation, et jamais d'attribut `onclick` : la politique de sécurité de
+    // la console interdit `script-src 'unsafe-inline'` — une console qui affiche
+    // des pièces d'identité n'a pas les moyens d'autoriser ce qu'une faille XSS
+    // injecterait.
+    const zone = document.getElementById('file-revue');
+
+    if (zone) {
+      zone.addEventListener('click', (ev) => {
+        const cible = ev.target.closest('[data-decision]');
+        if (!cible) return;
+
+        this.decider(cible.dataset.decision, cible.dataset.id, cible.dataset.action);
+      });
+    }
+
     document.querySelectorAll('[data-filtre]').forEach(b => {
       b.addEventListener('click', () => {
         this.filtre = b.dataset.filtre;
@@ -356,7 +501,7 @@ const Registre = {
               .map(h => `<th style="text-align:left;padding:12px 14px;font-size:11px;font-weight:700;letter-spacing:.4px">${h}</th>`).join('')}
           </tr></thead>
           <tbody>${r.assets.map(a => `
-            <tr style="border-top:1px solid #E4DBC8">
+            <tr data-bien="${txt(a.id)}" style="border-top:1px solid #E4DBC8;cursor:pointer">
               <td style="padding:12px 14px;font-size:13px;font-weight:700;font-family:ui-monospace,monospace">${txt(a.identifier)}<br><span style="font-size:11px;color:#7A6A55;font-weight:400">${txt(a.public_ref)}</span></td>
               <td style="padding:12px 14px;font-size:14px">${txt(a.label || '—')}<br><span style="font-size:11px;color:#7A6A55">${txt(a.category)}</span></td>
               <td style="padding:12px 14px">${pastille(a.life_status_label, a.life_status === 'V-VOL' ? '#B23A3A' : '#2B1D12', '#FFF6E8')}</td>
@@ -364,9 +509,90 @@ const Registre = {
               <td style="padding:12px 14px;font-size:13px;color:#5C4A33">${a.registered_at ? new Date(a.registered_at).toLocaleDateString('fr-FR') : '—'}</td>
               <td style="padding:12px 14px;font-size:14px;font-weight:700">${txt(a.lookups_30d)}</td>
             </tr>`).join('')}</tbody>
-        </table>`;
+        </table>
+        <div id="dossier-bien" style="margin-top:20px"></div>`;
 
       pagination('pagination-registre', r.pagination, n => { this.page = n; this.charger(); });
+    } catch (e) {
+      zone.innerHTML = `<p style="color:#B23A3A;font-weight:700">${txt(e.message)}</p>`;
+    }
+  },
+
+  /**
+   * Le dossier complet d'un bien.
+   *
+   * IL NE DIT RIEN DU DÉTENTEUR, et l'écran le DIT plutôt que de laisser
+   * chercher : la règle métier absolue n° 4 ne connaît pas d'exception interne,
+   * et un champ absent sans explication se lit comme un défaut. Le chemin prévu
+   * — la levée d'anonymat sur réquisition — est nommé à sa place.
+   */
+  async ouvrir(id) {
+    const zone = document.getElementById('dossier-bien');
+    if (!zone) return;
+
+    zone.innerHTML = `<p style="color:#7A6A55;font-size:14px">Chargement du dossier…</p>`;
+
+    try {
+      const r = await Api.get('/api/v1/admin/assets/' + encodeURIComponent(id));
+      const a = r.asset;
+
+      const ligne = (c, v) => `<div style="display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-top:1px solid #E4DBC8"><span style="color:#7A6A55;font-size:13px">${txt(c)}</span><strong style="font-size:14px;text-align:right">${txt(v)}</strong></div>`;
+
+      const attributs = a.attributes && typeof a.attributes === 'object'
+        ? Object.entries(a.attributes).map(([c, v]) => ligne(c, v)).join('')
+        : '';
+
+      // Les pièces sont servies par une route authentifiée : jamais un lien
+      // signé, qui serait une capacité au porteur sur un titre de propriété.
+      const pieces = (r.documents || []).length
+        ? (r.documents || []).map(d => `
+            <figure style="margin:0">
+              <a href="${txt(d.file_url)}" target="_blank" rel="noopener">
+                <img src="${txt(d.file_url)}" alt="${txt(d.doc_type_label)}" loading="lazy"
+                     style="width:100%;height:130px;object-fit:cover;border:2px solid #2B1D12;border-radius:10px;background:#FFF">
+              </a>
+              <figcaption style="font-size:12px;font-weight:700;color:#7A6A55;margin-top:4px">${txt(d.doc_type_label)} · ${txt(d.review_status_label)}</figcaption>
+            </figure>`).join('')
+        : `<p style="color:#7A6A55;font-size:14px">Aucune pièce déposée.</p>`;
+
+      const histoire = (r.history || []).length
+        ? (r.history || []).map(h => `
+            <div style="display:flex;gap:12px;padding:8px 0;border-top:1px solid #E4DBC8;font-size:13px">
+              <span style="color:#7A6A55;white-space:nowrap">${h.at ? new Date(h.at).toLocaleDateString('fr-FR') : '—'}</span>
+              <span style="flex:1"><strong>${txt(h.to_status_label)}</strong> ${h.reason ? '· ' + txt(h.reason) : ''}</span>
+              <span style="color:#7A6A55">${txt(h.trigger_type)}</span>
+            </div>`).join('')
+        : `<p style="color:#7A6A55;font-size:14px">Aucun changement de statut.</p>`;
+
+      zone.innerHTML = `
+        <section style="background:#FFF6E8;border-radius:12px;padding:20px 22px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:8px">
+            <h2 style="margin:0;font-size:20px">${txt(a.identifier)}</h2>
+            <button type="button" data-fermer-dossier
+                    style="background:transparent;border:2px solid #2B1D12;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer">Fermer</button>
+          </div>
+          ${ligne('Référence publique', a.public_ref)}
+          ${ligne('Catégorie', a.category)}
+          ${attributs}
+          ${ligne('Statut', a.life_status_label)}
+          ${ligne('Fiabilité', a.trust_level_label)}
+          ${ligne('Enregistré le', a.registered_at ? new Date(a.registered_at).toLocaleString('fr-FR') : '—')}
+          ${a.stolen_declared_at ? ligne('Vol déclaré le', new Date(a.stolen_declared_at).toLocaleString('fr-FR')) : ''}
+          ${ligne('Enregistrement actif', a.is_active ? 'oui' : 'non — archivé')}
+          ${ligne('Consultations / 30 j', a.lookups_30d)}
+
+          <h3 style="margin:20px 0 10px;font-size:16px">Pièces déposées</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">${pieces}</div>
+
+          <h3 style="margin:20px 0 10px;font-size:16px">Historique</h3>
+          ${histoire}
+
+          <p style="margin:20px 0 0;padding:14px 16px;background:#FFF;border-radius:10px;font-size:13px;color:#5C4A33;line-height:1.6">
+            🔒 ${txt((r.holder || {}).notice || '')}
+          </p>
+        </section>`;
+
+      zone.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch (e) {
       zone.innerHTML = `<p style="color:#B23A3A;font-weight:700">${txt(e.message)}</p>`;
     }
@@ -378,6 +604,24 @@ const Registre = {
       const el = document.getElementById(id);
       if (el) el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', relancer);
     });
+
+    // Délégation : le tableau est réécrit à chaque page, et la politique de
+    // sécurité interdit les attributs `onclick`.
+    const table = document.getElementById('table-registre');
+
+    if (table) {
+      table.addEventListener('click', (ev) => {
+        if (ev.target.closest('[data-fermer-dossier]')) {
+          const zone = document.getElementById('dossier-bien');
+          if (zone) zone.innerHTML = '';
+          return;
+        }
+
+        const ligne = ev.target.closest('[data-bien]');
+        if (ligne) this.ouvrir(ligne.dataset.bien);
+      });
+    }
+
     this.charger();
   },
 };

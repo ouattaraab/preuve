@@ -1,4 +1,5 @@
 import '../models/catalog.dart';
+import '../models/document.dart';
 import '../models/owned_asset.dart';
 import 'exceptions.dart';
 import 'transport.dart';
@@ -71,6 +72,19 @@ class AssetService {
     final valeur = pagination[key];
 
     return valeur is int ? valeur : defaut;
+  }
+
+  /// Les pièces déposées sur un bien, avec l'état de leur revue.
+  Future<List<AssetDocumentRef>> documents(int assetId) async {
+    final body = await _api.get('/assets/$assetId/documents');
+    final brutes = body['documents'];
+
+    return brutes is List
+        ? brutes
+            .whereType<Map<String, Object?>>()
+            .map(AssetDocumentRef.fromJson)
+            .toList(growable: false)
+        : const <AssetDocumentRef>[];
   }
 
   /// Enregistre un bien.

@@ -51,6 +51,23 @@ class PreuveApi implements PreuveTransport {
   @override
   void setToken(String? token) => _token = token;
 
+  /// Adresse absolue d'une pièce, à partir du chemin rendu par le serveur.
+  ///
+  /// Le serveur rend `/api/v1/…` ; `baseUrl` porte déjà ce préfixe. On résout
+  /// donc contre l'ORIGINE, sans quoi le chemin serait doublé.
+  Uri mediaUri(String path) => Uri.parse(baseUrl).resolve(path);
+
+  /// En-têtes à joindre pour afficher une pièce servie par une route
+  /// authentifiée.
+  ///
+  /// C'EST LA SEULE SORTIE DU JETON hors de ce paquet, et elle est bornée à
+  /// cet usage : les pièces sont chiffrées au repos, un lien signé serait une
+  /// capacité au porteur, et un lien direct ne rendrait que du chiffré.
+  Map<String, String> get mediaHeaders => <String, String>{
+        if (_token != null) HttpHeaders.authorizationHeader: 'Bearer $_token',
+        'X-App-Version': appVersion,
+      };
+
   /// Appel sans jeton, quel que soit l'état de la session.
   ///
   /// Utilisé par la consultation : c'est ce qui garantit qu'aucun historique

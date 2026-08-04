@@ -37,6 +37,36 @@ class _AssetScreenState extends State<AssetScreen> {
   String? _erreur;
   String? _confirmation;
 
+  List<AssetDocumentRef> _pieces = const <AssetDocumentRef>[];
+  bool _piecesChargees = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _chargerPieces();
+  }
+
+  /// Relit les pièces du bien.
+  ///
+  /// NON BLOQUANT : un échec ici ne doit pas priver quelqu'un de la déclaration
+  /// de vol, qui est la raison d'être de cet écran. On affiche ce qu'on a.
+  Future<void> _chargerPieces() async {
+    try {
+      final pieces = await widget.session.assets.documents(_bien.id);
+
+      if (mounted) {
+        setState(() => _pieces = pieces);
+      }
+    } on PreuveException {
+      // Sans conséquence : la section des photos dira simplement qu'elle n'a
+      // rien pu relire.
+    } finally {
+      if (mounted) {
+        setState(() => _piecesChargees = true);
+      }
+    }
+  }
+
   /// Exécute un geste protégé par un code à usage unique.
   ///
   /// LE CODE EST DEMANDÉ AVANT L'APPEL, jamais après un premier refus : faire
@@ -238,6 +268,16 @@ class _AssetScreenState extends State<AssetScreen> {
               ],
               if (_enCours) const EnCours() else ..._actions(),
               const SizedBox(height: 26),
+              _Photos(
+                pieces: _pieces,
+                chargees: _piecesChargees,
+                enAttente: widget.session.envois.pending
+                    .where((PendingUpload e) => e.assetId == _bien.id)
+                    .toList(growable: false),
+                api: widget.session.api,
+                onAjouter: () => _ajouterJustificatif('photo', 'Photo du bien'),
+              ),
+              const SizedBox(height: 26),
               const Divider(color: Djassa.encre, thickness: 3),
               const SizedBox(height: 16),
               const Text(
@@ -378,6 +418,251 @@ class _AssetScreenState extends State<AssetScreen> {
         ),
       ),
     ];
+  }
+}
+
+/// Les photos du bien : celles arrivées, et celles qui attendent de partir.
+///
+/// LES DEUX SONT MONTRÉES ENSEMBLE, ET DISTINGUÉES. Ne montrer que les arrivées
+/// ferait croire qu'une photo prise il y a dix minutes s'est perdue ; ne montrer
+/// que la file ferait croire l'inverse. C'est la contrepartie honnête d'un envoi
+/// différé : on dit où en est chaque pièce.
+///
+/// ON PEUT EN AJOUTER À TOUT MOMENT, et pas seulement à l'enregistrement : une
+/// voiture change en trois ans — un accident, une repeinte, un accessoire — et
+/// des photos d'il y a trois ans ne la décrivent plus.
+class _Photos extends StatelessWidget {
+  const _Photos({
+    required this.pieces,
+    required this.chargees,
+    required this.enAttente,
+    required this.api,
+    required this.onAjouter,
+  });
+
+  final List<AssetDocumentRef> pieces;
+  final bool chargees;
+  final List<PendingUpload> enAttente;
+  final PreuveApi api;
+  final VoidCallback onAjouter;
+
+  @override
+  Widget build(BuildContext context) {
+    final images = pieces.where((AssetDocumentRef p) => p.isImage).toList(growable: false);
+    final autres = pieces.where((AssetDocumentRef p) => !p.isImage).toList(growable: false);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const Divider(color: Djassa.encre, thickness: 3),
+        const SizedBox(height: 16),
+        Text('Photos et justificatifs', style: Djassa.affiche(20)),
+        const SizedBox(height: 8),
+        const Text(
+          "Ajoute des photos quand le bien change : un accident, une repeinte, un "
+          "accessoire. Ce sont elles qui décrivent le bien le jour où il faut le "
+          "reconnaître.",
+          style: TextStyle(
+            fontFamily: Djassa.texte,
+            fontSize: 15,
+            height: 1.5,
+            color: Djassa.sourdine,
+          ),
+        ),
+        const SizedBox(height: 14),
+        if (!chargees)
+          const EnCours()
+        else if (images.isEmpty && autres.isEmpty && enAttente.isEmpty)
+          const Text(
+            "Aucune pièce pour l'instant.",
+            style: TextStyle(
+              fontFamily: Djassa.texte,
+              fontWeight: FontWeight.w700,
+              color: Djassa.etiquette,
+            ),
+          )
+        else ...<Widget>[
+          if (images.isNotEmpty)
+            GridView.count(
+              crossAxisCount: 3,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              children: images
+                  .map((AssetDocumentRef piece) => _Vignette(piece: piece, api: api))
+                  .toList(growable: false),
+            ),
+          ...autres.map((AssetDocumentRef piece) => _LignePiece(piece: piece)),
+          ...enAttente.map((PendingUpload envoi) => _LigneEnAttente(envoi: envoi)),
+        ],
+        const SizedBox(height: 14),
+        BoutonRelief(
+          libelle: 'Ajouter une photo',
+          icone: '📷',
+          principal: false,
+          onPressed: onAjouter,
+        ),
+      ],
+    );
+  }
+}
+
+class _Vignette extends StatelessWidget {
+  const _Vignette({required this.piece, required this.api});
+
+  final AssetDocumentRef piece;
+  final PreuveApi api;
+
+  @override
+  Widget build(BuildContext context) {
+    final contour = piece.isAccepted
+        ? const Color(0xFF1E8A4C)
+        : piece.isRefused
+            ? Djassa.alerte
+            : Djassa.encre;
+
+    return GestureDetector(
+      onTap: () => showDialog<void>(
+        context: context,
+        builder: (_) => Dialog(
+          backgroundColor: Djassa.encre,
+          insetPadding: const EdgeInsets.all(16),
+          child: InteractiveViewer(child: _image(BoxFit.contain)),
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: contour, width: Djassa.trait),
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.white,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            _image(BoxFit.cover),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                color: contour,
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+                child: Text(
+                  piece.reviewStatusLabel,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: Djassa.texte,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Djassa.creme,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// LA PIÈCE EST SERVIE PAR UNE ROUTE AUTHENTIFIÉE : elle est chiffrée au
+  /// repos, un lien direct ne rendrait que du chiffré, et un lien signé serait
+  /// une capacité au porteur. Le jeton voyage donc en en-tête, requête par
+  /// requête.
+  Widget _image(BoxFit ajustement) {
+    return Image.network(
+      api.mediaUri(piece.fileUrl).toString(),
+      headers: api.mediaHeaders,
+      fit: ajustement,
+      // Une vignette qui casse ne doit pas casser la fiche : le bien et ses
+      // actions comptent plus que l'image.
+      errorBuilder: (_, __, ___) => const ColoredBox(
+        color: Colors.white,
+        child: Center(child: Text('🖼', style: TextStyle(fontSize: 26))),
+      ),
+    );
+  }
+}
+
+class _LignePiece extends StatelessWidget {
+  const _LignePiece({required this.piece});
+
+  final AssetDocumentRef piece;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        children: <Widget>[
+          const Text('📄', style: TextStyle(fontSize: 20)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              piece.docTypeLabel,
+              style: const TextStyle(
+                fontFamily: Djassa.texte,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Text(
+            piece.reviewStatusLabel,
+            style: TextStyle(
+              fontFamily: Djassa.texte,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: piece.isRefused ? Djassa.alerte : Djassa.etiquette,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LigneEnAttente extends StatelessWidget {
+  const _LigneEnAttente({required this.envoi});
+
+  final PendingUpload envoi;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        children: <Widget>[
+          const Text('⏳', style: TextStyle(fontSize: 20)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              envoi.filename,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontFamily: Djassa.texte,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const Text(
+            "En attente d'envoi",
+            style: TextStyle(
+              fontFamily: Djassa.texte,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Djassa.etiquette,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

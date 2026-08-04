@@ -220,3 +220,35 @@ it('ne loge aucune ressource sous un préfixe de route', function (): void {
         );
     }
 });
+
+it('permet réellement de trancher un dossier d\'identité', function (): void {
+    // UNE FILE DE REVUE QUI NE DÉCIDE RIEN NE SERT À RIEN. Quelqu'un dépose sa
+    // pièce d'identité, un agent la voit passer, et personne ne peut la valider :
+    // la promesse « examiné sous 48 heures » ne tient alors à rien, et le niveau
+    // de fiabilité d'un bien ne monte jamais.
+    $console = file_get_contents(public_path('console/app.js'));
+
+    expect($console)
+        ->toContain('/review')
+        ->toContain('verified')
+        ->toContain('suspected_forgery')
+        // Les trois images du dossier doivent être atteignables : une décision
+        // prise sans les voir se prendrait sur un numéro de ligne.
+        ->toContain('id_front')
+        ->toContain('id_back')
+        ->toContain('selfie');
+});
+
+it('n\'attache aucun gestionnaire en attribut, que la politique interdit', function (): void {
+    // `script-src 'self'` sans `'unsafe-inline'` : une console qui affiche des
+    // pièces d'identité n'a pas les moyens d'autoriser ce qu'une faille XSS
+    // injecterait. Les gestionnaires se posent en JavaScript, jamais en HTML.
+    $console = file_get_contents(public_path('console/app.js'));
+
+    expect($console)->not->toContain('onclick=')
+        ->and($console)->not->toContain('onsubmit=');
+
+    foreach (glob(resource_path('views/admin/*.blade.php')) ?: [] as $gabarit) {
+        expect(file_get_contents($gabarit))->not->toContain('onclick=', message: $gabarit);
+    }
+});

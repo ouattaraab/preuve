@@ -118,6 +118,10 @@ Route::prefix('v1')->group(function (): void {
         // Renforcement de la fiabilité APRÈS l'enregistrement (ST-0207) : c'est
         // ce qui permet au parcours initial de tenir en 90 secondes sans KYC.
         Route::post('assets/{asset}/documents', [AssetDocumentController::class, 'store']);
+        // Revoir ce qu'on a déposé, et la pièce elle-même : sans cela, personne
+        // ne sait si sa carte grise est arrivée ni si un agent l'a acceptée.
+        Route::get('assets/{asset}/documents', [AssetDocumentController::class, 'index']);
+        Route::get('assets/{asset}/documents/{document}/file', [AssetDocumentController::class, 'file']);
         Route::get('assets/{asset}/trust', [AssetDocumentController::class, 'trust']);
 
         // Envois différés avec reprise (ST-0206, CT-05). Le bien existe déjà :
@@ -219,6 +223,8 @@ Route::prefix('v1')->group(function (): void {
 
             // Registre des biens : ne dit rien du détenteur (règle n° 4).
             Route::get('assets', [AssetRegistryController::class, 'index']);
+            // Le dossier complet d'un bien. Toujours sans identité du détenteur.
+            Route::get('assets/{asset}', [AssetRegistryController::class, 'show']);
 
             // Annuaire des comptes : coordonnées masquées, y compris pour un
             // agent. Suspendre ne suspend jamais la protection des biens.
