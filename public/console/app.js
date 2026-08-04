@@ -1102,3 +1102,83 @@ document.addEventListener('DOMContentLoaded', () => {
   if (document.getElementById('files-attente')) Ensemble.init();
   if (document.getElementById('parc')) Stats.init();
 });
+
+/* ------------------------------------------------------------------ */
+/* Adresses d'exploitation (écran Supervision)                         */
+/* ------------------------------------------------------------------ */
+
+const Adresses = {
+  /**
+   * Un champ, deux états : réglé ou non. Le second n'est pas un détail de
+   * présentation — une adresse manquante est une surveillance qui n'existe que
+   * sur le papier, ou un droit qu'on ne peut pas exercer.
+   */
+  peindre(zoneId, champId, valeur, absent, present) {
+    const etat = document.getElementById(zoneId);
+    const champ = document.getElementById(champId);
+
+    if (champ) champ.value = valeur || '';
+
+    if (etat) {
+      etat.textContent = valeur ? present : absent;
+      etat.style.color = valeur ? '#3F8F5B' : '#B23A3A';
+      etat.style.fontWeight = '700';
+    }
+  },
+
+  async charger() {
+    if (!document.getElementById('ad-ops')) return;
+
+    try {
+      const ops = await Api.get('/api/v1/admin/ops-recipient');
+      this.peindre('etat-ops', 'ad-ops', ops.recipient,
+        'Aucun destinataire : les rapports d’anomalie ne partent nulle part.',
+        'Rapports expédiés à cette adresse.');
+    } catch (e) {
+      this.peindre('etat-ops', 'ad-ops', null, e.message, '');
+    }
+
+    try {
+      const legal = await Api.get('/api/v1/admin/legal-contact');
+      this.peindre('etat-legal', 'ad-legal', legal.contact,
+        'Aucun contact publié : la page de confidentialité annonce un guichet en cours d’ouverture.',
+        'Publiée sur la page de confidentialité.');
+    } catch (e) {
+      this.peindre('etat-legal', 'ad-legal', null, e.message, '');
+    }
+  },
+
+  async enregistrer(url, champ, cle) {
+    const valeur = ((document.getElementById(champ) || {}).value || '').trim();
+
+    if (cle === 'contact' && valeur !== '' && !window.confirm(
+      `Publier ${valeur} sur la page de confidentialité ?\n\n` +
+      'Cette adresse sera visible de tous et doit recevoir et traiter des demandes ' +
+      'd’accès, de rectification et d’effacement.'
+    )) return;
+
+    try {
+      const r = await Api.put(url, { [cle]: valeur === '' ? null : valeur });
+      window.alert(r.message);
+      this.charger();
+    } catch (e) {
+      window.alert(e.message);
+    }
+  },
+
+  init() {
+    const ops = document.getElementById('ad-ops-appliquer');
+    if (ops) ops.addEventListener('click', () =>
+      this.enregistrer('/api/v1/admin/ops-recipient', 'ad-ops', 'recipient'));
+
+    const legal = document.getElementById('ad-legal-appliquer');
+    if (legal) legal.addEventListener('click', () =>
+      this.enregistrer('/api/v1/admin/legal-contact', 'ad-legal', 'contact'));
+
+    this.charger();
+  },
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (document.getElementById('ad-ops')) Adresses.init();
+});

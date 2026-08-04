@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Web;
 
+use App\Http\Controllers\Api\V1\Admin\LegalContactController;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\SecurityHeaders;
 use App\Models\User;
 use App\Services\Captcha\CaptchaVerifier;
 use App\Services\LookupResult;
 use App\Services\LookupService;
+use App\Services\Settings\SettingsRepository;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 
@@ -42,7 +44,29 @@ final class PublicLookupController extends Controller
     public function __construct(
         private readonly LookupService $lookups,
         private readonly CaptchaVerifier $captcha,
+        private readonly SettingsRepository $settings,
     ) {}
+
+    /**
+     * Confidentialité et mentions légales (Loi 2013-450).
+     *
+     * INDEXABLE : c'est la page qu'un utilisateur, un magasin d'applications ou
+     * une autorité doit pouvoir trouver sans la demander.
+     */
+    public function privacy(): Response
+    {
+        $contact = $this->settings->get(LegalContactController::SETTING);
+
+        return response()->view('public.confidentialite', [
+            'indexable' => true,
+            'titre' => 'Confidentialité · Preuve',
+            'description' => 'Ce que PREUVE conserve, ce qu\'il ne dit jamais, et comment exercer '.
+                'vos droits (Loi ivoirienne n° 2013-450).',
+            // Jamais d'adresse par défaut : une adresse qui ne répondrait pas
+            // ferait passer le silence pour un refus.
+            'contact' => is_string($contact) && $contact !== '' ? $contact : null,
+        ])->header('X-Robots-Tag', 'index, follow');
+    }
 
     /** Page d'accueil : un champ, un bouton (CT-01, deux interactions). */
     public function home(): Response

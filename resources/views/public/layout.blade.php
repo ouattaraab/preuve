@@ -74,7 +74,7 @@
     <div style="max-width:720px;margin:0 auto" class="note">
         La consultation est <strong>gratuite, anonyme et sans compte</strong>.
         Nous ne disons jamais qui a enregistré un bien, ni qui l'a consulté.
-        <br>Édité par OVERNETFLOW.
+        <br><a href="/confidentialite">Confidentialité et mentions légales</a> · Édité par OVERNETFLOW.
     </div>
 </footer>
 </body>

@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\Admin\DocumentReviewController;
 use App\Http\Controllers\Api\V1\Admin\IdentityDisclosureController;
 use App\Http\Controllers\Api\V1\Admin\KycProviderController;
 use App\Http\Controllers\Api\V1\Admin\KycReviewController;
+use App\Http\Controllers\Api\V1\Admin\LegalContactController;
 use App\Http\Controllers\Api\V1\Admin\ObservabilityController;
 use App\Http\Controllers\Api\V1\Admin\OpsRecipientController;
 use App\Http\Controllers\Api\V1\Admin\OverviewController;
@@ -303,6 +304,13 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('captcha-provider', [CaptchaProviderController::class, 'show']);
         Route::put('captcha-provider', [CaptchaProviderController::class, 'update']);
+
+        // Adresse de contact pour l'exercice des droits, publiée sur la page
+        // de confidentialité. Réglage et non constante : une adresse change,
+        // et la loi impose de l'afficher — pas de livrer une version du
+        // serveur pour la corriger.
+        Route::get('legal-contact', [LegalContactController::class, 'show']);
+        Route::put('legal-contact', [LegalContactController::class, 'update']);
 
         Route::get('ops-recipient', [OpsRecipientController::class, 'show']);
         Route::put('ops-recipient', [OpsRecipientController::class, 'update']);

@@ -40,6 +40,10 @@ Route::withoutMiddleware([
     Route::get('/', [PublicLookupController::class, 'home'])->name('public.home');
     Route::get('verifier', [PublicLookupController::class, 'verify'])->name('public.verify');
 
+    // Confidentialité et mentions légales : indexable, et sans session comme le
+    // reste du front — la lire ne doit rien coûter en traces.
+    Route::get('confidentialite', [PublicLookupController::class, 'privacy'])->name('public.privacy');
+
     // Page indexable, adressée par la référence publique OPAQUE. Le motif borne
     // la route à cette forme : elle ne doit jamais servir d'identifiant réel.
     Route::get('b/{publicRef}', [PublicLookupController::class, 'asset'])
