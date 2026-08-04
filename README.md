@@ -1,66 +1,96 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# PREUVE
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+**Registre déclaratif de propriété et de statut des biens — Côte d'Ivoire.**
+Vérifier gratuitement, avant d'acheter, si un véhicule ou un téléphone est
+déclaré volé, en litige ou en location.
 
-## About Laravel
+Édité par OVERNETFLOW · <https://preuve.click>
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Ce que fait le produit
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Quelqu'un achète une moto d'occasion sur un marché. Il tape le numéro de châssis,
+obtient un verdict en moins d'une seconde, et sait s'il doit payer. Il n'a créé
+aucun compte, laissé aucune trace exploitable, et le propriétaire ne saura jamais
+qu'il a cherché.
 
-## Learning Laravel
+Tout le reste — enregistrer un bien, le transférer, déclarer un vol, contester
+une propriété — découle de cette scène et lui est subordonné.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Les règles qui ne se négocient pas
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+Elles sont énoncées dans [`CLAUDE.md`](CLAUDE.md) et **chacune a un test qui rend
+sa violation impossible** (`tests/BusinessRules/`).
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+1. **La consultation est gratuite, anonyme et sans compte.** Aucun middleware
+   d'authentification ne doit jamais apparaître sur `GET /lookup/{identifiant}`.
+2. **Toute écriture est authentifiée**, par code à usage unique — il n'existe
+   aucun mot de passe.
+3. **Un identifiant = un enregistrement actif.** Unicité tenue par la base, pas
+   par du code applicatif.
+4. **L'identité n'est jamais divulguée**, dans aucun sens, y compris à qui paie
+   un rapport, y compris à nos propres agents.
+5. **La chaîne d'audit est inaltérable**, protégée par des déclencheurs de base :
+   aucun `UPDATE`, aucun `DELETE`, quel que soit le chemin emprunté.
+6. Les transitions de statut suivent une matrice unique.
+7. Un rapport détaillé ne s'ouvre que par son jeton d'accès.
+8. **Minimisation** (Loi 2013-450) : l'adresse IP n'est conservée qu'en empreinte
+   salée quotidiennement, le numéro de pièce d'identité qu'en SHA-256 — non
+   restituable, y compris sur réquisition.
 
-## Laravel Sponsors
+## Stack
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Laravel 12 · PHP 8.4 · MariaDB 11.8 · Sanctum · Pest · Larastan (niveau max)
+Application mobile : Flutter (à écrire) · Front public : rendu serveur, sans
+JavaScript.
 
-### Premium Partners
+Ni Redis ni Docker : l'hébergement cible est un mutualisé. Les pilotes de cache,
+de file et de session sont en base.
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+## Démarrer en local
 
-## Contributing
+```bash
+composer install
+cp .env.example .env && php artisan key:generate
+# MariaDB via Homebrew, port 3307 — voir docs/infrastructure/dev-local-mariadb.md
+php artisan migrate
+php artisan preuve:publish-categories   # sans catalogue, aucun bien ne peut être enregistré
+php artisan serve
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Vérifier avant de pousser
 
-## Code of Conduct
+```bash
+./vendor/bin/pint                                    # style
+./vendor/bin/phpstan analyse --memory-limit=1G       # niveau max, zéro erreur tolérée
+./vendor/bin/pest                                    # suite complète
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Les aides de test Pest sont des **fonctions globales** : un nom dupliqué entre
+deux fichiers est une erreur fatale, invisible en exécution isolée.
 
-## Security Vulnerabilities
+```bash
+grep -rhoE "^function [a-zA-Z_][a-zA-Z0-9_]*" tests/ | sort | uniq -d   # doit être vide
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Documentation
 
-## License
+| Document | Ce qu'il couvre |
+|---|---|
+| [`CLAUDE.md`](CLAUDE.md) | Règles métier absolues, conventions, stack |
+| [`.memory-bank/activeContext.md`](.memory-bank/activeContext.md) | Où en est le projet, décisions prises, dette assumée |
+| [`docs/api/integration-client.md`](docs/api/integration-client.md) | **Intégrer un client** — par parcours, avec les contrats qui ne se devinent pas |
+| [`docs/infrastructure/deploiement.md`](docs/infrastructure/deploiement.md) | **Déployer** — procédure, pièges de l'hébergement, retour en arrière |
+| [`docs/infrastructure/exploitation.md`](docs/infrastructure/exploitation.md) | Supervision, sauvegardes, restauration, réconciliation |
+| [`docs/PREUVE_Backlog_v1.1.md`](docs/PREUVE_Backlog_v1.1.md) | 59 stories, jalons de livraison |
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## Une convention de commentaires, et sa raison
+
+Les classes de ce dépôt portent en en-tête **pourquoi** elles sont écrites ainsi,
+pas ce qu'elles font. Un lecteur qui voit qu'une catégorie se désactive au lieu
+de se supprimer doit trouver, sur place, que des biens y sont rattachés et
+deviendraient inaffichables — sans quoi quelqu'un « simplifiera » un jour en
+ajoutant une suppression.
+
+Le code est en anglais, les commentaires et la langue de travail en français.
