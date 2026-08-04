@@ -77,6 +77,52 @@ plus des stories.
 - ✅ **Cron rétabli le 03/08/2026** (commande corrigée dans hPanel : chemin absolu vers `artisan`, sans `cd`). Le témoin de passage confirme un battement toutes les cinq minutes, la sonde rend `scheduler: ok`. Débloque la bascule des notifications en file et l'import de flotte au-delà de 200 lignes. Historique du blocage, conservé pour mémoire :
 - 🔵 ~~BLOQUANT — les tâches cron ne s'exécutent pas sur l'hébergement~~ (constaté le 03/08/2026). Deux tâches indépendantes, dont un simple `/usr/bin/date`, créent leur fichier de sortie à `HH:MM:02` — signature d'un déclenchement — puis n'écrivent **jamais** un octet, sur des observations de 4 à 18 minutes. Ce n'est donc pas la commande : `date` ne peut pas échouer. Écrire directement dans `/var/spool/cron/` (qui appartient pourtant à l'utilisateur) n'est pas lu non plus, et aucun binaire `crontab` ni outil hPanel n'existe en ligne de commande. **Ticket support Hostinger à ouvrir.** Conséquence : aucune des 13 tâches planifiées ne tourne — promotion des biens provisoires, agrégation des consultations, pics, expiration des transferts, **ancrage quotidien**, purges de rétention. Impact immédiat nul (registre vide), inacceptable dès qu'il portera des biens. Repli possible : déclenchement HTTP externe par un service tiers, au prix d'un endpoint protégé par secret — à arbitrer.
 
+## Le planificateur s'exécutait DEUX FOIS (04/08/2026)
+
+**Constaté en production, pas supposé** : deux sauvegardes à 01:30:07 et
+01:30:10, deux ancrages à 02:40:06 et 02:40:09 — trois secondes d'écart. Le
+registre des ancrages porte trois lignes pour la même tête #2, dont deux du même
+matin.
+
+`withoutOverlapping()` n'y pouvait rien : il empêche un CHEVAUCHEMENT, or la
+première exécution était terminée avant que la seconde ne commence.
+**`onOneServer()` est la seule primitive adaptée** — verrou porté par la tâche ET
+la minute, gardé jusqu'à la fin de celle-ci. Posé sur les seize tâches ; un test
+refuse qu'une nouvelle en soit dépourvue, et un second vérifie que `cache_locks`
+existe (sans magasin capable de verrouiller, `onOneServer()` ferait tomber le
+planificateur entier — la protection casserait ce qu'elle protège).
+
+Vérifié en production : deux `schedule:run` consécutifs, le second annonce
+« Skipping … because the command already ran on another server ».
+
+**LA CAUSE EST EN AMONT ET APPARTIENT À ABOUBAKAR** : une tâche cron
+vraisemblablement déclarée deux fois dans hPanel. À vérifier et à dédoublonner.
+La protection applicative rend la double invocation inoffensive, mais elle ne la
+supprime pas — et une protection qui dépendrait d'une console tierce n'en serait
+pas une.
+
+## Journal d'exploitation réellement écrit (04/08/2026)
+
+Le rapport tronque au-delà de quarante lignes et renvoie au « détail complet dans
+le journal sur le serveur ». Ce fichier n'était écrit que par `appendOutputTo()`
+sur la tâche de réconciliation — donc **uniquement sous le planificateur**, et
+**sans aucune rotation**. Un passage manuel laissait le courriel pointer vers un
+fichier inexistant.
+
+C'est désormais `OpsReporter` — celui qui ANNONCE le chemin — qui l'écrit, via
+`OpsJournal` : entrée datée, écriture AVANT l'envoi et quel que soit son sort
+(un destinataire non réglé ou une passerelle en panne sont précisément les
+moments où la trace locale est la seule qui reste), rotation à 2 Mio sur une
+seule génération. Ni `logrotate` ni cron système sur un mutualisé : la rotation
+doit être faite par l'application.
+
+Même raison pour `LOG_STACK`, passé de `single` à **`daily`** dans le défaut du
+code, `.env.example` et la production : un journal unique grossit sans fin
+jusqu'à remplir le quota du compte, et **un quota atteint arrête TOUTE écriture,
+y compris celle du registre**. L'ancien `laravel.log` (23 Ko) subsiste, inerte.
+
+Les sauvegardes de base sont, elles, déjà bornées (`preuve:backup --keep=30`).
+
 ## En-têtes de sécurité et incident du 403 (04/08/2026)
 
 **INCIDENT — `https://preuve.click/admin/` rendait un 403 du serveur.** Les
