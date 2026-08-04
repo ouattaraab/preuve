@@ -252,3 +252,17 @@ it('n\'attache aucun gestionnaire en attribut, que la politique interdit', funct
         expect(file_get_contents($gabarit))->not->toContain('onclick=', message: $gabarit);
     }
 });
+
+it('laisse revoir un dossier déjà tranché', function (): void {
+    // UN DOSSIER VALIDÉ DISPARAISSAIT SANS TRACE CONSULTABLE : l'agent qui
+    // venait de le trancher ne pouvait ni le revoir, ni relire le motif qu'il
+    // avait écrit. Une décision qu'on ne peut pas relire n'est pas contestable.
+    $console = file_get_contents(public_path('console/app.js'));
+    $gabarit = file_get_contents(resource_path('views/admin/moderation.blade.php'));
+
+    expect($gabarit)->toContain('data-etat')
+        ->and($console)->toContain('?status=')
+        // Une falsification suspectée est un état distinct d'un simple refus :
+        // les confondre ferait disparaître celui qu'on relit le plus.
+        ->and($console)->toContain('suspected_forgery');
+});

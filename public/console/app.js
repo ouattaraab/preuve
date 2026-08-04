@@ -126,18 +126,40 @@ const Moderation = {
     try {
       // Trois appels en parallèle : un agent ne doit pas attendre trois
       // aller-retours en série pour voir sa file.
-      const [docs, kyc, claims] = await Promise.all([
-        Api.get('/api/v1/admin/documents').catch(() => ({ documents: [] })),
-        Api.get('/api/v1/admin/kyc').catch(() => ({ submissions: [] })),
-        Api.get('/api/v1/admin/claims').catch(() => ({ claims: [] })),
+      // DEUX AXES : la SOURCE (justificatif, identité, réclamation) et l'ÉTAT
+      // (en attente, validé, refusé). Sans le second, un dossier tranché
+      // disparaissait sans laisser de trace consultable : l'agent qui venait de
+      // le valider ne pouvait plus ni le revoir, ni vérifier ce qu'il avait
+      // décidé, ni relire le motif qu'il avait écrit.
+      const etat = this.etat || 'pending';
+
+      const [docs, docs2, kyc, claims] = await Promise.all([
+        Api.get('/api/v1/admin/documents?status=' + (etat === 'pending' ? 'pending' : etat === 'verified' ? 'accepted' : 'rejected'))
+          .catch(() => ({ documents: [] })),
+        // Une pièce refusée et une falsification suspectée sont deux états
+        // distincts : les confondre ferait disparaître les secondes, qui sont
+        // précisément celles qu'on relit.
+        etat === 'rejected'
+          ? Api.get('/api/v1/admin/documents?status=suspected_forgery').catch(() => ({ documents: [] }))
+          : Promise.resolve({ documents: [] }),
+        Api.get('/api/v1/admin/kyc?status=' + etat).catch(() => ({ submissions: [] })),
+        // Les réclamations n'ont pas d'état « validé » au sens de cette file :
+        // elles suivent leur propre instruction. On ne les charge donc qu'en
+        // file d'attente, plutôt que d'en donner une vue fausse.
+        etat === 'pending'
+          ? Api.get('/api/v1/admin/claims').catch(() => ({ claims: [] }))
+          : Promise.resolve({ claims: [] }),
       ]);
 
       this.elements = [
-        ...(docs.documents || []).map(d => ({
+        ...[...(docs.documents || []), ...(docs2.documents || [])].map(d => ({
           source: 'documents', tag: 'JUSTIFICATIF',
           titre: `${d.doc_type_label || d.doc_type} — bien #${d.asset_id}`,
           meta: `Déposé le ${d.submitted_at ? new Date(d.submitted_at).toLocaleDateString('fr-FR') : '—'} · empreinte ${(d.file_sha256 || '').slice(0, 12)}…`,
           lien: d.file_url, id: d.id,
+          decide: (d.review_status || 'pending') !== 'pending',
+          decision: d.review_status_label || d.review_status,
+          decideLe: d.reviewed_at, motif: d.review_reason,
         })),
         ...(kyc.submissions || []).map(k => ({
           source: 'kyc', tag: 'IDENTITÉ',
@@ -150,6 +172,9 @@ const Moderation = {
           images: k.images || {},
           extraction: k.extraction || null,
           liveness: k.liveness_score,
+          decide: (k.status || 'pending') !== 'pending',
+          decision: k.status === 'verified' ? 'Identité validée' : k.status === 'rejected' ? 'Dossier refusé' : '',
+          decideLe: k.reviewed_at, motif: k.review_reason,
         })),
         ...(claims.claims || []).map(c => ({
           source: 'claims', tag: 'RÉCLAMATION',
@@ -172,7 +197,12 @@ const Moderation = {
     if (vus.length === 0) {
       // Une file vide est une bonne nouvelle : le dire vaut mieux qu'un écran
       // blanc, que l'agent prendrait pour une panne.
-      zone.innerHTML = `<p style="padding:26px;background:#FFF6E8;border-radius:12px;font-size:15px;font-weight:700;text-align:center">Rien en attente. La file est vide.</p>`;
+      const vide = this.etat === 'verified'
+        ? 'Aucun dossier validé pour l\'instant.'
+        : this.etat === 'rejected'
+          ? 'Aucun dossier refusé pour l\'instant.'
+          : 'Rien en attente. La file est vide.';
+      zone.innerHTML = `<p style="padding:26px;background:#FFF6E8;border-radius:12px;font-size:15px;font-weight:700;text-align:center">${txt(vide)}</p>`;
       return;
     }
 
@@ -248,6 +278,17 @@ const Moderation = {
    * exactement là qu'un libellé vague fait cliquer à côté.
    */
   decisions(e) {
+    // UN DOSSIER TRANCHÉ NE SE RETRANCHE PAS : le service refuse une seconde
+    // décision, et un bouton qui échouerait toujours enseignerait qu'elle est
+    // concevable. On rend compte de ce qui a été décidé, et du motif — c'est ce
+    // qui rend la décision relisible, et contestable.
+    if (e.decide) {
+      return `<p style="margin:0;font-size:13px;color:#5C4A33;line-height:1.6">
+        <strong>${txt(e.decision)}</strong>${e.decideLe ? ' · le ' + new Date(e.decideLe).toLocaleString('fr-FR') : ''}
+        ${e.motif ? '<br>Motif communiqué : ' + txt(e.motif) : ''}
+      </p>`;
+    }
+
     const bouton = (action, libelle, fond, encre) =>
       `<button type="button" data-decision="${txt(e.source)}" data-id="${txt(e.id)}" data-action="${txt(action)}"
                style="background:${fond};color:${encre};border:2px solid #2B1D12;border-radius:999px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer">${txt(libelle)}</button>`;
@@ -312,7 +353,21 @@ const Moderation = {
     }
   },
 
+  etat: 'pending',
+
   init() {
+    document.querySelectorAll('[data-etat]').forEach(b => {
+      b.addEventListener('click', () => {
+        this.etat = b.dataset.etat;
+        document.querySelectorAll('[data-etat]').forEach(x => {
+          const actif = x.dataset.etat === this.etat;
+          x.style.background = actif ? '#2B1D12' : 'transparent';
+          x.style.color = actif ? '#FFF6E8' : '#2B1D12';
+        });
+        this.charger();
+      });
+    });
+
     // Délégation, et jamais d'attribut `onclick` : la politique de sécurité de
     // la console interdit `script-src 'unsafe-inline'` — une console qui affiche
     // des pièces d'identité n'a pas les moyens d'autoriser ce qu'une faille XSS
