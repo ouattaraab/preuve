@@ -77,6 +77,41 @@ plus des stories.
 - ✅ **Cron rétabli le 03/08/2026** (commande corrigée dans hPanel : chemin absolu vers `artisan`, sans `cd`). Le témoin de passage confirme un battement toutes les cinq minutes, la sonde rend `scheduler: ok`. Débloque la bascule des notifications en file et l'import de flotte au-delà de 200 lignes. Historique du blocage, conservé pour mémoire :
 - 🔵 ~~BLOQUANT — les tâches cron ne s'exécutent pas sur l'hébergement~~ (constaté le 03/08/2026). Deux tâches indépendantes, dont un simple `/usr/bin/date`, créent leur fichier de sortie à `HH:MM:02` — signature d'un déclenchement — puis n'écrivent **jamais** un octet, sur des observations de 4 à 18 minutes. Ce n'est donc pas la commande : `date` ne peut pas échouer. Écrire directement dans `/var/spool/cron/` (qui appartient pourtant à l'utilisateur) n'est pas lu non plus, et aucun binaire `crontab` ni outil hPanel n'existe en ligne de commande. **Ticket support Hostinger à ouvrir.** Conséquence : aucune des 13 tâches planifiées ne tourne — promotion des biens provisoires, agrégation des consultations, pics, expiration des transferts, **ancrage quotidien**, purges de rétention. Impact immédiat nul (registre vide), inacceptable dès qu'il portera des biens. Repli possible : déclenchement HTTP externe par un service tiers, au prix d'un endpoint protégé par secret — à arbitrer.
 
+## Confidentialité publiée (04/08/2026)
+
+`/confidentialite`, indexable, sans session ni cookie comme le reste du front —
+la lire ne doit rien coûter en traces à qui s'inquiète justement de ce qu'on
+garde de lui. Lien en pied de page.
+
+**ELLE DÉCRIT CE QUE LE CODE FAIT**, pas ce qu'il serait souhaitable qu'il
+fasse : hachage salé quotidien de l'adresse, effacement des consultations à
+douze mois, numéro de pièce conservé en empreinte et **non restituable y compris
+sur réquisition**, anonymat symétrique sans exception interne, registre
+inaltérable des levées. Elle dit aussi une limite franchement : la chaîne d'audit
+survivrait à un droit à l'effacement — elle ne contient ni nom, ni numéro, ni
+adresse, et c'est précisément pour cela qu'elle peut être inaltérable.
+
+**L'adresse de contact est un RÉGLAGE** (`legal.contact_email`), pas une
+constante : une adresse change, et la loi impose de l'afficher — pas de livrer
+une version du serveur pour la corriger. Tant qu'aucune n'est réglée, la page
+annonce un guichet **en cours d'ouverture**. En afficher une inventée serait
+pire : la personne croirait avoir saisi le responsable, et le silence passerait
+pour un refus.
+
+**⬜ À FAIRE PAR ABOUBAKAR** : régler cette adresse depuis Supervision. L'écran y
+reçoit désormais les DEUX adresses d'exploitation — celle des rapports, qui
+n'avait aucune interface, et celle des droits — avec leur état en clair.
+
+**À FAIRE RELIRE PAR UN JURISTE avant lancement.** Le texte est factuel et vérifié
+ligne à ligne contre le code, mais la conformité formelle à la Loi 2013-450
+(déclaration ARTCI, mentions exigibles) n'a pas été appréciée.
+
+**Exercice de restauration : toujours bloqué.** Le compte MariaDB
+`u726808002_napster010826` n'a pas le droit `CREATE DATABASE` (vérifié le
+04/08/2026 : « Access denied … 1044 »), et `u726808002_drill` n'existe plus. Il
+faut créer une seconde base depuis hPanel pour que
+`preuve:restore-drill --database=…` puisse tourner sans toucher au registre.
+
 ## Le planificateur s'exécutait DEUX FOIS (04/08/2026)
 
 **Constaté en production, pas supposé** : deux sauvegardes à 01:30:07 et
