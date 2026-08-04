@@ -52,6 +52,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   OwnedAsset? _cree;
   Duration _duree = Duration.zero;
+
+  /// Vrai quand le serveur n'a pas rendu d'identifiant de bien : les photos
+  /// sont alors impossibles, et l'écran doit le DIRE plutôt que de proposer
+  /// quatre cases qui ne mèneront nulle part.
+  bool _sansPhotos = false;
   final Set<int> _photosPrises = <int>{};
 
   /// Les quatre prises de vue demandées.
@@ -189,7 +194,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
           // d'y rattacher les photos, à l'étape suivante.
           _cree = inscription.asset;
           _duree = _chrono.elapsed;
-          _etape = 3;
+
+          // SANS IDENTIFIANT, ON NE PASSE PAS AUX PHOTOS. Un serveur plus
+          // ancien rend la vue publique du bien, qui n'en porte pas : la file
+          // d'envoi accepterait alors des pièces rattachées au bien numéro
+          // ZÉRO, qui n'arriveraient jamais nulle part et dont personne ne
+          // saurait qu'elles manquent. Le bien, lui, EST enregistré — c'est
+          // l'essentiel, et l'écran le dit.
+          _etape = inscription.asset.id > 0 ? 3 : 4;
+          _sansPhotos = inscription.asset.id <= 0;
         });
 
         // LE CHRONOMÈTRE S'ARRÊTE À L'ENREGISTREMENT, pas aux photos : c'est ce
@@ -508,6 +521,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ),
       const SizedBox(height: 24),
+      if (_sansPhotos) ...<Widget>[
+        const SizedBox(height: 16),
+        const EncadreErreur(
+          'Les photos n\'ont pas pu être proposées : le serveur n\'a pas rendu la '
+          'référence interne de ce bien. Ton bien EST enregistré et protégé — ajoute '
+          'les photos depuis sa fiche, dans « Mes biens ».',
+        ),
+      ],
+      const SizedBox(height: 24),
       Text('Renforce ta preuve 💪', style: Djassa.affiche(22)),
       const SizedBox(height: 12),
       // CE QUE CHAQUE GESTE FAIT GAGNER est écrit à côté. Sans cela, « ajoute ta
@@ -560,13 +582,19 @@ class _Entete extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // LES DEUX BLOCS PEUVENT RÉTRÉCIR. Cette rangée débordait de 17 pixels sur
+    // un écran de téléphone, dès que le réglage d'accessibilité agrandit le
+    // texte — c'est-à-dire chez les gens que cette application vise en premier.
+    // Un débordement n'est pas cosmétique : il barre l'écran de rayures en
+    // débogage, et rogne une cible tactile en production.
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: <Widget>[
-        OutlinedButton(
+        Flexible(
+          child: OutlinedButton(
           style: OutlinedButton.styleFrom(
             minimumSize: const Size(0, 44),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             side: const BorderSide(color: Djassa.encre, width: 2),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
             textStyle: const TextStyle(
@@ -575,11 +603,13 @@ class _Entete extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('← Quitter'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('← Quitter', maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
         ),
+        const SizedBox(width: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: Djassa.encre,
             borderRadius: BorderRadius.circular(999),
