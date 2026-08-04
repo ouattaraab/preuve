@@ -51,7 +51,10 @@ class FleetDashboard {
   factory FleetDashboard.fromJson(Map<String, Object?> json) {
     final tableau = json['dashboard'];
     final d = tableau is Map<String, Object?> ? tableau : json;
-    final statuts = d['by_status'] ?? d['statuses'];
+    // Les noms viennent du serveur, vérifiés sur la réponse réelle :
+    // `fleet_size` et `by_status`. Deviner « total » aurait affiché ZÉRO
+    // véhicule sur un parc de quarante, sans qu'aucun test ne s'en aperçoive.
+    final statuts = d['by_status'];
 
     return FleetDashboard(
       statuses: statuts is List
@@ -60,7 +63,7 @@ class FleetDashboard {
               .map(FleetStatusCount.fromJson)
               .toList(growable: false)
           : const <FleetStatusCount>[],
-      total: d['total'] is int ? d['total']! as int : 0,
+      total: d['fleet_size'] is int ? d['fleet_size']! as int : 0,
       lookups30d: d['lookups_30d'] is int ? d['lookups_30d']! as int : 0,
       billing: json['billing'] is Map<String, Object?>
           ? json['billing']! as Map<String, Object?>
@@ -69,7 +72,10 @@ class FleetDashboard {
   }
 
   final List<FleetStatusCount> statuses;
+
+  /// Taille du parc, telle que le serveur la compte (`fleet_size`).
   final int total;
+
   final int lookups30d;
 
   /// Décompte mensuel rendu par le serveur. JAMAIS RECALCULÉ ICI : les paliers
