@@ -1,8 +1,8 @@
 import '../identifiers.dart';
 import '../models/lookup.dart';
 import '../version.dart';
-import 'client.dart';
 import 'exceptions.dart';
+import 'transport.dart';
 
 /// Consultation publique et configuration de démarrage.
 ///
@@ -12,7 +12,7 @@ import 'exceptions.dart';
 class LookupService {
   const LookupService(this._api);
 
-  final PreuveApi _api;
+  final PreuveTransport _api;
 
   /// Vérifie un identifiant.
   ///

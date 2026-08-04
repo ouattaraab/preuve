@@ -15,19 +15,36 @@ des règles qu'on croit justes.
 
 ## État actuel
 
-**Lot 1 : le parcours de consultation.** C'est la promesse centrale du produit,
-et le seul parcours qui ne demande ni compte, ni version à jour, ni rien d'autre
-qu'un identifiant.
+**Lot 1 — consultation.** La promesse centrale, et le seul parcours qui ne
+demande ni compte, ni version à jour, ni rien d'autre qu'un identifiant.
 
 - ✅ Client HTTP, sans dépendance externe (`dart:io` suffit)
-- ✅ Erreurs traduites en **conduites** et non en codes (402 → payer, 409 →
-  réclamer, 426 → mettre à jour sans bloquer la consultation, 429 → défi)
+- ✅ Erreurs traduites en **conduites** et non en codes
 - ✅ Contrôle local VIN / IMEI avant l'appel réseau
 - ✅ Comparaison de versions pour l'écran de mise à jour au démarrage
 - ✅ Thème DJASSA, écran de saisie, écran de verdict
-- ⬜ Connexion par code à usage unique
-- ⬜ Enregistrement d'un bien, file d'envoi différée avec reprise
+
+**Lot 2 — écritures (cœur seulement).** Les services sont écrits et éprouvés ;
+les écrans restent à faire.
+
+- ✅ Connexion par code à usage unique, avec coffre à jeton **injecté** —
+  ce paquet impose la discipline, l'application fournit le trousseau
+- ✅ Catalogue des catégories avec ETag : aucun type de bien codé en dur
+- ✅ Enregistrement d'un bien, avec le chronomètre qui alimente CT-02
+- ✅ **File d'envoi différée avec reprise** (ST-0206, CT-05)
+- ⬜ Écrans de connexion, d'enregistrement et de suivi des envois
 - ⬜ Déclaration de vol, transfert, réclamation
+
+### La file d'envoi, en un paragraphe
+
+Ce qui doit tenir n'est pas l'envoi — il échouera — mais la **possibilité de le
+reprendre**. L'identifiant de session est tiré par le client, ce qui rend un
+réessai inoffensif : un `POST` rejoué retrouve la session au lieu d'en ouvrir une
+seconde. Sur conflit, la position **rendue par le serveur** fait autorité, jamais
+le compteur local : le client peut avoir cru envoyer un morceau qui n'est jamais
+arrivé. Et si le fichier a changé sous l'envoi, on s'arrête tout de suite plutôt
+que de consommer le forfait pour une pièce dont l'empreinte ne tombera jamais
+juste.
 
 ## Vérifier le cœur
 
@@ -35,7 +52,7 @@ qu'un identifiant.
 cd mobile/preuve_core
 dart pub get
 dart analyze     # aucune anomalie tolérée
-dart test        # 24 tests
+dart test        # 41 tests
 ```
 
 ## Faire tourner l'application
@@ -74,6 +91,11 @@ c'est une fonction, pas une décoration.
 **La consultation ne demande jamais rien.** Ni compte, ni version à jour, ni
 défi sur le chemin nominal. Toute condition ajoutée à cet écran trahirait la
 règle métier absolue n° 1.
+
+**Un 409 n'a pas un seul sens.** « Déjà enregistré » et « position d'envoi
+désynchronisée » partagent ce code. Ils se distinguent par le **corps** et jamais
+par le chemin : c'est le serveur qui décide de ce qu'il envoie, et un client qui
+trancherait sur l'URL se tromperait au premier renommage de route.
 
 **Le jeton n'accompagne jamais une consultation.** `PreuveApi.getAnonymous()`
 existe pour cela. Un porteur de jeton est certes dispensé du plafond horaire,

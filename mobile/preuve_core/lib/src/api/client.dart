@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'exceptions.dart';
+import 'transport.dart';
 
 /// Client HTTP de l'API PREUVE.
 ///
@@ -19,7 +20,7 @@ import 'exceptions.dart';
 /// historique nominatif.
 ///
 /// LES ERREURS SONT TRADUITES EN CONDUITES, pas en codes : voir `exceptions.dart`.
-class PreuveApi {
+class PreuveApi implements PreuveTransport {
   PreuveApi({
     required this.baseUrl,
     required this.appVersion,
@@ -44,14 +45,17 @@ class PreuveApi {
   String? _token;
 
   /// Jeton de session, s'il y en a un.
+  @override
   bool get isAuthenticated => _token != null;
 
+  @override
   void setToken(String? token) => _token = token;
 
   /// Appel sans jeton, quel que soit l'état de la session.
   ///
   /// Utilisé par la consultation : c'est ce qui garantit qu'aucun historique
   /// nominatif ne se constitue à l'insu de qui vérifie un bien.
+  @override
   Future<Map<String, Object?>> getAnonymous(
     String path, {
     Map<String, String>? query,
@@ -60,23 +64,28 @@ class PreuveApi {
     return _send('GET', path, query: query, headers: headers, authenticated: false);
   }
 
+  @override
   Future<Map<String, Object?>> get(String path, {Map<String, String>? query}) {
     return _send('GET', path, query: query);
   }
 
+  @override
   Future<Map<String, Object?>> post(String path, {Map<String, Object?>? body}) {
     return _send('POST', path, body: body);
   }
 
+  @override
   Future<Map<String, Object?>> put(String path, {Map<String, Object?>? body}) {
     return _send('PUT', path, body: body);
   }
 
+  @override
   Future<Map<String, Object?>> delete(String path, {Map<String, Object?>? body}) {
     return _send('DELETE', path, body: body);
   }
 
   /// Envoi d'un morceau binaire (reprise d'un envoi différé).
+  @override
   Future<Map<String, Object?>> patchBytes(
     String path,
     List<int> bytes, {
@@ -181,6 +190,13 @@ class PreuveApi {
           details: _map(body['quota']) ?? _map(body['fee']) ?? _map(body['details']),
         ),
       404 => NotFound(message),
+      // Deux conflits de sens opposé partagent ce code. Le corps les
+      // distingue : une position reçue annonce une reprise, une fiche de bien
+      // annonce une réclamation.
+      409 when body['received_bytes'] is int => UploadOffsetMismatch(
+          message,
+          receivedBytes: body['received_bytes']! as int,
+        ),
       409 => AlreadyRegistered(
           message,
           existingAsset: _map(body['asset']),

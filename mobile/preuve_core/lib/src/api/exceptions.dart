@@ -46,6 +46,21 @@ class AlreadyRegistered extends PreuveException {
   final String? claimUrl;
 }
 
+/// La position d'un envoi ne correspond pas à ce que le serveur a reçu (409).
+///
+/// MÊME CODE QUE « DÉJÀ ENREGISTRÉ », SENS OPPOSÉ. Les distinguer par le CORPS
+/// et non par le chemin : c'est le serveur qui décide de ce qu'il envoie, et un
+/// client qui trancherait sur l'URL se tromperait au premier renommage de
+/// route. Un conflit portant `received_bytes` est une reprise à faire ; un
+/// conflit portant une fiche de bien est une réclamation à ouvrir.
+class UploadOffsetMismatch extends PreuveException {
+  const UploadOffsetMismatch(super.message, {required this.receivedBytes});
+
+  /// Position RÉELLE, telle que le serveur la connaît. Le client s'y range :
+  /// il peut avoir cru envoyer un morceau qui n'est jamais arrivé.
+  final int receivedBytes;
+}
+
 /// L'application est trop ancienne pour écrire (426).
 ///
 /// LA CONSULTATION RESTE OUVERTE. Ne jamais bloquer l'application entière :
@@ -108,6 +123,16 @@ class NotFound extends PreuveException {
 /// faute de réseau peut être rejouée telle quelle, un refus non.
 class NetworkFailure extends PreuveException {
   const NetworkFailure(super.message);
+}
+
+/// Le fichier local ne correspond plus à ce qui a été annoncé au serveur.
+///
+/// DISTINCTE D'UN ÉCHEC RÉSEAU : celui-ci se réessaie, celui-là non. Le fichier
+/// a été tronqué ou remplacé depuis l'ouverture de la session ; poursuivre
+/// produirait une pièce dont l'empreinte ne tomberait jamais juste, et le refus
+/// n'arriverait qu'à l'assemblage — après avoir consommé tout le forfait.
+class LocalFileChanged extends PreuveException {
+  const LocalFileChanged(super.message);
 }
 
 /// Défaut inattendu côté serveur (5xx hors 503).
