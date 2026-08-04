@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:preuve_core/preuve_core.dart';
 
+import '../data/fichiers.dart';
 import '../data/session.dart';
 import '../ui/code_action.dart';
+import '../ui/photo_choice.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 
@@ -68,11 +70,32 @@ class _ClaimScreenState extends State<ClaimScreen> {
     }
   }
 
+  /// Verse une pièce, avec son document quand il y en a un.
+  ///
+  /// LE DOCUMENT EST DEMANDÉ D'ABORD, ET UN ABANDON N'ÉCRIT RIEN. Enregistrer la
+  /// nature de preuve avant d'avoir la photo laisserait au dossier une pièce
+  /// annoncée et vide : l'agent la compterait dans la grille, la victime croirait
+  /// son dossier appuyé, et il ne le serait pas.
+  ///
+  /// DEUX NATURES SE DÉCLARENT SANS FICHIER — l'ancienneté du compte, que la
+  /// plateforme constate elle-même, et l'antériorité documentaire, qui qualifie
+  /// une pièce déjà versée. Leur réclamer une photo n'aurait aucun sens.
   Future<void> _verser(EvidenceKind nature) async {
     final dossier = _dossier;
 
     if (dossier == null) {
       return;
+    }
+
+    final avecDocument = nature != EvidenceKind.accountHistory;
+    PhotoLocale? photo;
+
+    if (avecDocument) {
+      photo = await choisirPhoto(context, titre: nature.label);
+
+      if (photo == null || !mounted) {
+        return;
+      }
     }
 
     setState(() {
@@ -81,11 +104,11 @@ class _ClaimScreenState extends State<ClaimScreen> {
     });
 
     try {
-      // SANS FICHIER À CE STADE : le choix d'une photo passe par le sélecteur
-      // de la plateforme, qui n'est pas encore branché. La nature de preuve est
-      // enregistrée dès maintenant — un dossier qui annonce ses pièces vaut
-      // mieux qu'un dossier vide — et le document se joindra ensuite.
-      await widget.session.claims.addEvidence(dossier.id, evidenceType: nature);
+      await widget.session.claims.addEvidence(
+        dossier.id,
+        evidenceType: nature,
+        file: photo == null ? null : await enUnSeulMorceau(photo, champ: 'file'),
+      );
 
       if (mounted) {
         setState(() => _piecesVersees.add(nature));
@@ -93,6 +116,10 @@ class _ClaimScreenState extends State<ClaimScreen> {
     } on PreuveException catch (e) {
       if (mounted) {
         setState(() => _erreur = messageDeRefus(e));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _erreur = 'Cette pièce n\'a pas pu être lue ($e). Reprends la photo.');
       }
     } finally {
       if (mounted) {
@@ -233,8 +260,9 @@ class _ClaimScreenState extends State<ClaimScreen> {
       ),
       const SizedBox(height: 8),
       const Text(
-        'Indique ce que tu peux fournir. Les documents se joignent ensuite, et les '
-        'dates portées sur les pièces priment sur la date d\'enregistrement.',
+        'Ajoute ce que tu as. Les dates portées sur les pièces priment sur la date '
+        'd\'enregistrement : un document plus ancien que l\'enregistrement contesté '
+        'pèse lourd.',
         style: TextStyle(color: Djassa.sourdine, height: 1.5),
       ),
       const SizedBox(height: 18),

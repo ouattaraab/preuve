@@ -188,6 +188,30 @@ void main() {
     expect(file.pending, hasLength(2));
   });
 
+  test('tire un identifiant d\'envoi de la forme attendue par le serveur', () {
+    // Le serveur valide `uuid` : une forme approximative se ferait refuser à
+    // l'ouverture de la session, donc après la photo et avant le premier octet.
+    final id = PendingUpload.newId();
+
+    expect(
+      RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
+          .hasMatch(id),
+      isTrue,
+      reason: id,
+    );
+  });
+
+  test('ne tire jamais deux fois le même identifiant', () {
+    // Une collision entre deux appareils ferait reprendre l'envoi d'autrui.
+    final tires = <String>{};
+
+    for (int i = 0; i < 2000; i++) {
+      tires.add(PendingUpload.newId());
+    }
+
+    expect(tires, hasLength(2000));
+  });
+
   test('écarte une entrée illisible plutôt que d\'empêcher le démarrage', () async {
     // Magasin corrompu, ou format d'une version antérieure : perdre un envoi
     // vaut mieux que perdre l'application.

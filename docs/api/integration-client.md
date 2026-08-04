@@ -324,6 +324,28 @@ est gelé et le détenteur prévenu — le moment où la réclamation commence �
 l'administrateur peut les mettre à zéro : **ne pas coder le montant en dur**, le
 lire dans la réponse `402`.
 
+## 8 bis. Vérifier une identité (ST-0103)
+
+```http
+GET  /kyc                          → état du dossier
+POST /kyc                          multipart : id_front, id_back, selfie
+```
+
+**N'est exigée que pour céder un bien ou déposer une réclamation.** Jamais pour
+consulter, enregistrer, ni **déclarer un vol** : une victime n'a pas à prouver
+qui elle est avant de pouvoir signaler qu'on lui a pris son bien (CT-06).
+
+Le selfie ne peut pas être un PDF — c'est une prise de vue, et accepter un
+document permettrait de soumettre une photo de photo.
+
+⚠️ Les trois fichiers partent **d'un seul tenant, sans reprise**. Le dire à
+l'utilisateur AVANT l'envoi : découvrir trois fois de suite qu'il faut tout
+recommencer est ce qui fait abandonner.
+
+Le numéro de la pièce n'est **jamais** conservé en clair, et le client n'a
+aucune raison de le saisir : le serveur n'en garde qu'une empreinte, et ne peut
+donc le restituer à personne — pas même sur réquisition.
+
 ## 9. Acheter un rapport détaillé sans compte
 
 ```http

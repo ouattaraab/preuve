@@ -112,7 +112,7 @@ class PreuveApi implements PreuveTransport {
   Future<Map<String, Object?>> postMultipart(
     String path, {
     required Map<String, String> fields,
-    MultipartFile? file,
+    List<MultipartFile> files = const <MultipartFile>[],
   }) {
     final frontiere = '----preuve${DateTime.now().microsecondsSinceEpoch}';
     final corps = <int>[];
@@ -124,7 +124,7 @@ class PreuveApi implements PreuveTransport {
         ..addAll(utf8.encode('$valeur\r\n'));
     });
 
-    if (file != null) {
+    for (final MultipartFile file in files) {
       corps
         ..addAll(utf8.encode('--$frontiere\r\n'))
         ..addAll(utf8.encode(

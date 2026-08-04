@@ -28,7 +28,7 @@ class FakeTransport implements PreuveTransport {
   final List<Map<String, Object?>> corpsEnvoyes = <Map<String, Object?>>[];
 
   /// Pièces jointes transmises, pour les envois `multipart`.
-  final List<MultipartFile?> fichiersEnvoyes = <MultipartFile?>[];
+  final List<MultipartFile> fichiersEnvoyes = <MultipartFile>[];
 
   String? token;
 
@@ -92,10 +92,10 @@ class FakeTransport implements PreuveTransport {
   Future<Map<String, Object?>> postMultipart(
     String path, {
     required Map<String, String> fields,
-    MultipartFile? file,
+    List<MultipartFile> files = const <MultipartFile>[],
   }) {
     corpsEnvoyes.add(Map<String, Object?>.from(fields));
-    fichiersEnvoyes.add(file);
+    fichiersEnvoyes.addAll(files);
 
     return _prochaine('POST(multipart) $path');
   }

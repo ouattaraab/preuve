@@ -5,9 +5,11 @@ import '../data/session.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'asset_screen.dart';
+import 'kyc_screen.dart';
 import 'notifications_screen.dart';
 import 'register_screen.dart';
 import 'transfers_screen.dart';
+import 'uploads_screen.dart';
 
 /// Mes biens — le point d'entrée de tout ce qui n'est pas la consultation.
 ///
@@ -200,6 +202,47 @@ class _MyAssetsScreenState extends State<MyAssetsScreen> {
                 const SizedBox(height: 12),
                 _Quota(quota: inventaire!.quota!),
               ],
+              const SizedBox(height: 26),
+              const Divider(color: Djassa.encre, thickness: 3),
+              const SizedBox(height: 6),
+              TextButton(
+                onPressed: () async {
+                  await Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => UploadsScreen(session: widget.session),
+                    ),
+                  );
+
+                  if (mounted) {
+                    setState(() {});
+                  }
+                },
+                child: Text(
+                  // Le nombre en attente EST le message : « Envois » seul ne dit
+                  // pas s'il reste quelque chose à faire partir.
+                  widget.session.envois.pending.isEmpty
+                      ? 'Envois en attente'
+                      : 'Envois en attente (${widget.session.envois.pending.length})',
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => KycScreen(session: widget.session),
+                  ),
+                ),
+                child: const Text('Vérifier mon identité'),
+              ),
+              TextButton(
+                onPressed: () async {
+                  await widget.session.fermer();
+
+                  if (mounted) {
+                    Navigator.of(context).pop();
+                  }
+                },
+                child: const Text('Se déconnecter'),
+              ),
             ],
           ),
         ),

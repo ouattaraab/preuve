@@ -193,7 +193,7 @@ void main() {
         'evidence_type': 'official_named_doc',
         'document_date': '2024-03-12',
       }));
-      expect(transport.fichiersEnvoyes.single?.filename, equals('carte-grise.jpg'));
+      expect(transport.fichiersEnvoyes.single.filename, equals('carte-grise.jpg'));
     });
 
     test('accepte une pièce sans fichier', () async {
@@ -203,7 +203,7 @@ void main() {
 
       await ClaimService(transport).addEvidence(9, evidenceType: EvidenceKind.accountHistory);
 
-      expect(transport.fichiersEnvoyes.single, isNull);
+      expect(transport.fichiersEnvoyes, isEmpty);
     });
 
     test('les frais sont exigés au DÉPÔT, pas avant', () async {

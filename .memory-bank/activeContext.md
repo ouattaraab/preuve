@@ -454,12 +454,47 @@ côtés, annuler) · réclamation (ouvrir, annoncer ses pièces, déposer)**.
 n'a même jamais reçu un `pub get` — aucune analyse statique n'est possible sur
 ces écrans. `preuve_core`, lui, reste vérifié (65 tests, `dart analyze` propre).
 
-**Reste au mobile** : le suivi des envois différés côté écran (la file existe
-dans le cœur, ST-0206), le **sélecteur de fichiers** pour joindre une pièce à une
-réclamation (l'écran annonce la nature de preuve, le document ne se joint pas
-encore), le scan de carte grise, et le centre de notifications. Et **déposer les
-polices DJASSA** sous `assets/fonts/` — non déclarées pour l'instant, car
-déclarer une police sans son fichier fait échouer la construction.
+## Photos, empreintes et file persistante (04/08/2026)
+
+**`image_picker` ajouté — SECONDE ET DERNIÈRE EXCEPTION** au principe « aucune
+dépendance externe » (décision d'Aboubakar). Justifiée comme la première : écrire
+soi-même le pont vers la caméra et la photothèque de deux plateformes serait plus
+risqué que d'en dépendre, et le greffon est maintenu par l'équipe Flutter. Sans
+elle, aucun bien ne dépassait « Déclaré » — ni justificatif, ni KYC, ni pièce de
+réclamation, donc **aucune réclamation jamais gagnée sur la grille d'arbitrage**.
+
+**SHA-256 écrit en Dart pur dans le cœur**, plutôt que d'ajouter `crypto` : le
+cœur ne dépend de rien, et déplacer l'empreinte dans `preuve_app` aurait fait
+remonter une règle métier hors du cœur — c'est elle qui prouve qu'un fichier
+envoyé en morceaux est arrivé intact. Vérifié contre les **vecteurs officiels
+FIPS 180-4**, y compris le million de « a ». Première version quadratique par son
+tamponnage : **15 s pour un mégaoctet, mesuré** — l'application aurait paru
+plantée avant d'envoyer un octet. Corrigée par un bloc de taille fixe.
+
+**`UploadManager`** : ce qui manquait à ST-0206 n'était pas l'envoi mais ce qui
+survit à la fermeture de l'application. La file est persistée **dans le coffre**
+(`flutter_secure_storage`, déjà présent) plutôt que dans un fichier — écrire un
+fichier aurait demandé `path_provider`, et ce qu'on y range n'est pas anodin :
+pas les images, mais leurs CHEMINS, c'est-à-dire « cette personne a une photo de
+CNI à cet endroit ». Volume borné à 50 pièces : remplir le trousseau ferait
+échouer l'écriture du JETON DE SESSION, donc déconnecter quelqu'un pour une photo.
+
+Elle distingue ce qui se réessaie de ce qui ne se réessaie pas : une coupure garde
+la pièce, un fichier modifié ou un refus du serveur l'en retire **avec sa raison**
+— une pièce disparue en silence ferait croire un dossier complet. Une session
+tombée n'en perd aucune. Et elle ne réessaie **jamais** d'elle-même : un minuteur
+enfoui viderait le forfait de quelqu'un dans son dos.
+
+**Écrans ajoutés** : alertes + préférences, envois en attente, KYC, et le dépôt
+de justificatifs depuis la fiche d'un bien.
+
+**Reste au mobile** : le scan de carte grise (ST-0202, le serveur est prêt), les
+écrans de flotte B2B, l'achat de rapport détaillé, et **déposer les polices
+DJASSA** sous `assets/fonts/` — non déclarées pour l'instant, car déclarer une
+police sans son fichier fait échouer la construction. Prévoir aussi les
+**déclarations de permission** iOS (`NSCameraUsageDescription`,
+`NSPhotoLibraryUsageDescription`) : sans elles, l'application est rejetée par
+l'App Store et plante à l'ouverture de l'appareil photo.
 
 ## Documentation écrite (04/08/2026)
 

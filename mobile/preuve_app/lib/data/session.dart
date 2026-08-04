@@ -1,5 +1,8 @@
 import 'package:preuve_core/preuve_core.dart';
 
+import 'fichiers.dart';
+import 'secure_upload_store.dart';
+
 /// Ce que l'application tient en main pendant toute une session.
 ///
 /// UN SEUL ENDROIT SAIT SI QUELQU'UN EST CONNECTÉ. Sans cela, chaque écran
@@ -20,6 +23,8 @@ class PreuveSession {
     required this.transfers,
     required this.claims,
     required this.notifications,
+    required this.kyc,
+    required this.envois,
   });
 
   factory PreuveSession.pour(PreuveApi api, TokenStore coffre) {
@@ -32,6 +37,13 @@ class PreuveSession {
       transfers: TransferService(api),
       claims: ClaimService(api),
       notifications: NotificationService(api),
+      kyc: KycService(api),
+      envois: UploadManager(
+        // La lecture du fichier est INJECTÉE : c'est ce qui permet d'éprouver
+        // toute la reprise dans une console, sans appareil.
+        queue: UploadQueue(transport: api, readChunk: lireMorceau),
+        store: const SecureUploadStore(),
+      ),
     );
   }
 
@@ -43,6 +55,10 @@ class PreuveSession {
   final TransferService transfers;
   final ClaimService claims;
   final NotificationService notifications;
+  final KycService kyc;
+
+  /// File d'envoi différée, avec reprise (ST-0206, CT-05).
+  final UploadManager envois;
 
   Account? compte;
 
@@ -56,6 +72,13 @@ class PreuveSession {
   /// vient seulement vérifier une moto au marché.
   Future<void> reprendre() async {
     try {
+      // LA FILE D'ABORD, ET HORS DE TOUTE CONDITION DE SESSION : des pièces
+      // peuvent attendre depuis des jours, et les relire ne coûte rien. Ne les
+      // charger qu'une fois connecté ferait disparaître l'écran de suivi
+      // exactement quand quelqu'un vient y vérifier que sa carte grise est
+      // partie.
+      await envois.restore();
+
       if (!await auth.restore()) {
         return;
       }

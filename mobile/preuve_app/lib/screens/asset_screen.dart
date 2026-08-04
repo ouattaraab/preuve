@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:preuve_core/preuve_core.dart';
 
+import '../data/fichiers.dart';
 import '../data/session.dart';
 import '../ui/code_action.dart';
+import '../ui/photo_choice.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'transfer_propose_screen.dart';
+import 'uploads_screen.dart';
 
 /// Fiche d'un bien détenu, et les gestes qu'on peut y faire.
 ///
@@ -133,6 +136,51 @@ class _AssetScreenState extends State<AssetScreen> {
         action: (String code) => widget.session.lifecycle.declareEndOfLife(_bien.id, code),
         succes: 'Le bien est déclaré hors d\'usage.',
       );
+
+  /// Ajoute un justificatif, qui fera monter la fiabilité du bien (ST-0207).
+  ///
+  /// LA PIÈCE PART EN FILE, JAMAIS EN DIRECT (ST-0206, CT-05). Une carte grise
+  /// pèse plusieurs mégaoctets, et un envoi immédiat qui échoue au bord d'une
+  /// route perdrait à la fois la photo et le geste. Mise en file, elle repartira
+  /// d'où la coupure a eu lieu — et l'écran le dit, sans quoi la personne
+  /// croirait avoir échoué.
+  Future<void> _ajouterJustificatif(String docType, String titre) async {
+    final photo = await choisirPhoto(context, titre: titre);
+
+    if (photo == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _enCours = true;
+      _erreur = null;
+      _confirmation = null;
+    });
+
+    try {
+      await widget.session.envois.enqueue(
+        await preparerEnvoi(photo: photo, assetId: _bien.id, docType: docType),
+      );
+
+      if (mounted) {
+        setState(() => _confirmation =
+            'Pièce ajoutée à la file d\'envoi. Lance l\'envoi depuis « Envois en '
+            'attente » quand le réseau est bon : si la connexion coupe, elle '
+            'repartira d\'où elle s\'est arrêtée.');
+      }
+    } on Object catch (e) {
+      // Fichier illisible, coffre plein : la photo ne part pas, et le dire vaut
+      // mieux que de laisser croire qu'elle attend.
+      if (mounted) {
+        setState(() => _erreur = 'Cette pièce n\'a pas pu être mise en file ($e). '
+            'Reprends la photo.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _enCours = false);
+      }
+    }
+  }
 
   Future<void> _ceder() async {
     final fait = await Navigator.of(context).push<bool>(
@@ -268,15 +316,7 @@ class _AssetScreenState extends State<AssetScreen> {
       ),
       const SizedBox(height: 12),
       OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Djassa.encre,
-          minimumSize: const Size.fromHeight(Djassa.cible),
-          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-          side: const BorderSide(color: Djassa.encre, width: 3),
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(12)),
-          ),
-        ),
+        style: _contour,
         onPressed: _ceder,
         child: const Text('Céder ce bien'),
       ),
@@ -285,9 +325,73 @@ class _AssetScreenState extends State<AssetScreen> {
         onPressed: _finDeVie,
         child: const Text('Déclarer hors d\'usage'),
       ),
+      const SizedBox(height: 22),
+      const Divider(color: Djassa.encre, thickness: 3),
+      const SizedBox(height: 16),
+      const Text(
+        'Renforcer la confiance',
+        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+      ),
+      const SizedBox(height: 8),
+      // DIT CE QUE ÇA CHANGE, sinon personne ne le fait. Verser une pièce est un
+      // effort ; l'acheteur d'en face, lui, verra la différence.
+      const Text(
+        'Ajoute ta carte grise ou ta facture : le bien passe de « Déclaré » à '
+        '« Documenté », et un acheteur qui vérifie le numéro voit la différence.',
+        style: TextStyle(color: Djassa.sourdine, height: 1.5),
+      ),
+      const SizedBox(height: 12),
+      OutlinedButton(
+        style: _contour,
+        onPressed: () => _ajouterJustificatif('registration_card', 'Photo de la carte grise'),
+        child: const Text('Ajouter la carte grise'),
+      ),
+      const SizedBox(height: 10),
+      OutlinedButton(
+        style: _contour,
+        onPressed: () => _ajouterJustificatif('invoice', 'Photo de la facture'),
+        child: const Text('Ajouter une facture'),
+      ),
+      const SizedBox(height: 10),
+      OutlinedButton(
+        style: _contour,
+        onPressed: () => _ajouterJustificatif('photo', 'Photo du bien'),
+        child: const Text('Ajouter une photo du bien'),
+      ),
+      const SizedBox(height: 10),
+      TextButton(
+        onPressed: () async {
+          await Navigator.of(context).push<void>(
+            MaterialPageRoute<void>(
+              builder: (_) => UploadsScreen(session: widget.session),
+            ),
+          );
+
+          if (mounted) {
+            setState(() {});
+          }
+        },
+        child: Text(
+          widget.session.envois.pending.isEmpty
+              ? 'Envois en attente'
+              : 'Envois en attente (${widget.session.envois.pending.length})',
+        ),
+      ),
     ];
   }
 }
+
+/// Bouton secondaire, à la même hauteur de cible que le principal : on saisit
+/// debout, parfois avec des gants de mécanicien.
+final ButtonStyle _contour = OutlinedButton.styleFrom(
+  foregroundColor: Djassa.encre,
+  minimumSize: const Size.fromHeight(Djassa.cible),
+  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+  side: const BorderSide(color: Djassa.encre, width: 3),
+  shape: const RoundedRectangleBorder(
+    borderRadius: BorderRadius.all(Radius.circular(12)),
+  ),
+);
 
 class _Confirmation extends StatelessWidget {
   const _Confirmation(this.message);

@@ -49,7 +49,7 @@ abstract interface class PreuveTransport {
   Future<Map<String, Object?>> postMultipart(
     String path, {
     required Map<String, String> fields,
-    MultipartFile? file,
+    List<MultipartFile> files = const <MultipartFile>[],
   });
 
   /// Jeton de session, ou `null` pour le retirer.

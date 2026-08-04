@@ -24,6 +24,14 @@ dependencies:
   # session ouvre l'accès aux biens d'une personne — il n'a rien à faire dans un
   # fichier de préférences en clair.
   flutter_secure_storage: ^9.2.2
+  # Appareil photo et galerie. SECONDE ET DERNIÈRE EXCEPTION au principe « aucune
+  # dépendance externe » (décision d'Aboubakar, 04/08/2026), justifiée comme la
+  # première : écrire soi-même le pont vers la caméra et la photothèque de deux
+  # plateformes serait plus risqué que d'en dépendre. Sans elle, aucun bien ne
+  # peut dépasser « Déclaré » — ni justificatif, ni KYC, ni pièce de réclamation,
+  # donc aucune réclamation jamais gagnée sur la grille d'arbitrage.
+  # Greffon maintenu par l'équipe Flutter elle-même (flutter/packages).
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:

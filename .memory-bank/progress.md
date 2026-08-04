@@ -84,3 +84,6 @@
 | 04/08/2026 | Trois contrats faux corrigés dans le cœur mobile ; `FakeTransport` enregistre désormais les CORPS | ST-0601, ST-0501 | Le harnais ne regardait que le chemin : un test qui ne peut pas constater un contrat rompu ne prouve rien |
 | 04/08/2026 | Les lectures passent en mode lecture seule | ST-0904 | « Lecture seule » doit vouloir dire ce que son nom annonce : refuser un GET ne protège rien et fait passer une indisponibilité partielle pour une panne |
 | 04/08/2026 | Écrans mobiles : inventaire, enregistrement, vol, transfert, réclamation | EP-02, EP-05, EP-06 | La connexion n'est demandée qu'au moment où elle sert ; les actions impossibles sont absentes et expliquées, jamais grisées |
+| 04/08/2026 | Centre d'alertes mobile + préférences | ST-1001, ST-0107 | Le modèle n'offre aucune place à l'identité du consultant : un champ prévu finirait par être rempli |
+| 04/08/2026 | File d'envoi persistante, SHA-256 en Dart pur, `image_picker` | ST-0206, ST-0103, ST-0207 | Le tamponnage naïf du hachage coûtait 15 s par mégaoctet : l'application aurait paru plantée avant d'envoyer un octet |
+| 04/08/2026 | Écrans KYC, envois en attente, dépôt de justificatifs | ST-0103, ST-0207 | Le KYC n'est jamais exigé pour déclarer un vol : une victime n'a pas à prouver qui elle est avant de signaler |

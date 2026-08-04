@@ -189,7 +189,7 @@ class ClaimService {
         'evidence_type': evidenceType.wire,
         if (documentDate != null && documentDate.isNotEmpty) 'document_date': documentDate,
       },
-      file: file,
+      files: file == null ? const <MultipartFile>[] : <MultipartFile>[file],
     );
   }
 

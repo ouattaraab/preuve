@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../api/exceptions.dart';
 import '../api/transport.dart';
 
@@ -108,6 +110,32 @@ class PendingUpload {
     required this.byteSize,
     required this.checksum,
   });
+
+  /// Tire un identifiant d'envoi, côté CLIENT.
+  ///
+  /// C'EST CE QUI REND LA REPRISE INOFFENSIVE : un `POST /uploads` rejoué après
+  /// une coupure retrouve la session existante au lieu d'en ouvrir une seconde.
+  /// Le regénérer à chaque tentative laisserait sur le disque du mutualisé
+  /// autant de sessions orphelines que de tentatives.
+  ///
+  /// Forme d'un UUID v4, tiré d'un générateur cryptographique — non par besoin
+  /// de secret, mais parce qu'une collision entre deux appareils ferait
+  /// reprendre l'envoi de quelqu'un d'autre.
+  static String newId() {
+    final alea = Random.secure();
+    final octets = List<int>.generate(16, (_) => alea.nextInt(256));
+
+    octets[6] = (octets[6] & 0x0f) | 0x40;
+    octets[8] = (octets[8] & 0x3f) | 0x80;
+
+    String tranche(int debut, int fin) => octets
+        .sublist(debut, fin)
+        .map((int o) => o.toRadixString(16).padLeft(2, '0'))
+        .join();
+
+    return '${tranche(0, 4)}-${tranche(4, 6)}-${tranche(6, 8)}-'
+        '${tranche(8, 10)}-${tranche(10, 16)}';
+  }
 
   /// Relit une entrée de la file locale.
   ///
