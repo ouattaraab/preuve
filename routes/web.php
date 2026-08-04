@@ -32,7 +32,9 @@ Route::prefix('admin')->group(function (): void {
     Route::post('deconnexion', [AdminAuthController::class, 'logout'])->name('admin.logout');
 
     Route::middleware(['auth', EnsureUserHasBackOfficeAccess::class])->group(function (): void {
-        Route::get('/', fn () => redirect()->route('admin.moderation'));
+        // La console ouvre sur ce qui attend une décision, pas sur une liste.
+        Route::get('/', fn () => redirect()->route('admin.overview'));
+        Route::get('vue-ensemble', [AdminConsoleController::class, 'overview'])->name('admin.overview');
         Route::get('moderation', [AdminConsoleController::class, 'moderation'])->name('admin.moderation');
         Route::get('registre', [AdminConsoleController::class, 'registry'])->name('admin.registry');
         Route::get('comptes', [AdminConsoleController::class, 'users'])->name('admin.users');
@@ -48,6 +50,7 @@ Route::prefix('admin')->group(function (): void {
             Route::get('categories', [AdminConsoleController::class, 'categories'])->name('admin.categories');
             Route::get('audit', [AdminConsoleController::class, 'audit'])->name('admin.audit');
             Route::get('equipe', [AdminConsoleController::class, 'team'])->name('admin.team');
+            Route::get('statistiques', [AdminConsoleController::class, 'stats'])->name('admin.stats');
         });
     });
 });

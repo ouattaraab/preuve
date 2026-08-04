@@ -42,24 +42,13 @@
         <div style="display:flex;flex-direction:column;gap:4px">
             @foreach ($navigation as $item)
                 @php $actif = ($item['key'] ?? null) === ($vue ?? null); @endphp
-                @if ($item['disponible'])
-                    <a href="{{ $item['url'] }}"
-                       style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:{{ $actif ? '#D97706' : 'transparent' }};border-radius:10px;padding:12px 14px;min-height:46px;text-decoration:none;color:{{ $actif ? '#2B1D12' : '#FFF6E8' }};font-size:15px;font-weight:700">
-                        {{ $item['nom'] }}
-                        @isset($item['badge'])
-                            <span style="background:#D97706;color:#2B1D12;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px">{{ $item['badge'] }}</span>
-                        @endisset
-                    </a>
-                @else
-                    {{-- Annoncé mais pas encore servi : le dire vaut mieux que
-                         de masquer l'entrée, l'exploitant sait ainsi ce qui
-                         vient. --}}
-                    <span title="Lot suivant"
-                          style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;min-height:46px;color:#7A6A55;font-size:15px;font-weight:700;cursor:not-allowed">
-                        {{ $item['nom'] }}
-                        <span style="font-size:10px;font-weight:700;color:#7A6A55;border:1px solid #4A3A28;padding:2px 6px;border-radius:999px">à venir</span>
-                    </span>
-                @endif
+                <a href="{{ $item['url'] }}"
+                   style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:{{ $actif ? '#D97706' : 'transparent' }};border-radius:10px;padding:12px 14px;min-height:46px;text-decoration:none;color:{{ $actif ? '#2B1D12' : '#FFF6E8' }};font-size:15px;font-weight:700">
+                    {{ $item['nom'] }}
+                    @isset($item['badge'])
+                        <span style="background:#D97706;color:#2B1D12;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px">{{ $item['badge'] }}</span>
+                    @endisset
+                </a>
             @endforeach
         </div>
 

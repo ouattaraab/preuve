@@ -153,18 +153,25 @@ it('déconnecte et invalide la session', function (): void {
     test()->get('/admin/moderation')->assertRedirect('/admin/connexion');
 });
 
-it('annonce les écrans à venir plutôt que de les masquer', function (): void {
-    // L'exploitant doit savoir ce qui existe et ce qui arrive : une entrée
-    // absente se lit comme une fonction qui n'existera jamais.
+it('sert tous les écrans de la maquette à un administrateur', function (): void {
+    // Les neuf écrans de la maquette existent désormais : la navigation ne
+    // porte plus aucune entrée inerte. Une entrée qui ne mène nulle part
+    // entretiendrait une attente que plus rien ne justifie.
     $admin = compteConsole(UserRole::Admin);
 
     test()->post('/admin/connexion/code', ['phone' => $admin->phone]);
     test()->post('/admin/connexion/verifier', ['phone' => $admin->phone, 'code' => codeConsole()]);
 
-    test()->get('/admin/moderation')
-        ->assertOk()
-        ->assertSee('Registre des biens')
-        ->assertSee('à venir');
+    $page = test()->get('/admin/moderation')->assertOk();
+
+    foreach ([
+        "Vue d'ensemble", 'Modération', 'Registre des biens', 'Catégories & champs',
+        'Utilisateurs', 'Statistiques app', 'Supervision', "Piste d'audit", 'Équipe & rôles',
+    ] as $ecran) {
+        $page->assertSee($ecran);
+    }
+
+    $page->assertDontSee('à venir');
 });
 
 it('périme le code après usage', function (): void {

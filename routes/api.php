@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Admin\AppStatsController;
 use App\Http\Controllers\Api\V1\Admin\AssetRegistryController;
 use App\Http\Controllers\Api\V1\Admin\AuditAnchorController;
 use App\Http\Controllers\Api\V1\Admin\AuditTrailController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\Api\V1\Admin\KycProviderController;
 use App\Http\Controllers\Api\V1\Admin\KycReviewController;
 use App\Http\Controllers\Api\V1\Admin\ObservabilityController;
 use App\Http\Controllers\Api\V1\Admin\OpsRecipientController;
+use App\Http\Controllers\Api\V1\Admin\OverviewController;
 use App\Http\Controllers\Api\V1\Admin\PlatformStateController;
 use App\Http\Controllers\Api\V1\Admin\PushProviderController;
 use App\Http\Controllers\Api\V1\Admin\SmsProviderController;
@@ -40,6 +42,7 @@ use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\TransferController;
 use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\WatchAlertController;
+use App\Http\Middleware\EnsureAppIsSupported;
 use App\Http\Middleware\EnsurePlatformIsWritable;
 use App\Http\Middleware\EnsureUserHasBackOfficeAccess;
 use App\Http\Middleware\EnsureUserIsAdmin;
@@ -52,6 +55,11 @@ Route::prefix('v1')->group(function (): void {
 
     // Publique : l'application doit pouvoir se configurer avant toute connexion
     Route::get('config/categories', [ConfigController::class, 'categories']);
+
+    // Version minimale exigée : publique et interrogeable AVANT connexion.
+    // L'application doit pouvoir afficher son écran de mise à jour sans avoir
+    // à se heurter d'abord à un refus au milieu d'un parcours.
+    Route::get('config/app', [ConfigController::class, 'app']);
 
     // Rapport détaillé : l'achat n'exige pas de compte mais exige une
     // identité (règle métier absolue n° 7) ; la lecture ne passe que par le
@@ -92,7 +100,7 @@ Route::prefix('v1')->group(function (): void {
     // Toute écriture exige un compte authentifié (règle métier absolue n° 2),
     // et cède la première pendant une maintenance en lecture seule (ST-0904) :
     // enregistrer peut attendre une heure, vérifier un bien avant de payer non.
-    Route::middleware(['auth:sanctum', EnsurePlatformIsWritable::class])->group(function (): void {
+    Route::middleware(['auth:sanctum', EnsurePlatformIsWritable::class, EnsureAppIsSupported::class])->group(function (): void {
         Route::post('assets', [AssetController::class, 'store']);
 
         // Pré-remplissage par scan (ST-0202). Le plafond borne la dépense chez
@@ -173,6 +181,11 @@ Route::prefix('v1')->group(function (): void {
     // justificatif n'est pas configurer la plateforme.
     Route::prefix('admin')->middleware(['auth:sanctum', EnsureUserHasBackOfficeAccess::class])
         ->group(function (): void {
+            // Vue d'ensemble : ce qui attend une décision humaine, avant les
+            // volumes. C'est l'écran d'ouverture d'une journée d'instruction —
+            // il est donc ouvert aux agents.
+            Route::get('overview', [OverviewController::class, 'index']);
+
             Route::get('kyc', [KycReviewController::class, 'index']);
             Route::post('kyc/{submission}/review', [KycReviewController::class, 'review']);
 
@@ -237,6 +250,12 @@ Route::prefix('v1')->group(function (): void {
          * autres agents. L'instruction d'un dossier ne suppose pas de savoir
          * ce qu'un collègue a décidé hier.
          */
+        // Statistiques d'usage et forçage de mise à jour. Réservé aux
+        // administrateurs : relever la version minimale met hors service une
+        // part du parc installé, ce n'est pas un geste d'instruction.
+        Route::get('app-stats', [AppStatsController::class, 'index']);
+        Route::put('app-release', [AppStatsController::class, 'setRelease']);
+
         Route::get('audit-trail', [AuditTrailController::class, 'index']);
         Route::get('audit-trail/export', [AuditTrailController::class, 'export']);
 

@@ -19,30 +19,39 @@ use Illuminate\View\View;
  * finiraient par diverger, et l'écart ne se verrait qu'au moment d'une
  * décision d'agent.
  *
- * La navigation annonce les écrans à venir plutôt que de les masquer :
- * l'exploitant sait ce qui existe et ce qui arrive. En revanche elle CACHE ce
- * qu'un rôle n'atteint pas : afficher à un agent un écran que le middleware
- * lui refusera n'est pas de la transparence, c'est une promesse non tenue.
+ * La navigation CACHE ce qu'un rôle n'atteint pas : afficher à un agent un
+ * écran que le middleware lui refusera n'est pas de la transparence, c'est une
+ * promesse non tenue.
  */
 final class AdminConsoleController extends Controller
 {
     /**
      * Écrans de la console, dans l'ordre de la maquette.
      *
-     * `disponible` dit si l'API qui l'alimente existe — le lot 1 ne sert que
-     * ce qui est réellement branché.
+     * `admin_seul` distingue l'instruction de dossiers, ouverte aux agents, de
+     * la configuration de la plateforme, qui ne l'est pas.
      */
     private const ECRANS = [
-        ['key' => 'overview', 'nom' => "Vue d'ensemble", 'route' => null, 'disponible' => false, 'admin_seul' => true],
-        ['key' => 'moderation', 'nom' => 'Modération', 'route' => 'admin.moderation', 'disponible' => true, 'admin_seul' => false],
-        ['key' => 'registry', 'nom' => 'Registre des biens', 'route' => 'admin.registry', 'disponible' => true, 'admin_seul' => false],
-        ['key' => 'categories', 'nom' => 'Catégories & champs', 'route' => 'admin.categories', 'disponible' => true, 'admin_seul' => true],
-        ['key' => 'users', 'nom' => 'Utilisateurs', 'route' => 'admin.users', 'disponible' => true, 'admin_seul' => false],
-        ['key' => 'stats', 'nom' => 'Statistiques app', 'route' => null, 'disponible' => false, 'admin_seul' => true],
-        ['key' => 'monitoring', 'nom' => 'Supervision', 'route' => 'admin.monitoring', 'disponible' => true, 'admin_seul' => false],
-        ['key' => 'audit', 'nom' => "Piste d'audit", 'route' => 'admin.audit', 'disponible' => true, 'admin_seul' => true],
-        ['key' => 'team', 'nom' => 'Équipe & rôles', 'route' => 'admin.team', 'disponible' => true, 'admin_seul' => true],
+        ['key' => 'overview', 'nom' => "Vue d'ensemble", 'route' => 'admin.overview', 'admin_seul' => false],
+        ['key' => 'moderation', 'nom' => 'Modération', 'route' => 'admin.moderation', 'admin_seul' => false],
+        ['key' => 'registry', 'nom' => 'Registre des biens', 'route' => 'admin.registry', 'admin_seul' => false],
+        ['key' => 'categories', 'nom' => 'Catégories & champs', 'route' => 'admin.categories', 'admin_seul' => true],
+        ['key' => 'users', 'nom' => 'Utilisateurs', 'route' => 'admin.users', 'admin_seul' => false],
+        ['key' => 'stats', 'nom' => 'Statistiques app', 'route' => 'admin.stats', 'admin_seul' => true],
+        ['key' => 'monitoring', 'nom' => 'Supervision', 'route' => 'admin.monitoring', 'admin_seul' => false],
+        ['key' => 'audit', 'nom' => "Piste d'audit", 'route' => 'admin.audit', 'admin_seul' => true],
+        ['key' => 'team', 'nom' => 'Équipe & rôles', 'route' => 'admin.team', 'admin_seul' => true],
     ];
+
+    public function overview(Request $request): View
+    {
+        return view('admin.overview', $this->contexte($request, 'overview', "Vue d'ensemble"));
+    }
+
+    public function stats(Request $request): View
+    {
+        return view('admin.stats', $this->contexte($request, 'stats', 'Statistiques app'));
+    }
 
     public function moderation(Request $request): View
     {
@@ -114,10 +123,7 @@ final class AdminConsoleController extends Controller
                 continue;
             }
 
-            $items[] = [
-                ...$ecran,
-                'url' => $ecran['route'] === null ? null : route($ecran['route']),
-            ];
+            $items[] = [...$ecran, 'url' => route($ecran['route'])];
         }
 
         return $items;

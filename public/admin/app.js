@@ -840,3 +840,246 @@ document.addEventListener('DOMContentLoaded', () => {
   if (document.getElementById('table-audit')) Audit.init();
   if (document.getElementById('liste-equipe')) Equipe.init();
 });
+
+/* ------------------------------------------------------------------ */
+/* Écran : Vue d'ensemble                                              */
+/* ------------------------------------------------------------------ */
+
+/** Ancienneté en langage courant : « depuis 3 jours » se lit, pas une date ISO. */
+function anciennete(iso) {
+  if (!iso) return '';
+
+  const heures = Math.floor((Date.now() - new Date(iso.replace(' ', 'T')).getTime()) / 3600000);
+
+  if (heures < 1) return "depuis moins d'une heure";
+  if (heures < 24) return `depuis ${heures} h`;
+
+  const jours = Math.floor(heures / 24);
+  return `depuis ${jours} jour${jours > 1 ? 's' : ''}`;
+}
+
+const Ensemble = {
+  async charger() {
+    const zone = document.getElementById('files-attente');
+    if (!zone) return;
+
+    try {
+      const r = await Api.get('/api/v1/admin/overview');
+
+      zone.innerHTML = r.queues.map(f => {
+        // Le nombre seul ne suffit pas : trois dossiers déposés ce matin et
+        // trois oubliés depuis douze jours donnent le même compteur.
+        const alerte = f.over_threshold || (f.count > 0 && anciennete(f.oldest_at).includes('jour'));
+
+        return `
+          <div style="background:#FFF6E8;border-radius:12px;padding:18px 20px;border-left:6px solid ${alerte ? '#B23A3A' : '#3F8F5B'}">
+            <span style="display:block;font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:30px">${txt(f.count)}</span>
+            <span style="display:block;font-size:14px;font-weight:700;margin-top:2px">${txt(f.label)}</span>
+            <span style="display:block;font-size:12px;color:${alerte ? '#B23A3A' : '#7A6A55'};margin-top:4px">
+              ${f.count === 0 ? 'Rien en attente' : txt('La plus ancienne ' + anciennete(f.oldest_at))}
+            </span>
+          </div>`;
+      }).join('');
+
+      this.promesses(r.promises);
+      this.volumes(r.registry);
+    } catch (e) {
+      zone.innerHTML = `<p style="color:#B23A3A;font-weight:700">${txt(e.message)}</p>`;
+    }
+  },
+
+  promesses(p) {
+    const zone = document.getElementById('promesses');
+    if (!zone) return;
+
+    const bloc = (titre, m, unite) => {
+      // `meets_target` vaut null quand rien n'a été mesuré : afficher « tenu »
+      // sur zéro échantillon serait une promesse auto-décernée.
+      const sansMesure = m.p95_ms === null || m.samples === 0;
+      const tenu = m.meets_target === true;
+      const couleur = sansMesure ? '#7A6A55' : (tenu ? '#3F8F5B' : '#B23A3A');
+
+      return `
+        <div style="background:#FFF6E8;border-radius:12px;padding:18px 20px;border-left:6px solid ${couleur}">
+          <span style="display:block;font-size:14px;font-weight:700">${txt(titre)}</span>
+          <span style="display:block;font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:26px;margin-top:6px">
+            ${sansMesure ? '—' : txt(unite(m.p95_ms))}
+          </span>
+          <span style="display:block;font-size:12px;color:#5C4A33;margin-top:4px">
+            ${sansMesure
+              ? 'Aucune mesure sur la période'
+              : `95<sup>e</sup> centile sur ${txt(m.samples)} mesures · seuil ${txt(unite(m.target_ms))}`}
+          </span>
+          ${sansMesure ? '' : `<span style="display:block;font-size:12px;font-weight:700;color:${couleur};margin-top:4px">${tenu ? 'Promesse tenue' : 'Promesse non tenue'}</span>`}
+        </div>`;
+    };
+
+    zone.innerHTML =
+      bloc('CT-01 — verdict de consultation', p.ct01_lookup, ms => `${ms} ms`) +
+      bloc("CT-02 — enregistrement d'un bien", p.ct02_registration, ms => `${Math.round(ms / 1000)} s`);
+  },
+
+  volumes(r) {
+    const zone = document.getElementById('volumes');
+    if (!zone) return;
+
+    const part = r.lookups_7d === 0 ? null : Math.round((r.unknown_lookups_7d / r.lookups_7d) * 100);
+
+    zone.innerHTML =
+      carte('Biens enregistrés actifs', r.active_assets, '', '#2B1D12') +
+      carte('Comptes', r.accounts, '', '#2B1D12') +
+      carte('Consultations · 7 j', r.lookups_7d, '', '#2B1D12') +
+      // Une part d'identifiants inconnus qui grimpe signale un balayage du
+      // registre, pas un afflux d'acheteurs.
+      carte('Dont sans correspondance', r.unknown_lookups_7d,
+        part === null ? '' : `${part} % des consultations`,
+        part !== null && part > 50 ? '#B23A3A' : '#2B1D12');
+
+    const statuts = document.getElementById('repartition-statuts');
+
+    if (statuts) {
+      statuts.innerHTML = `
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${r.by_status.map(s => `
+            <span style="display:inline-flex;align-items:center;gap:8px;background:#FFF6E8;border-radius:10px;padding:8px 14px;font-size:13px">
+              <strong>${txt(s.count)}</strong>
+              <span style="color:#5C4A33">${txt(s.label)}</span>
+            </span>`).join('')}
+        </div>`;
+    }
+  },
+
+  init() { this.charger(); },
+};
+
+/* ------------------------------------------------------------------ */
+/* Écran : Statistiques app                                            */
+/* ------------------------------------------------------------------ */
+
+const Stats = {
+  async charger() {
+    const zone = document.getElementById('parc');
+    if (!zone) return;
+
+    const jours = (document.getElementById('fenetre-stats') || {}).value || '30';
+
+    try {
+      const r = await Api.get('/api/v1/admin/app-stats?days=' + encodeURIComponent(jours));
+
+      const dormants = r.devices.total - r.devices.active_30d;
+
+      zone.innerHTML =
+        carte('Appareils annoncés', r.devices.total, '', '#2B1D12') +
+        // Un parc qui grossit pendant que la part active fond est une
+        // application qu'on installe et qu'on abandonne.
+        carte('Vus dans les 30 jours', r.devices.active_30d, '', '#3F8F5B') +
+        carte('Sans signe de vie', dormants, '', dormants > r.devices.active_30d ? '#B23A3A' : '#7A6A55') +
+        r.devices.by_platform.map(p =>
+          carte(p.platform === 'ios' ? 'iOS' : 'Android', p.total, `${p.active_30d} actifs`, '#2B1D12')).join('');
+
+      this.chaleur(r.heatmap);
+      this.sources(r.sources);
+      this.version(r.release);
+    } catch (e) {
+      zone.innerHTML = `<p style="color:#B23A3A;font-weight:700">${txt(e.message)}</p>`;
+    }
+  },
+
+  chaleur(h) {
+    const zone = document.getElementById('carte-chaleur');
+    if (!zone) return;
+
+    if (h.max === 0) {
+      zone.innerHTML = `<p style="padding:22px;background:#FFF6E8;border-radius:12px;font-size:14px;text-align:center">Aucune consultation sur la période.</p>`;
+      return;
+    }
+
+    const cellule = (n) => {
+      // Racine plutôt que proportion linéaire : sur une distribution où l'heure
+      // de pointe écrase tout, une échelle linéaire rendrait toutes les autres
+      // heures identiquement pâles et la carte ne dirait plus rien.
+      const intensite = n === 0 ? 0 : Math.sqrt(n / h.max);
+      const fond = n === 0 ? '#FFF6E8' : `rgba(217,119,6,${(0.15 + intensite * 0.85).toFixed(2)})`;
+
+      return `<td title="${txt(n)} consultation(s)" style="background:${fond};width:26px;height:22px;border:1px solid #EFE9DC"></td>`;
+    };
+
+    zone.innerHTML = `
+      <table style="border-collapse:collapse">
+        <thead><tr>
+          <th></th>
+          ${Array.from({ length: 24 }, (_, i) => `<th style="font-size:10px;font-weight:700;color:#7A6A55;padding-bottom:4px">${i % 3 === 0 ? i : ''}</th>`).join('')}
+        </tr></thead>
+        <tbody>${h.grid.map((ligne, i) => `
+          <tr>
+            <th style="text-align:right;padding-right:8px;font-size:11px;font-weight:700;color:#5C4A33;white-space:nowrap">${txt(h.days[i])}</th>
+            ${ligne.map(cellule).join('')}
+          </tr>`).join('')}</tbody>
+      </table>
+      <p style="font-size:12px;color:#7A6A55;margin-top:8px">Heures locales (${txt(h.timezone)}) · maximum observé : ${txt(h.max)} consultations sur une heure.</p>`;
+  },
+
+  sources(sources) {
+    const zone = document.getElementById('sources');
+    if (!zone) return;
+
+    const total = sources.reduce((s, x) => s + x.count, 0);
+
+    zone.innerHTML = sources.map(s =>
+      carte(s.label, s.count, total === 0 ? '' : `${Math.round((s.count / total) * 100)} % du total`, '#2B1D12')).join('');
+  },
+
+  version(release) {
+    const etat = document.getElementById('etat-version');
+    if (etat) etat.textContent = release.note;
+
+    const min = document.getElementById('vr-minimum');
+    const derniere = document.getElementById('vr-derniere');
+    if (min) min.value = release.minimum_version || '';
+    if (derniere) derniere.value = release.latest_version || '';
+  },
+
+  async appliquer(minimum) {
+    if (minimum !== '' && !window.confirm(
+      `Exiger la version ${minimum} ?\n\n` +
+      "Les applications antérieures ne pourront plus enregistrer, transférer ni réclamer. " +
+      "La consultation d'un identifiant leur restera ouverte.\n\n" +
+      "Ce changement est journalisé dans la chaîne d'audit."
+    )) return;
+
+    try {
+      const r = await Api.put('/api/v1/admin/app-release', {
+        minimum_version: minimum === '' ? null : minimum,
+        latest_version: ((document.getElementById('vr-derniere') || {}).value || '').trim() || null,
+      });
+
+      window.alert(r.message);
+      this.version(r.release);
+    } catch (e) {
+      window.alert(e.message);
+    }
+  },
+
+  init() {
+    const fenetre = document.getElementById('fenetre-stats');
+    if (fenetre) fenetre.addEventListener('change', () => this.charger());
+
+    const appliquer = document.getElementById('vr-appliquer');
+    if (appliquer) appliquer.addEventListener('click', () =>
+      this.appliquer(((document.getElementById('vr-minimum') || {}).value || '').trim()));
+
+    const lever = document.getElementById('vr-lever');
+    if (lever) lever.addEventListener('click', () => {
+      const champ = document.getElementById('vr-minimum');
+      if (champ) champ.value = '';
+      this.appliquer('');
+    });
+
+    this.charger();
+  },
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (document.getElementById('files-attente')) Ensemble.init();
+  if (document.getElementById('parc')) Stats.init();
+});
