@@ -16,5 +16,8 @@ export 'src/api/transport.dart';
 export 'src/identifiers.dart';
 export 'src/upload/upload_queue.dart';
 export 'src/models/catalog.dart';
+export 'src/models/evidence.dart';
 export 'src/models/lookup.dart';
+export 'src/models/owned_asset.dart';
+export 'src/models/transfer.dart';
 export 'src/version.dart';

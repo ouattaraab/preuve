@@ -128,6 +128,23 @@ it('n\'accepte aucune date d\'enregistrement soufflée par l\'API', function ():
     $champsAcceptes = ['category', 'attributes', 'client_elapsed_ms'];
     $controleur = file_get_contents(app_path('Http/Controllers/Api/V1/AssetController.php'));
 
-    expect($controleur)->not->toContain("'registered_at'")
+    // On surveille les lignes où la date VIENT DE LA REQUÊTE, et non toute
+    // mention du nom de colonne : depuis que ce contrôleur rend aussi
+    // l'inventaire du détenteur, il trie légitimement dessus. Interdire le mot
+    // partout aurait fini par se contourner en renommant une variable, ce qui
+    // n'aurait rien protégé du tout.
+    $lignesSuspectes = array_filter(
+        preg_split('/\R/', (string) $controleur) ?: [],
+        fn (string $ligne): bool => str_contains($ligne, 'registered_at')
+            && (str_contains($ligne, '$request') || str_contains($ligne, 'input(')),
+    );
+
+    expect($lignesSuspectes)->toBeEmpty()
         ->and($champsAcceptes)->not->toContain('registered_at');
+
+    // La date est posée par le service, à partir de l'horloge du serveur : le
+    // seul endroit où elle puisse l'être sans qu'un client ait son mot à dire.
+    expect(file_get_contents(app_path('Services/AssetRegistrationService.php')))
+        ->toContain('$registeredAt = now()')
+        ->toContain("'registered_at' => \$registeredAt");
 });

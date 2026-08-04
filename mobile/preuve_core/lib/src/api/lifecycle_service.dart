@@ -1,4 +1,6 @@
+import '../models/evidence.dart';
 import '../models/lookup.dart';
+import '../models/transfer.dart';
 import 'transport.dart';
 
 /// Cycle de vie d'un bien : vol, levée, fin de vie, transfert.
@@ -73,22 +75,54 @@ class TransferService {
 
   final PreuveTransport _api;
 
-  /// Propose un transfert. [code] est un code à usage unique de motif
-  /// `transfer` : céder la propriété d'un bien n'est pas un geste ordinaire.
-  Future<Map<String, Object?>> propose(
-    int assetId, {
-    required String recipientPhone,
-    required String code,
-  }) {
-    return _api.post('/assets/$assetId/transfer', body: <String, Object?>{
-      'recipient_phone': recipientPhone,
-      'code': code,
-    });
+  /// Les transferts qui me concernent, dans les deux sens.
+  ///
+  /// INDISPENSABLE À L'ACHETEUR : l'invitation qu'il reçoit est un code par
+  /// SMS — délibérément, pour ne pas payer deux messages — et ce code ne porte
+  /// aucun numéro de transfert. Sans cette liste, il n'a rien à confirmer.
+  Future<List<PendingTransfer>> mine() async {
+    final body = await _api.get('/transfers');
+    final brutes = body['transfers'];
+
+    return brutes is List
+        ? brutes
+            .whereType<Map<String, Object?>>()
+            .map(PendingTransfer.fromJson)
+            .toList(growable: false)
+        : const <PendingTransfer>[];
   }
 
-  Future<Map<String, Object?>> confirm(int transferId, String code) {
+  /// Propose un transfert vers un NUMÉRO, qui n'a pas forcément de compte.
+  ///
+  /// AUCUN CODE ICI : c'est le serveur qui en envoie un à l'acheteur, et le
+  /// vendeur confirmera ensuite de son côté par [confirm]. Réclamer un code
+  /// avant même d'avoir engagé le transfert obligerait le vendeur à en demander
+  /// un pour rien si l'acheteur refuse.
+  Future<PendingTransfer> propose(int assetId, {required String buyerPhone}) async {
+    final body = await _api.post('/assets/$assetId/transfer', body: <String, Object?>{
+      'buyer_phone': buyerPhone,
+    });
+
+    final transfert = body['transfer'];
+
+    return PendingTransfer.fromJson(
+      transfert is Map<String, Object?> ? transfert : const <String, Object?>{},
+    );
+  }
+
+  /// Confirme sa part du transfert.
+  ///
+  /// LE CAMP EST OBLIGATOIRE, et il vient du serveur (`role` dans [mine]) :
+  /// le deviner côté client ferait confirmer une vente à qui croyait accepter
+  /// un bien. Le serveur refuse la demande sans lui.
+  Future<Map<String, Object?>> confirm(
+    int transferId, {
+    required String code,
+    required TransferRole role,
+  }) {
     return _api.post('/transfers/$transferId/confirm', body: <String, Object?>{
       'code': code,
+      'role': role.wire,
     });
   }
 
@@ -113,29 +147,62 @@ class ClaimService {
 
   final PreuveTransport _api;
 
-  /// Ouvre un dossier sur un bien. Gratuit.
-  Future<Map<String, Object?>> open(int assetId, {required String reason}) {
-    return _api.post('/assets/$assetId/claims', body: <String, Object?>{
-      'reason': reason,
-    });
+  /// Ouvre un dossier depuis la RÉFÉRENCE PUBLIQUE du bien. Gratuit.
+  ///
+  /// C'EST LE SEUL CHEMIN D'UNE VICTIME. Elle ne connaît pas l'identifiant
+  /// interne du bien qu'on lui a pris — la consultation publique le tait, pour
+  /// qu'on ne puisse pas balayer le registre. La référence opaque, elle, figure
+  /// sur le verdict qu'elle vient de lire et dans le refus qu'elle reçoit en
+  /// tentant d'enregistrer un bien déjà pris.
+  ///
+  /// SANS MOTIF : ce n'est pas un oubli. La recevabilité s'apprécie sur les
+  /// PIÈCES, selon une grille pondérée ; un champ libre au dépôt n'y pèserait
+  /// rien et laisserait croire qu'une belle explication peut tenir lieu de
+  /// justificatif.
+  Future<Claim> openByReference(String publicRef) async {
+    return Claim.fromJson(await _api.post('/claims', body: <String, Object?>{
+      'public_ref': publicRef,
+    }));
+  }
+
+  /// Ouvre un dossier sur un bien dont on connaît l'identifiant interne.
+  ///
+  /// En pratique réservé au détenteur : personne d'autre ne dispose de cet
+  /// identifiant. [openByReference] est le chemin d'une victime.
+  Future<Claim> open(int assetId) async {
+    return Claim.fromJson(await _api.post('/assets/$assetId/claims'));
   }
 
   /// Verse une pièce au dossier. Gratuit.
+  ///
+  /// [file] est facultatif : certaines natures de preuve — l'ancienneté d'un
+  /// compte, une antériorité documentaire — se déclarent sans document joint.
   Future<Map<String, Object?>> addEvidence(
     int claimId, {
-    required String evidenceType,
-    required int documentId,
+    required EvidenceKind evidenceType,
+    MultipartFile? file,
+    String? documentDate,
   }) {
-    return _api.post('/claims/$claimId/evidences', body: <String, Object?>{
-      'evidence_type': evidenceType,
-      'document_id': documentId,
-    });
+    return _api.postMultipart(
+      '/claims/$claimId/evidences',
+      fields: <String, String>{
+        'evidence_type': evidenceType.wire,
+        if (documentDate != null && documentDate.isNotEmpty) 'document_date': documentDate,
+      },
+      file: file,
+    );
   }
 
   /// Dépose le dossier. C'est ICI que les frais peuvent être exigés (402).
-  Future<Map<String, Object?>> submit(int claimId) {
-    return _api.post('/claims/$claimId/submit');
+  ///
+  /// Le refus remonte en `PaymentRequired`, dont les `details` portent le
+  /// montant : router vers le paiement, jamais vers le formulaire — le dossier
+  /// n'a rien d'incorrect, il attend un règlement.
+  Future<Claim> submit(int claimId) async {
+    return Claim.fromJson(await _api.post('/claims/$claimId/submit'));
   }
 
-  Future<Map<String, Object?>> show(int claimId) => _api.get('/claims/$claimId');
+  Future<Claim> show(int claimId) async {
+    return Claim.fromJson(await _api.get('/claims/$claimId'));
+  }
 }

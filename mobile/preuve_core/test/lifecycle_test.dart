@@ -60,13 +60,68 @@ void main() {
         ..enfile(<String, Object?>{'message': 'Transfert confirmé.'});
 
       final service = TransferService(transport);
-      await service.propose(12, recipientPhone: '+2250101181686', code: '123456');
-      await service.confirm(5, '654321');
+      await service.propose(12, buyerPhone: '+2250101181686');
+      await service.confirm(5, code: '654321', role: TransferRole.buyer);
 
       expect(
         transport.appels,
         equals(<String>['POST /assets/12/transfer', 'POST /transfers/5/confirm']),
       );
+    });
+
+    test('nomme les champs comme le serveur les attend', () async {
+      // CE TEST EXISTE PARCE QUE L'ERREUR A ÉTÉ COMMISE. Le cœur envoyait
+      // `recipient_phone` là où le serveur valide `buyer_phone`, et un code
+      // dont l'initiation n'a que faire : le transfert échouait en 422 à chaque
+      // appel, sans qu'aucun test ne s'en aperçoive — le transport factice ne
+      // regardait que le chemin.
+      final transport = FakeTransport()
+        ..enfile(<String, Object?>{'transfer': <String, Object?>{'id': 5}});
+
+      await TransferService(transport).propose(12, buyerPhone: '+2250101181686');
+
+      expect(transport.dernierCorps, equals(<String, Object?>{
+        'buyer_phone': '+2250101181686',
+      }));
+    });
+
+    test('annonce toujours son camp au serveur', () async {
+      // Le serveur refuse une confirmation sans `role`, et pour cause : une
+      // erreur de camp ferait confirmer une vente à qui croyait accepter.
+      final transport = FakeTransport()..enfile(<String, Object?>{});
+
+      await TransferService(transport).confirm(5, code: '654321', role: TransferRole.seller);
+
+      expect(transport.dernierCorps, equals(<String, Object?>{
+        'code': '654321',
+        'role': 'seller',
+      }));
+    });
+
+    test('rend à chacun le camp que le SERVEUR lui donne', () async {
+      // Jamais déduit côté client : l'acheteur n'a aucun moyen de savoir, de
+      // lui-même, quel transfert lui est destiné.
+      final transport = FakeTransport()
+        ..enfile(<String, Object?>{
+          'transfers': <Object?>[
+            <String, Object?>{
+              'id': 5,
+              'status': 'initiated',
+              'status_label': 'En attente de confirmation',
+              'role': 'buyer',
+              'seller_confirmed': false,
+              'buyer_confirmed': false,
+              'expires_at': '2026-08-11T10:00:00+00:00',
+              'asset': <String, Object?>{'public_ref': 'PRV-2H4K9MNP', 'category': 'moto'},
+            },
+          ],
+        });
+
+      final attente = await TransferService(transport).mine();
+
+      expect(attente.single.role, equals(TransferRole.buyer));
+      expect(attente.single.awaitsMe, isTrue);
+      expect(transport.appels.single, equals('GET /transfers'));
     });
 
     test('s\'annule tant que l\'acheteur n\'a pas confirmé', () async {
@@ -85,12 +140,70 @@ void main() {
         ..enfile(<String, Object?>{'evidence': <String, Object?>{'id': 3}});
 
       final service = ClaimService(transport);
-      await service.open(12, reason: 'Ce véhicule est le mien depuis 2024.');
-      await service.addEvidence(9, evidenceType: 'invoice', documentId: 3);
+      await service.open(12);
+      await service.addEvidence(
+        9,
+        evidenceType: EvidenceKind.invoice,
+        file: const MultipartFile(
+          field: 'file',
+          filename: 'facture.jpg',
+          bytes: <int>[1, 2, 3],
+        ),
+      );
 
       // Aucun refus de paiement sur ces deux étapes : constituer un dossier
       // doit rester libre, y compris pour qui n'a pas la somme.
       expect(transport.appels.length, equals(2));
+    });
+
+    test('s\'ouvre par la référence publique, seul chemin d\'une victime', () async {
+      // Elle ne connaît pas l'identifiant interne du bien qu'on lui a pris : la
+      // consultation publique le tait, pour qu'on ne puisse pas balayer le
+      // registre.
+      final transport = FakeTransport()
+        ..enfile(<String, Object?>{
+          'claim': <String, Object?>{'id': 9, 'status': 'draft', 'status_label': 'Brouillon'},
+        });
+
+      final dossier = await ClaimService(transport).openByReference('PRV-2H4K9MNP');
+
+      expect(dossier.id, equals(9));
+      expect(transport.appels.single, equals('POST /claims'));
+      expect(transport.dernierCorps, equals(<String, Object?>{'public_ref': 'PRV-2H4K9MNP'}));
+    });
+
+    test('verse la pièce en multipart, comme le serveur l\'attend', () async {
+      // Le cœur envoyait un `document_id` en JSON : le serveur, lui, attend le
+      // FICHIER lui-même dans un formulaire. L'appel ne pouvait pas aboutir.
+      final transport = FakeTransport()..enfile(<String, Object?>{});
+
+      await ClaimService(transport).addEvidence(
+        9,
+        evidenceType: EvidenceKind.officialNamedDoc,
+        documentDate: '2024-03-12',
+        file: const MultipartFile(
+          field: 'file',
+          filename: 'carte-grise.jpg',
+          bytes: <int>[1, 2, 3],
+        ),
+      );
+
+      expect(transport.appels.single, equals('POST(multipart) /claims/9/evidences'));
+      expect(transport.dernierCorps, equals(<String, Object?>{
+        'evidence_type': 'official_named_doc',
+        'document_date': '2024-03-12',
+      }));
+      expect(transport.fichiersEnvoyes.single?.filename, equals('carte-grise.jpg'));
+    });
+
+    test('accepte une pièce sans fichier', () async {
+      // L'ancienneté d'un compte ou une antériorité documentaire se déclarent
+      // sans document joint : exiger un fichier fermerait ces natures de preuve.
+      final transport = FakeTransport()..enfile(<String, Object?>{});
+
+      await ClaimService(transport).addEvidence(9, evidenceType: EvidenceKind.accountHistory);
+
+      expect(transport.fichiersEnvoyes.single, isNull);
     });
 
     test('les frais sont exigés au DÉPÔT, pas avant', () async {

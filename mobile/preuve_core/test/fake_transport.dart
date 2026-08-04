@@ -19,7 +19,22 @@ class FakeTransport implements PreuveTransport {
 
   final List<int> offsetsEnvoyes = <int>[];
 
+  /// Corps réellement transmis, dans l'ordre.
+  ///
+  /// SANS LUI, TROIS APPELS ONT ÉTÉ ÉCRITS AVEC DE MAUVAIS NOMS DE CHAMPS et
+  /// leurs tests passaient : le transport factice ne regardait que le chemin.
+  /// Un harnais qui ne peut pas constater un contrat rompu ne prouve rien de ce
+  /// qu'il prétend prouver.
+  final List<Map<String, Object?>> corpsEnvoyes = <Map<String, Object?>>[];
+
+  /// Pièces jointes transmises, pour les envois `multipart`.
+  final List<MultipartFile?> fichiersEnvoyes = <MultipartFile?>[];
+
   String? token;
+
+  /// Dernier corps transmis, à défaut une carte vide.
+  Map<String, Object?> get dernierCorps =>
+      corpsEnvoyes.isEmpty ? const <String, Object?>{} : corpsEnvoyes.last;
 
   /// Empile une réponse (map) ou une exception à lever.
   void enfile(Object reponse) => _reponses.add(reponse);
@@ -53,16 +68,37 @@ class FakeTransport implements PreuveTransport {
       _prochaine('GET $path');
 
   @override
-  Future<Map<String, Object?>> post(String path, {Map<String, Object?>? body}) =>
-      _prochaine('POST $path');
+  Future<Map<String, Object?>> post(String path, {Map<String, Object?>? body}) {
+    corpsEnvoyes.add(body ?? const <String, Object?>{});
+
+    return _prochaine('POST $path');
+  }
 
   @override
-  Future<Map<String, Object?>> put(String path, {Map<String, Object?>? body}) =>
-      _prochaine('PUT $path');
+  Future<Map<String, Object?>> put(String path, {Map<String, Object?>? body}) {
+    corpsEnvoyes.add(body ?? const <String, Object?>{});
+
+    return _prochaine('PUT $path');
+  }
 
   @override
-  Future<Map<String, Object?>> delete(String path, {Map<String, Object?>? body}) =>
-      _prochaine('DELETE $path');
+  Future<Map<String, Object?>> delete(String path, {Map<String, Object?>? body}) {
+    corpsEnvoyes.add(body ?? const <String, Object?>{});
+
+    return _prochaine('DELETE $path');
+  }
+
+  @override
+  Future<Map<String, Object?>> postMultipart(
+    String path, {
+    required Map<String, String> fields,
+    MultipartFile? file,
+  }) {
+    corpsEnvoyes.add(Map<String, Object?>.from(fields));
+    fichiersEnvoyes.add(file);
+
+    return _prochaine('POST(multipart) $path');
+  }
 
   @override
   Future<Map<String, Object?>> patchBytes(

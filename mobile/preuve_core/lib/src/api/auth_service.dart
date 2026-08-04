@@ -76,6 +76,28 @@ class AuthService {
     return true;
   }
 
+  /// Le compte derrière le jeton.
+  ///
+  /// INDISPENSABLE APRÈS UNE RESTAURATION : le jeton seul ne dit pas à quel
+  /// numéro demander un code, et déclarer un vol, céder ou réclamer en exigent
+  /// tous un. Sans cet appel, une session restaurée pourrait tout lire et
+  /// n'agir sur rien.
+  ///
+  /// UN JETON RÉVOQUÉ EFFACE LE COFFRE. Une suspension de compte ou une
+  /// rétrogradation de rôle révoque les jetons : garder celui-ci ferait
+  /// échouer chaque écran l'un après l'autre, sans jamais proposer de se
+  /// reconnecter.
+  Future<Account> me() async {
+    try {
+      return Account.fromJson(await _api.get('/auth/me'));
+    } on NotAuthenticated {
+      await _store.clear();
+      _api.setToken(null);
+
+      rethrow;
+    }
+  }
+
   /// Demande un code.
   ///
   /// LA RÉPONSE DU SERVEUR EST INVARIABLE, que le numéro soit connu ou non :

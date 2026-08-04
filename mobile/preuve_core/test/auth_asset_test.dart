@@ -83,6 +83,36 @@ void main() {
       expect(transport.isAuthenticated, isTrue);
     });
 
+    test('retrouve le compte derrière un jeton restauré', () async {
+      // Le jeton seul ne dit pas à quel numéro demander un code : sans cet
+      // appel, une session restaurée pourrait tout lire et n'agir sur rien.
+      final transport = FakeTransport()
+        ..enfile(<String, Object?>{'id': 7, 'phone': '+2250101181686'});
+      final coffre = MemoryStore().._token = 'jeton-persistant';
+
+      final compte = await AuthService(transport, coffre).me();
+
+      expect(compte.phone, equals('+2250101181686'));
+      expect(transport.appels.single, equals('GET /auth/me'));
+    });
+
+    test('vide le coffre quand le jeton a été révoqué', () async {
+      // Une suspension de compte révoque les jetons : le garder ferait échouer
+      // chaque écran l'un après l'autre, sans jamais proposer de se reconnecter.
+      final transport = FakeTransport()
+        ..enfile(const NotAuthenticated('Session expirée.'));
+      final coffre = MemoryStore().._token = 'jeton-revoque';
+      transport.setToken('jeton-revoque');
+
+      await expectLater(
+        AuthService(transport, coffre).me(),
+        throwsA(isA<NotAuthenticated>()),
+      );
+
+      expect(await coffre.read(), isNull);
+      expect(transport.token, isNull);
+    });
+
     test('transporte le motif du code, qui n\'est pas décoratif', () async {
       // Un code demandé pour se connecter ne doit pas pouvoir autoriser un
       // transfert de propriété : le serveur le vérifie, encore faut-il le lui

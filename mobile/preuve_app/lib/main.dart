@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:preuve_core/preuve_core.dart';
 
+import 'data/secure_token_store.dart';
+import 'data/session.dart';
 import 'screens/lookup_screen.dart';
 import 'ui/theme.dart';
 
@@ -13,10 +17,24 @@ const String versionInstallee = '0.1.0';
 
 const String baseApi = 'https://preuve.click/api/v1';
 
-void main() {
-  final api = PreuveApi(baseUrl: baseApi, appVersion: versionInstallee);
+Future<void> main() async {
+  // Requis avant tout accès au trousseau : le pont natif ne répond pas tant
+  // que la liaison Flutter n'est pas établie.
+  WidgetsFlutterBinding.ensureInitialized();
 
-  runApp(PreuveApp(lookups: LookupService(api)));
+  final session = PreuveSession.pour(
+    PreuveApi(baseUrl: baseApi, appVersion: versionInstallee),
+    const SecureTokenStore(),
+  );
+
+  // LA REPRISE DE SESSION NE RETARDE PAS L'AFFICHAGE, et ne peut pas
+  // l'empêcher. Elle joint le serveur ; l'écran d'accueil, lui, n'a besoin de
+  // rien. Attendre sa réponse ferait fixer un écran blanc à quelqu'un qui veut
+  // seulement vérifier une moto au marché — dans un réseau 3G, plusieurs
+  // secondes (CT-05).
+  unawaited(session.reprendre());
+
+  runApp(PreuveApp(session: session));
 }
 
 /// L'APPLICATION OUVRE SUR LA CONSULTATION, jamais sur une connexion.
@@ -26,9 +44,9 @@ void main() {
 /// précéder cet écran d'un accueil, d'un tutoriel ou d'une invitation à
 /// s'inscrire ajouterait la friction que CT-06 réserve aux gestes risqués.
 class PreuveApp extends StatelessWidget {
-  const PreuveApp({required this.lookups, super.key});
+  const PreuveApp({required this.session, super.key});
 
-  final LookupService lookups;
+  final PreuveSession session;
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +54,7 @@ class PreuveApp extends StatelessWidget {
       title: 'Preuve',
       debugShowCheckedModeBanner: false,
       theme: Djassa.build(),
-      home: LookupScreen(lookups: lookups),
+      home: LookupScreen(session: session),
     );
   }
 }

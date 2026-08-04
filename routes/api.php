@@ -102,6 +102,11 @@ Route::prefix('v1')->group(function (): void {
     // et cède la première pendant une maintenance en lecture seule (ST-0904) :
     // enregistrer peut attendre une heure, vérifier un bien avant de payer non.
     Route::middleware(['auth:sanctum', EnsurePlatformIsWritable::class, EnsureAppIsSupported::class])->group(function (): void {
+        // Inventaire du porteur du jeton. Sans lui, aucune action n'est
+        // atteignable depuis un client : vol, transfert et réclamation passent
+        // tous par `/assets/{id}/…`, et un particulier n'avait aucun moyen de
+        // connaître l'identifiant interne de ses propres biens.
+        Route::get('assets', [AssetController::class, 'index']);
         Route::post('assets', [AssetController::class, 'store']);
 
         // Pré-remplissage par scan (ST-0202). Le plafond borne la dépense chez
@@ -138,12 +143,20 @@ Route::prefix('v1')->group(function (): void {
         Route::post('assets/{asset}/end-of-life', [AssetLifecycleController::class, 'declareEndOfLife']);
 
         // Transferts de propriété à double validation (ST-0601 à ST-0603).
+        // L'invitation de l'acheteur est un code par SMS, qui ne porte aucun
+        // numéro de transfert : sans cette liste, sa confirmation était
+        // inatteignable et le parcours s'arrêtait là.
+        Route::get('transfers', [TransferController::class, 'index']);
         Route::post('assets/{asset}/transfer', [TransferController::class, 'store']);
         Route::post('transfers/{transfer}/confirm', [TransferController::class, 'confirm']);
         Route::delete('transfers/{transfer}', [TransferController::class, 'destroy']);
 
         // Réclamation : seul recours d'une victime dont le bien a été
         // enregistré par un tiers (EP-05).
+        // Par la RÉFÉRENCE PUBLIQUE : c'est le seul chemin qu'une victime
+        // puisse emprunter. Réclamer suppose de désigner le bien d'un autre, et
+        // l'identifiant interne de ce bien n'est communiqué à personne.
+        Route::post('claims', [ClaimController::class, 'storeByReference']);
         Route::post('assets/{asset}/claims', [ClaimController::class, 'store']);
         Route::post('claims/{claim}/evidences', [ClaimController::class, 'addEvidence']);
         Route::post('claims/{claim}/submit', [ClaimController::class, 'submit']);

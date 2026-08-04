@@ -383,10 +383,83 @@ courte.
   serveur ne répond pas — on se déconnecte souvent parce qu'on prête son
   téléphone.
 
-**Reste au mobile** : les ÉCRANS de connexion, d'enregistrement et de suivi des
-envois ; puis vol, transfert, réclamation. Et **déposer les polices DJASSA** sous
-`assets/fonts/` — non déclarées pour l'instant, car déclarer une police sans son
-fichier fait échouer la construction.
+## Trois trous d'API découverts en écrivant les écrans (04/08/2026)
+
+Le cœur mobile lot 3 avait été écrit contre `docs/api/integration-client.md`,
+qui donnait les CHEMINS sans les CORPS. En branchant les écrans, trois parcours
+se sont révélés inatteignables — non pas mal implémentés, mais **sans porte
+d'entrée**. Tous corrigés, tous verrouillés par test.
+
+1. **`GET /api/v1/assets` n'existait pas.** Un particulier n'avait aucun moyen
+   de connaître l'identifiant interne de ses propres biens ; or vol, transfert
+   et réclamation passent tous par `/assets/{id}/…`. La flotte avait son tableau
+   de bord, le particulier n'avait rien. Nouvelle route + `OwnedAssetResource` —
+   qui rend le numéro complet et l'`id`, ce que la vue publique tait. **Ce n'est
+   pas un assouplissement de la règle n° 4** : elle protège l'identité du
+   détenteur contre les TIERS, elle n'a jamais interdit à quelqu'un de relire ce
+   qu'il a saisi. Aucune identité n'y figure malgré tout.
+2. **`GET /api/v1/transfers` n'existait pas.** L'invitation de l'acheteur est un
+   code par SMS, qui ne porte aucun numéro de transfert : il n'avait rien à
+   confirmer, et tout transfert expirait de lui-même. La liste rend aussi le
+   `role`, calculé côté serveur — le deviner ferait confirmer une vente à qui
+   croyait accepter. Le bien y est rendu en vue **publique même pour le
+   vendeur** : un transfert part vers un numéro saisi à la main.
+3. **`POST /api/v1/claims` (par `public_ref`) n'existait pas.** Réclamer suppose
+   de désigner le bien d'un AUTRE, dont l'identifiant interne n'est communiqué à
+   personne. Le recours de l'EP-05 existait en base et nulle part ailleurs. Pire,
+   le refus 409 annonçait `claim_url = /api/v1/claims?public_ref=…`, **un GET qui
+   n'a jamais été servi** : un client qui l'aurait suivi menait la victime vers
+   un 404, au moment précis où on lui apprend que son bien est au nom d'un autre.
+
+**Trois contrats du cœur mobile étaient faux et leurs tests passaient** :
+`recipient_phone` au lieu de `buyer_phone`, `role` absent à la confirmation,
+`document_id` en JSON là où le serveur attend un `multipart` avec le fichier.
+Cause racine : `FakeTransport` n'enregistrait que le CHEMIN, jamais le CORPS. Il
+enregistre désormais les deux, et trois tests verrouillent les noms de champs.
+**Un harnais qui ne peut pas constater un contrat rompu ne prouve rien.**
+
+Les natures de preuve sont passées de chaînes libres à `EvidenceKind` dans le
+cœur — deux des quatre valeurs employées étaient inventées. Figer cette liste
+n'est pas contradictoire avec la configuration distante des catégories : une
+catégorie est une donnée d'exploitation, cette liste EST la grille d'arbitrage.
+
+## Mode lecture seule : les lectures passent désormais (04/08/2026)
+
+`EnsurePlatformIsWritable` bloquait TOUT son groupe, GET compris — inventaire,
+quota, notifications, dossier de réclamation. « Lecture seule » doit vouloir dire
+ce que son nom annonce : aucune de ces requêtes n'écrit, et les refuser
+transformait une indisponibilité partielle en panne apparente. Aligné sur
+`EnsureAppIsSupported::isMethodSafe`.
+
+## Écrans mobiles livrés (04/08/2026)
+
+Consultation (déjà là) · connexion · **inventaire · enregistrement piloté par le
+catalogue · vol et levée · fin de vie · transfert (proposer, confirmer des deux
+côtés, annuler) · réclamation (ouvrir, annoncer ses pièces, déposer)**.
+
+- L'application **ouvre toujours sur la consultation**, et la reprise de session
+  ne retarde ni ne bloque l'affichage : quelqu'un qui vérifie une moto au marché
+  n'attend pas le réseau.
+- La connexion n'est demandée **qu'au moment où elle sert** (CT-06) : au clic sur
+  « Mes biens », ou sur « Contester cet enregistrement » — jamais avant un
+  verdict.
+- « Déclarer volé » est **le premier bouton de la fiche**, en rouge, jamais dans
+  un menu.
+- Les actions impossibles sont **absentes et expliquées**, pas grisées : un bien
+  gelé refuserait le geste, et le refus paraîtrait arbitraire.
+- Les frais de dossier ne sont **jamais écrits dans l'application** : ils se
+  lisent dans le refus 402, parce qu'un administrateur peut les mettre à zéro.
+
+**⚠️ TOUJOURS PAS COMPILÉ** : le SDK Flutter n'est pas installé, et `preuve_app`
+n'a même jamais reçu un `pub get` — aucune analyse statique n'est possible sur
+ces écrans. `preuve_core`, lui, reste vérifié (65 tests, `dart analyze` propre).
+
+**Reste au mobile** : le suivi des envois différés côté écran (la file existe
+dans le cœur, ST-0206), le **sélecteur de fichiers** pour joindre une pièce à une
+réclamation (l'écran annonce la nature de preuve, le document ne se joint pas
+encore), le scan de carte grise, et le centre de notifications. Et **déposer les
+polices DJASSA** sous `assets/fonts/` — non déclarées pour l'instant, car
+déclarer une police sans son fichier fait échouer la construction.
 
 ## Documentation écrite (04/08/2026)
 

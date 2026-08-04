@@ -157,7 +157,7 @@ rien dire.
 | Réponse | À faire |
 |---|---|
 | `201` | Le corps porte `asset` et `quota` — afficher ce qu'il reste avant d'être arrêté, plutôt que de le laisser découvrir au refus. |
-| `409` | **Cet identifiant est déjà enregistré par quelqu'un d'autre.** Le corps porte la fiche publique existante et `claim_url`. Ne jamais réessayer : la seule issue est le parcours de réclamation. |
+| `409` | **Cet identifiant est déjà enregistré par quelqu'un d'autre.** Le corps porte la fiche publique existante, `claim_url` et `claim_public_ref`. Ne jamais réessayer : la seule issue est le parcours de réclamation (§8). |
 | `402` | Quota épuisé. Le corps porte l'état du quota et le prix de la place suivante. Router vers le paiement. |
 | `422` | Champ manquant ou identifiant invalide (chiffre de contrôle VIN ou IMEI). |
 
@@ -224,6 +224,26 @@ envoi de la file locale. `received_bytes` dit où reprendre ; `status` dit si la
 pièce est constituée. L'empreinte et le type MIME sont vérifiés **à l'assemblage**
 — un envoi en morceaux contourne toute validation faite sur un fichier unique.
 
+## 5 bis. Retrouver ses biens — le point d'entrée de TOUTE action
+
+```http
+GET /assets            → inventaire du porteur du jeton (paginé, 25/page)
+```
+
+**À appeler avant tout autre parcours d'écriture.** Déclarer un vol, céder ou
+réclamer passent par `/assets/{id}/…`, et l'identifiant interne d'un bien n'est
+rendu QUE par cette route. La consultation publique le tait délibérément : le
+publier permettrait de constituer par balayage l'annuaire des biens enregistrés.
+
+Chaque ligne porte `id` (pour agir), `identifier` (le numéro complet — c'est
+celui de la personne qui le lit), `public_ref` (la seule forme partageable),
+`life_status` / `trust_level` avec leur libellé et leur couleur, et
+`attributes`. Le corps porte aussi `quota` : l'afficher AVANT le formulaire,
+plutôt que de laisser découvrir le refus après quatre-vingt-dix secondes.
+
+Les enregistrements archivés en sont exclus, et les biens qui alarment — volé,
+litige — remontent en tête.
+
 ## 6. Déclarer un vol — en un geste
 
 ```http
@@ -241,10 +261,28 @@ reste consigné dans l'historique : une levée n'efface pas ce qui a eu lieu.
 ## 7. Transférer la propriété
 
 ```http
-POST /assets/{asset}/transfer      → crée le transfert (vendeur)
-POST /transfers/{transfer}/confirm → l'acheteur confirme
+GET  /transfers                    → ceux qui me concernent, dans les deux sens
+POST /assets/{asset}/transfer      {"buyer_phone": "+225…"}
+POST /transfers/{transfer}/confirm {"code": "…", "role": "seller"|"buyer"}
 DELETE /transfers/{transfer}       → annulation par le vendeur
 ```
+
+**`GET /transfers` n'est pas un confort, c'est la seule porte de l'acheteur.**
+Son invitation est un code reçu par SMS — délibérément, pour ne pas payer deux
+messages — et ce code ne porte AUCUN numéro de transfert. Sans cette liste, il
+n'a rien à confirmer et le transfert expire tout seul.
+
+**`role` est obligatoire à la confirmation, et il vient du serveur** (champ
+`role` de `GET /transfers`). Ne jamais le déduire côté client : une erreur de
+camp ferait confirmer une vente à quelqu'un qui croyait accepter un bien.
+
+**L'initiation ne prend AUCUN code.** C'est le serveur qui en envoie un à
+l'acheteur ; le vendeur confirme ensuite sa part par la même route, avec
+`role: seller`.
+
+Les transferts rendus portent la vue **publique** du bien — donc pas son numéro
+complet, même pour le vendeur : un transfert part vers un numéro saisi à la
+main, et un chiffre de travers enverrait la fiche d'un véhicule à un inconnu.
 
 Double validation, et le transfert **expire** s'il n'est pas confirmé. Après
 transfert, le bien repart au niveau de fiabilité le plus bas : les justificatifs
@@ -254,10 +292,30 @@ dire, sans quoi la baisse de jauge passera pour un défaut.
 ## 8. Réclamer un bien enregistré par un tiers
 
 ```http
-POST /assets/{asset}/claims        → ouvre le dossier
-POST /claims/{claim}/evidences     → verse des pièces
+POST /claims                       {"public_ref": "PRV-XXXXXXXX"}   ← le chemin d'une victime
+POST /claims/{claim}/evidences     multipart : evidence_type, file?, document_date?
 POST /claims/{claim}/submit        → dépose (gèle le bien)
+GET  /claims/{claim}               → suivi du dossier
 ```
+
+**Toujours ouvrir par `public_ref`.** Réclamer suppose de désigner le bien d'un
+AUTRE, et cet autre n'a évidemment pas communiqué son identifiant interne. La
+référence opaque, elle, s'obtient légitimement : elle figure sur le verdict
+qu'on vient de lire et dans le refus `409` reçu en tentant d'enregistrer un bien
+déjà pris. (`POST /assets/{id}/claims` subsiste, mais son identifiant n'est
+connu que du détenteur — à qui la réclamation ne sert à rien.)
+
+**Les pièces se versent en `multipart/form-data`, pas en JSON**, et `file` est
+facultatif : l'antériorité documentaire et l'ancienneté du compte se déclarent
+sans document joint. Les valeurs de `evidence_type` sont celles de la grille
+d'arbitrage : `official_named_doc` (40), `police_report` (25), `invoice` (15),
+`anteriority` (10), `account_history` (5), `photo_context` (5). Les deux
+premières suffisent à rendre le dossier recevable.
+
+⚠️ Une pièce lourde part **d'un seul tenant, sans reprise** — contrairement à
+tout le reste des envois (§5). Sur une 3G de bord de route, une coupure à 90 %
+oblige à tout renvoyer. À corriger côté serveur le jour où les dossiers
+porteront des pièces volumineuses.
 
 Ouvrir et verser des pièces sont **libres**. C'est `submit` qui peut rendre
 `402` : les frais de dossier sont dus au dépôt, parce que c'est là que le bien

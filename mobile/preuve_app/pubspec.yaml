@@ -18,6 +18,12 @@ dependencies:
   # Le cœur métier, en Dart pur : il s'analyse et se teste sans appareil.
   preuve_core:
     path: ../preuve_core
+  # Trousseau iOS et Keystore Android. LA SEULE DÉPENDANCE TIERCE DE
+  # L'APPLICATION, et elle se justifie : écrire soi-même le pont vers ces
+  # coffres serait plus risqué que de dépendre d'un paquet éprouvé. Le jeton de
+  # session ouvre l'accès aux biens d'une personne — il n'a rien à faire dans un
+  # fichier de préférences en clair.
+  flutter_secure_storage: ^9.2.2
 
 dev_dependencies:
   flutter_test:

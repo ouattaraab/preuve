@@ -37,8 +37,45 @@ abstract interface class PreuveTransport {
     required int offset,
   });
 
+  /// Envoi d'un formulaire avec pièce jointe, en un seul appel.
+  ///
+  /// EXISTE PARCE QUE LE SERVEUR L'EXIGE, et non parce que c'est le bon moyen
+  /// de transporter huit mégaoctets sur une 3G de bord de route : les pièces
+  /// d'une réclamation sont attendues en `multipart`, sans reprise possible.
+  /// Tout le reste des envois passe par `UploadQueue`, qui reprend là où la
+  /// coupure a eu lieu (ST-0206, CT-05) ; une pièce de réclamation coupée à
+  /// 90 % est à renvoyer depuis le début. À corriger côté serveur le jour où
+  /// les dossiers porteront des pièces lourdes.
+  Future<Map<String, Object?>> postMultipart(
+    String path, {
+    required Map<String, String> fields,
+    MultipartFile? file,
+  });
+
   /// Jeton de session, ou `null` pour le retirer.
   void setToken(String? token);
 
   bool get isAuthenticated;
+}
+
+/// Une pièce jointe, déjà lue en mémoire.
+///
+/// LES OCTETS SONT FOURNIS, JAMAIS UN CHEMIN. Ce paquet ne connaît pas de
+/// système de fichiers — c'est ce qui permet de l'éprouver entièrement dans une
+/// console, sans appareil — et c'est la même discipline que `UploadQueue`, qui
+/// se fait injecter sa lecture.
+class MultipartFile {
+  const MultipartFile({
+    required this.field,
+    required this.filename,
+    required this.bytes,
+    this.contentType = 'application/octet-stream',
+  });
+
+  /// Nom du champ attendu par le serveur (« file »).
+  final String field;
+
+  final String filename;
+  final List<int> bytes;
+  final String contentType;
 }

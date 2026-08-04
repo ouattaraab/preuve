@@ -1,5 +1,6 @@
 import '../models/catalog.dart';
 import '../models/lookup.dart';
+import '../models/owned_asset.dart';
 import 'exceptions.dart';
 import 'transport.dart';
 
@@ -30,6 +31,47 @@ class AssetService {
     }
 
     return CategoryCatalog.fromJson(body);
+  }
+
+  /// Inventaire du porteur du jeton — et de lui seul.
+  ///
+  /// C'EST LE POINT D'ENTRÉE DE TOUTE ACTION. Déclarer un vol, céder ou
+  /// réclamer passent par `/assets/{id}/…`, et seul cet appel rend
+  /// l'identifiant interne des biens qu'on détient. Sans lui, l'application ne
+  /// sait rien enregistrer d'autre que le premier bien de la session.
+  Future<Inventory> mine({int page = 1}) async {
+    final body = await _api.get(
+      '/assets',
+      query: page > 1 ? <String, String>{'page': page.toString()} : null,
+    );
+
+    final brutes = body['assets'];
+    final pagination = body['pagination'];
+
+    return Inventory(
+      assets: brutes is List
+          ? brutes
+              .whereType<Map<String, Object?>>()
+              .map(OwnedAsset.fromJson)
+              .toList(growable: false)
+          : const <OwnedAsset>[],
+      page: _int(pagination, 'page', 1),
+      lastPage: _int(pagination, 'last_page', 1),
+      total: _int(pagination, 'total', 0),
+      quota: body['quota'] is Map<String, Object?>
+          ? body['quota']! as Map<String, Object?>
+          : null,
+    );
+  }
+
+  static int _int(Object? pagination, String key, int defaut) {
+    if (pagination is! Map<String, Object?>) {
+      return defaut;
+    }
+
+    final valeur = pagination[key];
+
+    return valeur is int ? valeur : defaut;
   }
 
   /// Enregistre un bien.
@@ -71,6 +113,29 @@ class AssetService {
       rethrow;
     }
   }
+}
+
+/// Une page de l'inventaire, et ce qu'il reste au quota.
+class Inventory {
+  const Inventory({
+    required this.assets,
+    required this.page,
+    required this.lastPage,
+    required this.total,
+    this.quota,
+  });
+
+  final List<OwnedAsset> assets;
+  final int page;
+  final int lastPage;
+  final int total;
+
+  /// Rendu avec l'inventaire : l'utilisateur voit ce qu'il lui reste AVANT
+  /// d'ouvrir un formulaire, plutôt que de l'apprendre au refus après
+  /// quatre-vingt-dix secondes de saisie.
+  final Map<String, Object?>? quota;
+
+  bool get hasMore => page < lastPage;
 }
 
 /// Un bien qui vient d'être enregistré, et ce qu'il reste au quota.

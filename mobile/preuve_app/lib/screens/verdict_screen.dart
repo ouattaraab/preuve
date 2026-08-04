@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:preuve_core/preuve_core.dart';
 
+import '../data/session.dart';
 import '../ui/theme.dart';
+import 'claim_screen.dart';
+import 'login_screen.dart';
 
 /// Le verdict, plein écran.
 ///
@@ -14,10 +17,48 @@ import '../ui/theme.dart';
 /// bon ni un mauvais signe : l'afficher en vert ferait acheter un bien volé que
 /// personne n'a déclaré. Il a donc sa propre couleur et son propre mot.
 class VerdictScreen extends StatelessWidget {
-  const VerdictScreen({required this.resultat, required this.saisie, super.key});
+  const VerdictScreen({
+    required this.resultat,
+    required this.saisie,
+    required this.session,
+    super.key,
+  });
 
   final LookupResult resultat;
   final String saisie;
+  final PreuveSession session;
+
+  /// Ouvre le parcours de réclamation sur le bien affiché.
+  ///
+  /// LA CONNEXION N'EST DEMANDÉE QU'AU DERNIER MOMENT (CT-06) : lire un verdict
+  /// reste anonyme, y compris quand il annonce à quelqu'un que son propre bien
+  /// est enregistré au nom d'un autre. C'est le dossier qui exige un compte,
+  /// parce qu'il faudra pouvoir en répondre.
+  Future<void> _reclamer(BuildContext context, String publicRef) async {
+    if (!session.estConnecte) {
+      final compte = await Navigator.of(context).push<Account>(
+        MaterialPageRoute<Account>(
+          builder: (_) => LoginScreen(auth: session.auth),
+        ),
+      );
+
+      if (compte == null) {
+        return;
+      }
+
+      session.compte = compte;
+    }
+
+    if (!context.mounted) {
+      return;
+    }
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ClaimScreen(session: session, publicRef: publicRef),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -151,6 +192,34 @@ class VerdictScreen extends StatelessWidget {
         ),
         icon: const Icon(Icons.link),
         label: const Text('Copier le lien de cette fiche'),
+      ),
+      const SizedBox(height: 26),
+      const Divider(color: Djassa.encre, thickness: 3),
+      const SizedBox(height: 16),
+      const Text(
+        'Ce bien est le tien ?',
+        style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800),
+      ),
+      const SizedBox(height: 8),
+      // LE SEUL RECOURS D'UNE VICTIME PART D'ICI. C'est en vérifiant son propre
+      // numéro qu'on découvre qu'un tiers l'a enregistré ; ne pas offrir la
+      // suite à cet endroit reviendrait à annoncer le problème et à refermer la
+      // page.
+      const Text(
+        'Si quelqu\'un a enregistré un bien qui t\'appartient, tu peux le contester. '
+        'Un agent examinera les pièces des deux côtés.',
+        style: TextStyle(color: Djassa.sourdine, height: 1.5),
+      ),
+      const SizedBox(height: 12),
+      OutlinedButton(
+        onPressed: () => _reclamer(context, bien.publicRef),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size.fromHeight(Djassa.cible),
+          side: const BorderSide(color: Djassa.encre, width: 3),
+          foregroundColor: Djassa.encre,
+          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        ),
+        child: const Text('Contester cet enregistrement'),
       ),
     ];
   }

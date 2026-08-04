@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:preuve_core/preuve_core.dart';
 
+import '../data/session.dart';
 import '../ui/theme.dart';
+import 'login_screen.dart';
+import 'my_assets_screen.dart';
 import 'verdict_screen.dart';
 
 /// Écran d'accueil : un champ, un bouton.
@@ -16,9 +19,9 @@ import 'verdict_screen.dart';
 /// centième (règle métier absolue n° 1). Toute condition ajoutée à cet écran
 /// trahirait la promesse du produit.
 class LookupScreen extends StatefulWidget {
-  const LookupScreen({required this.lookups, super.key});
+  const LookupScreen({required this.session, super.key});
 
-  final LookupService lookups;
+  final PreuveSession session;
 
   @override
   State<LookupScreen> createState() => _LookupScreenState();
@@ -54,7 +57,7 @@ class _LookupScreenState extends State<LookupScreen> {
     });
 
     try {
-      final resultat = await widget.lookups.check(saisie);
+      final resultat = await widget.session.lookups.check(saisie);
 
       if (!mounted) {
         return;
@@ -62,7 +65,11 @@ class _LookupScreenState extends State<LookupScreen> {
 
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
-          builder: (_) => VerdictScreen(resultat: resultat, saisie: saisie),
+          builder: (_) => VerdictScreen(
+            resultat: resultat,
+            saisie: saisie,
+            session: widget.session,
+          ),
         ),
       );
     } on PreuveException catch (e) {
@@ -92,12 +99,63 @@ class _LookupScreenState extends State<LookupScreen> {
     };
   }
 
+  /// Ouvre « Mes biens », en passant par la connexion si nécessaire.
+  ///
+  /// LA CONNEXION N'EST DEMANDÉE QU'ICI, au moment où elle sert à quelque chose
+  /// (CT-06). La placer devant la consultation trahirait la promesse du
+  /// produit : vérifier un bien ne demande rien, ni compte, ni trace.
+  Future<void> _ouvrirMesBiens() async {
+    final session = widget.session;
+
+    if (!session.estConnecte) {
+      final compte = await Navigator.of(context).push<Account>(
+        MaterialPageRoute<Account>(
+          builder: (_) => LoginScreen(auth: session.auth),
+        ),
+      );
+
+      if (compte == null) {
+        return;
+      }
+
+      session.compte = compte;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => MyAssetsScreen(session: session)),
+    );
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Djassa.creme,
+        surfaceTintColor: Djassa.creme,
+        elevation: 0,
+        // Volontairement DISCRET, et sans compteur ni badge : cet écran
+        // appartient à qui vérifie un bien, pas à qui possède un compte.
+        actions: <Widget>[
+          TextButton(
+            onPressed: _ouvrirMesBiens,
+            child: Text(
+              widget.session.estConnecte ? 'Mes biens' : 'J\'ai un bien',
+              style: const TextStyle(fontWeight: FontWeight.w800, color: Djassa.encre),
+            ),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 40),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[

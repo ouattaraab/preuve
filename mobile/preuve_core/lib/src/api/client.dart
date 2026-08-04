@@ -102,6 +102,52 @@ class PreuveApi implements PreuveTransport {
     );
   }
 
+  /// Formulaire avec pièce jointe (pièces d'une réclamation).
+  ///
+  /// La frontière est tirée à la main plutôt qu'empruntée à une bibliothèque :
+  /// une dépendance de plus dans une application qui transporte des pièces
+  /// d'identité coûte plus cher que trente lignes lisibles. Elle est tirée du
+  /// compteur d'appels et non du hasard, pour rester reproductible en test.
+  @override
+  Future<Map<String, Object?>> postMultipart(
+    String path, {
+    required Map<String, String> fields,
+    MultipartFile? file,
+  }) {
+    final frontiere = '----preuve${DateTime.now().microsecondsSinceEpoch}';
+    final corps = <int>[];
+
+    fields.forEach((cle, valeur) {
+      corps
+        ..addAll(utf8.encode('--$frontiere\r\n'))
+        ..addAll(utf8.encode('Content-Disposition: form-data; name="$cle"\r\n\r\n'))
+        ..addAll(utf8.encode('$valeur\r\n'));
+    });
+
+    if (file != null) {
+      corps
+        ..addAll(utf8.encode('--$frontiere\r\n'))
+        ..addAll(utf8.encode(
+          'Content-Disposition: form-data; name="${file.field}"; '
+          'filename="${file.filename}"\r\n',
+        ))
+        ..addAll(utf8.encode('Content-Type: ${file.contentType}\r\n\r\n'))
+        ..addAll(file.bytes)
+        ..addAll(utf8.encode('\r\n'));
+    }
+
+    corps.addAll(utf8.encode('--$frontiere--\r\n'));
+
+    return _send(
+      'POST',
+      path,
+      rawBody: corps,
+      headers: <String, String>{
+        HttpHeaders.contentTypeHeader: 'multipart/form-data; boundary=$frontiere',
+      },
+    );
+  }
+
   Future<Map<String, Object?>> _send(
     String method,
     String path, {

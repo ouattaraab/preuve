@@ -30,6 +30,38 @@ final class ClaimController extends Controller
 {
     public function __construct(private readonly ClaimArbitrationService $arbitrage) {}
 
+    /**
+     * Ouvre un dossier à partir de la RÉFÉRENCE PUBLIQUE du bien.
+     *
+     * C'EST LE SEUL CHEMIN QU'UNE VICTIME PUISSE EMPRUNTER. Réclamer suppose de
+     * désigner le bien d'un AUTRE, et cet autre n'a évidemment pas communiqué
+     * son identifiant interne — la consultation publique le tait, précisément
+     * pour qu'on ne puisse pas balayer le registre. La référence opaque, elle,
+     * s'obtient légitimement : elle figure sur le verdict qu'on vient de lire,
+     * et dans le refus qu'on reçoit en tentant d'enregistrer un bien déjà pris.
+     *
+     * Sans cette route, `POST /assets/{id}/claims` n'était atteignable par
+     * personne d'autre que le détenteur lui-même, à qui elle ne sert à rien :
+     * le recours de l'EP-05 existait en base et nulle part ailleurs.
+     */
+    public function storeByReference(Request $request): JsonResponse
+    {
+        $request->validate(['public_ref' => ['required', 'string', 'max:32']]);
+
+        $bien = Asset::query()
+            ->where('public_ref', mb_strtoupper(trim($request->string('public_ref')->toString())))
+            // L'enregistrement ACTIF : un bien archivé appartient au passé, et
+            // le contester reviendrait à contester une ligne d'historique.
+            ->whereNotNull('active_flag')
+            ->first();
+
+        if (! $bien instanceof Asset) {
+            abort(404);
+        }
+
+        return $this->ouvrir($bien, $request);
+    }
+
     public function store(Request $request, int $asset): JsonResponse
     {
         $bien = Asset::query()->whereKey($asset)->first();
@@ -38,6 +70,11 @@ final class ClaimController extends Controller
             abort(404);
         }
 
+        return $this->ouvrir($bien, $request);
+    }
+
+    private function ouvrir(Asset $bien, Request $request): JsonResponse
+    {
         try {
             $dossier = $this->arbitrage->open($bien, $this->utilisateur($request));
         } catch (DomainException $e) {

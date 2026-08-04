@@ -28,6 +28,19 @@ final class EnsurePlatformIsWritable
     /** @param  Closure(Request): Response  $next */
     public function handle(Request $request, Closure $next): Response
     {
+        // LES LECTURES PASSENT, y compris authentifiées. « Lecture seule » doit
+        // vouloir dire ce que son nom annonce : refuser à quelqu'un l'accès à
+        // son propre inventaire, à ses notifications ou à son dossier de
+        // réclamation pendant une maintenance ne protège rien — aucune de ces
+        // requêtes n'écrit — et transforme une indisponibilité partielle en
+        // panne apparente, précisément le jour où l'on a le plus besoin de
+        // paraître fiable. Même raisonnement, et même primitive, que
+        // EnsureAppIsSupported : l'application doit pouvoir EXPLIQUER pourquoi
+        // elle ne peut plus écrire, et une coquille vide ne l'explique pas.
+        if ($request->isMethodSafe()) {
+            return $next($request);
+        }
+
         if (! $this->etat->isReadOnly()) {
             return $next($request);
         }
