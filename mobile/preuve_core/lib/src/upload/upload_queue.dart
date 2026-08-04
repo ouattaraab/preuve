@@ -109,6 +109,41 @@ class PendingUpload {
     required this.checksum,
   });
 
+  /// Relit une entrée de la file locale.
+  ///
+  /// REND `null` PLUTÔT QUE DE LEVER. Une entrée illisible — magasin corrompu,
+  /// format d'une version antérieure — doit pouvoir être écartée : perdre un
+  /// envoi vaut mieux que d'empêcher l'application de démarrer.
+  static PendingUpload? fromJson(Map<String, Object?> json) {
+    final uuid = json['uuid'];
+    final assetId = json['asset_id'];
+    final docType = json['doc_type'];
+    final filename = json['filename'];
+    final localPath = json['local_path'];
+    final byteSize = json['byte_size'];
+    final checksum = json['checksum'];
+
+    if (uuid is! String ||
+        assetId is! int ||
+        docType is! String ||
+        filename is! String ||
+        localPath is! String ||
+        byteSize is! int ||
+        checksum is! String) {
+      return null;
+    }
+
+    return PendingUpload(
+      uuid: uuid,
+      assetId: assetId,
+      docType: docType,
+      filename: filename,
+      localPath: localPath,
+      byteSize: byteSize,
+      checksum: checksum,
+    );
+  }
+
   /// Tiré par le CLIENT, à la mise en file. C'est lui qui rend le réessai
   /// idempotent : le regénérer à chaque tentative ouvrirait une session par
   /// tentative.
@@ -123,6 +158,19 @@ class PendingUpload {
   /// Empreinte du fichier COMPLET, annoncée avant le premier octet : c'est elle
   /// qui permettra de constater, à l'assemblage, que rien n'a été altéré.
   final String checksum;
+
+  /// Ce que la file locale conserve. LE CONTENU DU FICHIER N'Y EST PAS : le
+  /// recopier doublerait l'occupation disque d'un téléphone sans rien garantir
+  /// de plus, puisque le fichier est déjà quelque part.
+  Map<String, Object?> toJson() => <String, Object?>{
+        'uuid': uuid,
+        'asset_id': assetId,
+        'doc_type': docType,
+        'filename': filename,
+        'local_path': localPath,
+        'byte_size': byteSize,
+        'checksum': checksum,
+      };
 }
 
 /// Ce que le serveur dit d'une session d'envoi.

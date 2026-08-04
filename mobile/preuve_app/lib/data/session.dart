@@ -19,6 +19,7 @@ class PreuveSession {
     required this.lifecycle,
     required this.transfers,
     required this.claims,
+    required this.notifications,
   });
 
   factory PreuveSession.pour(PreuveApi api, TokenStore coffre) {
@@ -30,6 +31,7 @@ class PreuveSession {
       lifecycle: LifecycleService(api),
       transfers: TransferService(api),
       claims: ClaimService(api),
+      notifications: NotificationService(api),
     );
   }
 
@@ -40,6 +42,7 @@ class PreuveSession {
   final LifecycleService lifecycle;
   final TransferService transfers;
   final ClaimService claims;
+  final NotificationService notifications;
 
   Account? compte;
 

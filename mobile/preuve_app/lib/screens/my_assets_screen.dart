@@ -5,6 +5,7 @@ import '../data/session.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'asset_screen.dart';
+import 'notifications_screen.dart';
 import 'register_screen.dart';
 import 'transfers_screen.dart';
 
@@ -31,6 +32,7 @@ class MyAssetsScreen extends StatefulWidget {
 class _MyAssetsScreenState extends State<MyAssetsScreen> {
   Inventory? _inventaire;
   List<PendingTransfer> _attentes = const <PendingTransfer>[];
+  int _alertes = 0;
   bool _enCours = true;
   String? _erreur;
 
@@ -60,10 +62,21 @@ class _MyAssetsScreenState extends State<MyAssetsScreen> {
         attentes = const <PendingTransfer>[];
       }
 
+      var alertes = 0;
+
+      try {
+        alertes = (await widget.session.notifications.feed()).unreadCount;
+      } on PreuveException {
+        // Même raison : un badge indisponible ne vaut pas de priver quelqu'un
+        // de sa liste de biens.
+        alertes = 0;
+      }
+
       if (mounted) {
         setState(() {
           _inventaire = inventaire;
           _attentes = attentes;
+          _alertes = alertes;
         });
       }
     } on PreuveException catch (e) {
@@ -98,6 +111,28 @@ class _MyAssetsScreenState extends State<MyAssetsScreen> {
         backgroundColor: Djassa.creme,
         surfaceTintColor: Djassa.creme,
         title: const Text('Mes biens', style: TextStyle(fontWeight: FontWeight.w800)),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () async {
+              await Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => NotificationsScreen(session: widget.session),
+                ),
+              );
+
+              await _charger();
+            },
+            child: Text(
+              // Le nombre EST le message : « Alertes » seul ne dit pas s'il
+              // faut y aller maintenant.
+              _alertes > 0 ? 'Alertes ($_alertes)' : 'Alertes',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: _alertes > 0 ? Djassa.alerte : Djassa.encre,
+              ),
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
         child: RefreshIndicator(
