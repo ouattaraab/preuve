@@ -698,6 +698,113 @@ const Registre = {
   },
 };
 
+/**
+ * Tarifs de la plateforme.
+ *
+ * ZÉRO EST AFFICHÉ COMME « GRATUIT », pas comme un champ vide : c'est une
+ * décision, et elle doit se lire comme telle. Un administrateur qui voit « 0 »
+ * sans explication se demandera s'il a oublié de remplir.
+ */
+const Tarifs = {
+  async charger() {
+    const zone = document.getElementById('liste-tarifs');
+    if (!zone) return;
+
+    try {
+      const r = await Api.get('/api/v1/admin/pricing');
+
+      zone.innerHTML = (r.pricing || []).map(t => `
+        <div style="background:#FFF6E8;border-radius:12px;padding:16px 18px;margin-bottom:12px">
+          <label for="tarif-${txt(t.key)}" style="display:block;font-size:15px;font-weight:700">${txt(t.label)}</label>
+          <p style="margin:6px 0 12px;font-size:13px;color:#5C4A33;line-height:1.6">${txt(t.help)}</p>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <input id="tarif-${txt(t.key)}" data-tarif="${txt(t.key)}" type="number" min="0" step="50"
+                   value="${txt(t.amount_fcfa)}" inputmode="numeric"
+                   style="width:160px;padding:11px 14px;border:2px solid #E4DBC8;border-radius:10px;font-size:15px;font-weight:700">
+            <span style="font-size:14px;color:#5C4A33">FCFA</span>
+            <span data-libelle-tarif="${txt(t.key)}" style="font-size:13px;font-weight:700;color:${t.free ? '#3F8F5B' : '#7A6A55'}">
+              ${t.free ? '→ gratuit pour tout le monde' : ''}
+            </span>
+          </div>
+        </div>`).join('');
+
+      // Le libellé « gratuit » suit la saisie, avant même l'enregistrement :
+      // c'est la conséquence du chiffre, elle doit se voir en le tapant.
+      zone.querySelectorAll('[data-tarif]').forEach(champ => {
+        champ.addEventListener('input', () => {
+          const marque = zone.querySelector(`[data-libelle-tarif="${champ.dataset.tarif}"]`);
+          if (!marque) return;
+          const gratuit = Number(champ.value) === 0;
+          marque.textContent = gratuit ? '→ gratuit pour tout le monde' : '';
+          marque.style.color = gratuit ? '#3F8F5B' : '#7A6A55';
+        });
+      });
+
+      const bandeau = document.getElementById('etat-paystack');
+      const p = r.paystack || {};
+
+      if (bandeau) {
+        bandeau.innerHTML = p.configured
+          ? `<p style="padding:12px 16px;background:#E7F3EA;border-radius:10px;font-size:14px;font-weight:700;color:#2B1D12">✓ Paystack est configuré : les tarifs supérieurs à zéro peuvent être encaissés.</p>`
+          : `<p style="padding:12px 16px;background:#FDE7E4;border-radius:10px;font-size:14px;font-weight:700;color:#2B1D12;line-height:1.6">⚠️ ${txt(p.notice || '')}</p>`;
+      }
+    } catch (e) {
+      zone.innerHTML = `<p style="color:#B23A3A;font-weight:700">${txt(e.message)}</p>`;
+    }
+  },
+
+  init() {
+    const form = document.getElementById('form-tarifs');
+
+    if (form) {
+      form.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const retour = document.getElementById('retour-tarifs');
+        const pricing = {};
+
+        document.querySelectorAll('[data-tarif]').forEach(c => {
+          pricing[c.dataset.tarif] = Math.max(0, Number(c.value) || 0);
+        });
+
+        try {
+          const r = await Api.put('/api/v1/admin/pricing', { pricing });
+          const n = Object.keys(r.changed || {}).length;
+          retour.textContent = n === 0 ? 'Aucun changement.' : `${n} tarif(s) enregistré(s).`;
+          retour.style.color = '#3F8F5B';
+          await this.charger();
+        } catch (e) {
+          retour.textContent = e.message;
+          retour.style.color = '#B23A3A';
+        }
+      });
+    }
+
+    const cle = document.getElementById('form-paystack');
+
+    if (cle) {
+      cle.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const champ = document.getElementById('cle-paystack');
+        const retour = document.getElementById('retour-paystack');
+
+        try {
+          await Api.put('/api/v1/admin/pricing/paystack', { secret_key: champ.value });
+          // Le champ est vidé aussitôt : une clé secrète ne reste pas à l'écran.
+          champ.value = '';
+          retour.textContent = 'Clé enregistrée.';
+          retour.style.color = '#3F8F5B';
+          await this.charger();
+        } catch (e) {
+          retour.textContent = e.message;
+          retour.style.color = '#B23A3A';
+        }
+      });
+    }
+
+    this.charger();
+  },
+};
+
 const Comptes = {
   page: 1,
 
@@ -879,6 +986,7 @@ const Levee = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+  if (document.getElementById('liste-tarifs')) Tarifs.init();
   if (document.getElementById('table-registre')) Registre.init();
   if (document.getElementById('table-comptes')) Comptes.init();
   if (document.getElementById('form-levee')) Levee.init();

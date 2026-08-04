@@ -38,6 +38,9 @@ final class AdminConsoleController extends Controller
         ['key' => 'categories', 'nom' => 'Catégories & champs', 'route' => 'admin.categories', 'admin_seul' => true],
         ['key' => 'users', 'nom' => 'Utilisateurs', 'route' => 'admin.users', 'admin_seul' => false],
         ['key' => 'stats', 'nom' => 'Statistiques app', 'route' => 'admin.stats', 'admin_seul' => true],
+        // Les tarifs décident de ce que les gens paient : administrateurs seuls,
+        // comme tous les écrans de configuration.
+        ['key' => 'pricing', 'nom' => 'Tarifs', 'route' => 'admin.pricing', 'admin_seul' => true],
         ['key' => 'monitoring', 'nom' => 'Supervision', 'route' => 'admin.monitoring', 'admin_seul' => false],
         ['key' => 'audit', 'nom' => "Piste d'audit", 'route' => 'admin.audit', 'admin_seul' => true],
         ['key' => 'team', 'nom' => 'Équipe & rôles', 'route' => 'admin.team', 'admin_seul' => true],
@@ -51,6 +54,11 @@ final class AdminConsoleController extends Controller
     public function stats(Request $request): View
     {
         return view('admin.stats', $this->contexte($request, 'stats', 'Statistiques app'));
+    }
+
+    public function pricing(Request $request): View
+    {
+        return view('admin.pricing', $this->contexte($request, 'pricing', 'Tarifs'));
     }
 
     public function moderation(Request $request): View

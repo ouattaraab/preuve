@@ -278,3 +278,28 @@ it('affiche le nom déclaré en face des pièces d\'identité', function (): voi
         // l'afficher.
         ->toContain('Compare ce nom');
 });
+
+it('sert l\'écran des tarifs aux administrateurs seuls', function (): void {
+    // Les tarifs décident de ce que les gens paient : un agent instruit des
+    // dossiers, il ne fixe pas les prix.
+    $admin = User::create(['phone' => '+2250700000031']);
+    $admin->forceFill(['role' => UserRole::Admin])->save();
+
+    $this->actingAs($admin)->get('/admin/tarifs')->assertOk()->assertSee('Tarifs', false);
+
+    $agent = User::create(['phone' => '+2250700000032']);
+    $agent->forceFill(['role' => UserRole::Agent])->save();
+
+    $this->actingAs($agent)->get('/admin/tarifs')->assertStatus(403);
+});
+
+it('n\'affiche jamais la clé secrète dans l\'écran des tarifs', function (): void {
+    // Une clé qu'on peut relire est une clé qui fuit au premier accès indu.
+    $gabarit = file_get_contents(resource_path('views/admin/pricing.blade.php'));
+    $console = file_get_contents(public_path('console/app.js'));
+
+    expect($gabarit)->toContain('type="password"')
+        ->and($console)->toContain("champ.value = ''")
+        // Et zéro doit se lire comme une décision, pas comme un champ vide.
+        ->and($console)->toContain('gratuit pour tout le monde');
+});

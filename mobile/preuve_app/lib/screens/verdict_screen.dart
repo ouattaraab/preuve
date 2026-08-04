@@ -5,6 +5,7 @@ import 'package:preuve_core/preuve_core.dart';
 import '../data/session.dart';
 import '../ui/theme.dart';
 import 'claim_screen.dart';
+import 'report_screen.dart';
 import 'login_screen.dart';
 
 /// Le verdict, plein écran.
@@ -184,6 +185,22 @@ class VerdictScreen extends StatelessWidget {
               child: Column(
                 children: <Widget>[
                   if (bien != null) ...<Widget>[
+                    // LE MONTANT N'EST PAS ÉCRIT ICI : il vient du serveur.
+                    // L'annoncer d'avance ferait promettre un prix que
+                    // l'administrateur a pu changer ce matin — ou afficher
+                    // « 500 FCFA » sur un rapport devenu gratuit.
+                    _ActionSombre(
+                      libelle: 'Voir le rapport détaillé',
+                      onPressed: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute<void>(
+                          builder: (_) => ReportScreen(
+                            session: session,
+                            reference: bien.publicRef,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     _ActionSombre(
                       libelle: 'Partager cette fiche',
                       onPressed: () async {

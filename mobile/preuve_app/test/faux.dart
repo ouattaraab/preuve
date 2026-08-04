@@ -108,6 +108,7 @@ PreuveSession fauxSession(FauxTransport transport) {
     transfers: TransferService(transport),
     claims: ClaimService(transport),
     notifications: NotificationService(transport),
+    reports: ReportService(transport),
     kyc: KycService(transport),
     envois: UploadManager(
       queue: UploadQueue(

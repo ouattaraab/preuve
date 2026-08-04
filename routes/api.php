@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\Admin\ObservabilityController;
 use App\Http\Controllers\Api\V1\Admin\OpsRecipientController;
 use App\Http\Controllers\Api\V1\Admin\OverviewController;
 use App\Http\Controllers\Api\V1\Admin\PlatformStateController;
+use App\Http\Controllers\Api\V1\Admin\PricingController;
 use App\Http\Controllers\Api\V1\Admin\PushProviderController;
 use App\Http\Controllers\Api\V1\Admin\SmsProviderController;
 use App\Http\Controllers\Api\V1\Admin\TeamController;
@@ -69,6 +70,11 @@ Route::prefix('v1')->group(function (): void {
     Route::post('reports/guest-code', [ReportController::class, 'requestGuestCode'])
         ->middleware('throttle:20,1');
     Route::post('assets/{asset}/reports', [ReportController::class, 'purchase'])
+        ->middleware('throttle:20,1');
+    // Par la RÉFÉRENCE PUBLIQUE : un acheteur ne connaît pas l'identifiant
+    // interne du bien, et c'est voulu — le publier permettrait de balayer le
+    // registre.
+    Route::post('reports', [ReportController::class, 'purchaseByReference'])
         ->middleware('throttle:20,1');
     Route::get('reports/access/{token}', [ReportController::class, 'show']);
 
@@ -307,6 +313,13 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('push-provider', [PushProviderController::class, 'show']);
         Route::put('push-provider', [PushProviderController::class, 'update']);
+
+        // Tarifs de la plateforme. Zéro rend la chose GRATUITE, il ne la
+        // désactive pas : c'est ce qui permet d'ouvrir le rapport détaillé ou de
+        // lever les frais de dossier sans livraison.
+        Route::get('pricing', [PricingController::class, 'show']);
+        Route::put('pricing', [PricingController::class, 'update']);
+        Route::put('pricing/paystack', [PricingController::class, 'updatePaystack']);
 
         Route::get('kyc-provider', [KycProviderController::class, 'show']);
         Route::put('kyc-provider', [KycProviderController::class, 'update']);

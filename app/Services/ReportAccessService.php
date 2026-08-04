@@ -53,6 +53,29 @@ final class ReportAccessService
      *
      * @throws DomainException
      */
+    /**
+     * Accès accordé SANS paiement, quand le tarif est à zéro.
+     *
+     * LE JETON RESTE LA SEULE PORTE, gratuit ou non : c'est lui qui borne
+     * l'accès dans le temps et qui permet d'ouvrir le rapport sur un autre
+     * appareil. Rendre le rapport « en direct » parce qu'il est gratuit
+     * créerait un second chemin de lecture, qui finirait par diverger du
+     * premier — et l'écart ne se verrait que sur ce qu'il ne faut pas montrer.
+     *
+     * Aucune ligne de paiement n'est créée : il n'y a rien à réconcilier, et
+     * un paiement de zéro franc dans le journal comptable serait un mensonge.
+     */
+    public function grantFree(Asset $bien, ?User $acheteur): ReportPurchase
+    {
+        return ReportPurchase::create([
+            'asset_id' => $bien->id,
+            'payment_id' => null,
+            'user_id' => $acheteur?->id,
+            'access_token' => Str::random(40),
+            'expires_at' => now()->addDays(self::ACCESS_DAYS),
+        ]);
+    }
+
     public function grant(Payment $paiement, Asset $bien): ReportPurchase
     {
         if ($paiement->status !== PaymentStatus::Succeeded) {

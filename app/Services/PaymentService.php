@@ -41,6 +41,7 @@ final class PaymentService
         private readonly OtpService $otp,
         private readonly AuditChain $auditChain,
         private readonly ReportAccessService $reports,
+        private readonly PricingService $tarifs,
     ) {}
 
     /**
@@ -206,11 +207,16 @@ final class PaymentService
         return $paiement;
     }
 
+    /**
+     * Le prix du rapport vient des TARIFS, réglables sans livraison.
+     *
+     * ZÉRO EST RENDU TEL QUEL : c'est un rapport gratuit, et c'est à l'appelant
+     * de ne pas ouvrir de paiement pour zéro franc. Le remplacer par une valeur
+     * de repli rétablirait un prix que l'administrateur vient de supprimer.
+     */
     private function reportPrice(): int
     {
-        $prix = config('preuve.report_price_fcfa');
-
-        return is_numeric($prix) && (int) $prix > 0 ? (int) $prix : 1000;
+        return $this->tarifs->amount('report');
     }
 
     private function isDuplicateReference(QueryException $e): bool

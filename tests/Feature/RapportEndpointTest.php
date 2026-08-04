@@ -13,9 +13,11 @@ use App\Models\Payment;
 use App\Models\ReportPurchase;
 use App\Models\User;
 use App\Services\Otp\OtpSender;
+use App\Services\PaystackGateway;
 use App\Services\Settings\SettingsRepository;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 
@@ -99,14 +101,53 @@ it('refuse l\'achat sans compte si le code est faux', function (): void {
     expect(Payment::count())->toBe(0);
 });
 
-it('achète sans code quand l\'acheteur est connecté', function (): void {
+it('achète sans code quand l\'acheteur est connecté, et rend où payer', function (): void {
+    // LE PARCOURS COMPLET : ouvrir le paiement ne suffit pas, il faut rendre
+    // l'ADRESSE de règlement. Sans elle, l'acheteur était prié de « régler
+    // auprès de l'opérateur » sans savoir où — c'est-à-dire nulle part.
+    app(SettingsRepository::class)->setSecret(PaystackGateway::SECRET_SETTING, 'sk_test_abcdef123456');
+
+    Http::fake([
+        'api.paystack.co/*' => Http::response([
+            'status' => true,
+            'data' => ['authorization_url' => 'https://checkout.paystack.com/xyz789'],
+        ]),
+    ]);
+
     $bien = bienPourRapport();
     Sanctum::actingAs(User::create(['phone' => '+2250766666666']));
 
-    $this->postJson("/api/v1/assets/{$bien->id}/reports", ['provider' => 'paystack'])
+    $reponse = $this->postJson("/api/v1/assets/{$bien->id}/reports", ['provider' => 'paystack'])
         ->assertStatus(201);
 
-    expect(Payment::sole()->user_id)->not->toBeNull();
+    expect($reponse->json('checkout_url'))->toBe('https://checkout.paystack.com/xyz789')
+        ->and(Payment::sole()->user_id)->not->toBeNull()
+        // La référence est posée AVANT la redirection : c'est elle que le
+        // webhook rapprochera, et l'unicité rend un rejeu inoffensif.
+        ->and(Payment::sole()->provider_ref)->toStartWith('preuve-');
+});
+
+it('n\'accorde RIEN au retour : seul le webhook fait foi', function (): void {
+    // Un client qui revient en annonçant « c'est payé » ne prouve rien. Sans
+    // cette règle, il suffirait de rappeler l'adresse de retour à la main pour
+    // obtenir un rapport sans payer.
+    app(SettingsRepository::class)->setSecret(PaystackGateway::SECRET_SETTING, 'sk_test_abcdef123456');
+
+    Http::fake([
+        'api.paystack.co/*' => Http::response([
+            'status' => true,
+            'data' => ['authorization_url' => 'https://checkout.paystack.com/xyz789'],
+        ]),
+    ]);
+
+    $bien = bienPourRapport();
+    Sanctum::actingAs(User::create(['phone' => '+2250766666667']));
+
+    $this->postJson("/api/v1/assets/{$bien->id}/reports", ['provider' => 'paystack'])->assertStatus(201);
+
+    // Le paiement reste en attente, et aucun accès n'a été accordé.
+    expect(Payment::sole()->status)->toBe(PaymentStatus::Pending)
+        ->and(ReportPurchase::count())->toBe(0);
 });
 
 it('sert le rapport par son jeton, sans authentification', function (): void {

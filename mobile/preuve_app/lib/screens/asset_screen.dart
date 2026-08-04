@@ -212,6 +212,39 @@ class _AssetScreenState extends State<AssetScreen> {
     }
   }
 
+  /// Vide la file d'envoi, ici et maintenant.
+  ///
+  /// C'EST LA PERSONNE QUI DÉCLENCHE, jamais un minuteur : sur un forfait
+  /// facturé au volume, un envoi qui part tout seul se paie sans qu'on l'ait
+  /// voulu. Mais l'offrir ICI, sous les photos en attente, change tout — sans
+  /// ce bouton, il fallait savoir qu'un autre écran existait.
+  Future<void> _envoyerMaintenant() async {
+    setState(() {
+      _enCours = true;
+      _erreur = null;
+      _confirmation = null;
+    });
+
+    final rapport = await widget.session.envois.drain();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _enCours = false;
+      _confirmation = rapport.completed.isEmpty
+          ? null
+          : '${rapport.completed.length} pièce(s) envoyée(s). Un agent les examinera.';
+      _erreur = rapport.networkInterrupted
+          ? 'Le réseau s\'est coupé. Ce qui reste est conservé et repartira d\'où '
+              'l\'envoi s\'est arrêté — rien n\'est perdu.'
+          : (rapport.abandoned.isEmpty ? null : rapport.abandoned.values.first);
+    });
+
+    await _chargerPieces();
+  }
+
   Future<void> _ceder() async {
     final fait = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
@@ -276,6 +309,7 @@ class _AssetScreenState extends State<AssetScreen> {
                     .toList(growable: false),
                 api: widget.session.api,
                 onAjouter: () => _ajouterJustificatif('photo', 'Photo du bien'),
+                onEnvoyer: _envoyerMaintenant,
               ),
               const SizedBox(height: 26),
               const Divider(color: Djassa.encre, thickness: 3),
@@ -438,6 +472,7 @@ class _Photos extends StatelessWidget {
     required this.enAttente,
     required this.api,
     required this.onAjouter,
+    required this.onEnvoyer,
   });
 
   final List<AssetDocumentRef> pieces;
@@ -445,6 +480,7 @@ class _Photos extends StatelessWidget {
   final List<PendingUpload> enAttente;
   final PreuveApi api;
   final VoidCallback onAjouter;
+  final VoidCallback onEnvoyer;
 
   @override
   Widget build(BuildContext context) {
@@ -503,6 +539,20 @@ class _Photos extends StatelessWidget {
           principal: false,
           onPressed: onAjouter,
         ),
+        // ENVOYER DEPUIS ICI, ET PAS SEULEMENT DEPUIS UN AUTRE ÉCRAN. Constaté
+        // en production : zéro pièce envoyée alors que des photos attendaient.
+        // Rien ne part tout seul — c'est voulu, pour ne pas vider un forfait
+        // dans le dos de quelqu'un — mais rien ne poussait non plus à aller
+        // les envoyer, et elles restaient là indéfiniment.
+        if (enAttente.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 10),
+          BoutonRelief(
+            libelle: enAttente.length == 1
+                ? 'Envoyer la photo en attente'
+                : 'Envoyer les ${enAttente.length} photos en attente',
+            onPressed: onEnvoyer,
+          ),
+        ],
       ],
     );
   }

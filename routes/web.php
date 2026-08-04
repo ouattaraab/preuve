@@ -92,6 +92,7 @@ Route::prefix('admin')->group(function (): void {
             Route::get('audit', [AdminConsoleController::class, 'audit'])->name('admin.audit');
             Route::get('equipe', [AdminConsoleController::class, 'team'])->name('admin.team');
             Route::get('statistiques', [AdminConsoleController::class, 'stats'])->name('admin.stats');
+            Route::get('tarifs', [AdminConsoleController::class, 'pricing'])->name('admin.pricing');
         });
     });
 });

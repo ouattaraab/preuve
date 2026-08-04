@@ -34,8 +34,10 @@ use App\Models\User;
  */
 final class QuotaService
 {
-    /** Durée de validité d'une place achetée (500 FCFA/bien/an, §6). */
+    /** Durée de validité d'une place achetée (§6). */
     private const SLOT_VALIDITY_MONTHS = 12;
+
+    public function __construct(private readonly PricingService $tarifs) {}
 
     /**
      * État du quota d'un particulier.
@@ -75,6 +77,13 @@ final class QuotaService
     {
         // Une flotte relève de son abonnement, pas du quota personnel.
         if ($societeId !== null) {
+            return;
+        }
+
+        // UN TARIF À ZÉRO REND L'ENREGISTREMENT GRATUIT ET ILLIMITÉ. Bloquer
+        // quelqu'un pour l'inviter à payer zéro franc serait une impasse : il
+        // n'existerait aucun geste capable de le débloquer.
+        if ($this->tarifs->isFree('asset_slot')) {
             return;
         }
 
@@ -175,11 +184,17 @@ final class QuotaService
         return is_numeric($quota) ? max(0, (int) $quota) : 3;
     }
 
+    /**
+     * Prix d'une place, tel que l'administrateur l'a fixé.
+     *
+     * RENDU TEL QUEL, ZÉRO COMPRIS. Le repli « ou 500 » qui existait ici
+     * rétablissait un tarif que l'administrateur venait de supprimer : c'est le
+     * piège exact contre lequel PricingService met en garde, et un test le
+     * verrouille désormais.
+     */
     private function slotPrice(): int
     {
-        $prix = config('preuve.asset_slot_price_fcfa');
-
-        return is_numeric($prix) && (int) $prix > 0 ? (int) $prix : 500;
+        return $this->tarifs->amount('asset_slot');
     }
 
     /**

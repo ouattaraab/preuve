@@ -32,6 +32,13 @@ dependencies:
   # donc aucune réclamation jamais gagnée sur la grille d'arbitrage.
   # Greffon maintenu par l'équipe Flutter elle-même (flutter/packages).
   image_picker: ^1.1.2
+  # Ouvre la page de règlement de l'opérateur dans le navigateur du système.
+  # TROISIÈME DÉPENDANCE, et la dernière : un paiement doit se dérouler dans le
+  # navigateur du téléphone, jamais dans une vue web embarquée. Une page de carte
+  # bancaire affichée dans l'application prive l'utilisateur de la barre
+  # d'adresse — le seul endroit où il peut vérifier qu'il est bien chez
+  # l'opérateur et non sur une imitation. Greffon maintenu par l'équipe Flutter.
+  url_launcher: ^6.3.0
 
 dev_dependencies:
   flutter_test:

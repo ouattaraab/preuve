@@ -23,6 +23,7 @@ class PreuveSession {
     required this.transfers,
     required this.claims,
     required this.notifications,
+    required this.reports,
     required this.kyc,
     required this.envois,
   });
@@ -37,6 +38,7 @@ class PreuveSession {
       transfers: TransferService(api),
       claims: ClaimService(api),
       notifications: NotificationService(api),
+      reports: ReportService(api),
       kyc: KycService(api),
       envois: UploadManager(
         // La lecture du fichier est INJECTÉE : c'est ce qui permet d'éprouver
@@ -55,6 +57,7 @@ class PreuveSession {
   final TransferService transfers;
   final ClaimService claims;
   final NotificationService notifications;
+  final ReportService reports;
   final KycService kyc;
 
   /// File d'envoi différée, avec reprise (ST-0206, CT-05).
