@@ -90,3 +90,4 @@
 | 04/08/2026 | SDK Flutter installé, plateformes générées, première compilation réelle | — | `ThemeData.textTheme` ne porte que les couleurs : un `fontSizeFactor` y lève une assertion, et l'application ne démarrait sur aucun écran |
 | 04/08/2026 | Alignement complet sur la maquette : jetons, polices, sept écrans, barre de navigation | — | Les jetons sont recopiés, pas approchés : une teinte « à peu près » se voit dès qu'on pose les deux écrans côte à côte |
 | 04/08/2026 | `POST /assets` rend la vue du détenteur ; compteur de consultations dans l'inventaire | ST-0201, ST-1002 | La réponse part au propriétaire : sans identifiant interne, il ne peut rattacher aucune photo à ce qu'il vient de créer |
+| 04/08/2026 | Déploiement en production de tout le travail serveur de la session (`a16f412`) | — | `preuve.click` est sur 62.72.37.247, pas sur l'entrée héritée du `known_hosts` : une clé valide y était refusée sans indice |

@@ -454,6 +454,26 @@ côtés, annuler) · réclamation (ouvrir, annoncer ses pièces, déposer)**.
 n'a même jamais reçu un `pub get` — aucune analyse statique n'est possible sur
 ces écrans. `preuve_core`, lui, reste vérifié (65 tests, `dart analyze` propre).
 
+## Déploiement du 04/08/2026 — et le piège d'adresse qui a coûté une heure
+
+**Tout le travail serveur de la session est en production** (`a16f412`). Avant
+lui, l'application mobile parlait à une API qui n'existait pas : `GET /assets`
+rendait **405**, `GET /transfers` et `POST /claims` **404**. C'était la cause du
+blocage signalé en usage — pas un défaut du client.
+
+**LE SERVEUR DE `preuve.click` EST `62.72.37.247`, PORT 65002.** Le
+`known_hosts` de la machine de développement contenait `145.79.20.193`, une
+AUTRE machine du même compte Hostinger — celui-ci héberge huit domaines. Une
+clé publique correctement déposée y était refusée sans que rien ne le laisse
+deviner : le refus d'une clé et le refus d'un compte inexistant sont
+indistinguables. **Toujours partir de `dig +short preuve.click`, jamais d'une
+entrée d'historique.**
+
+Vérifié après déploiement : consultation 200 en **0,5 s**, écriture sans jeton
+401, console redirigée vers `/admin/connexion`, `.env` en 403, politique de
+sécurité complète de l'application (pas celle de l'hébergeur), aucun
+`X-Powered-By`. Aucune migration n'était en attente.
+
 ## SDK Flutter installé — l'application compile et tourne (04/08/2026)
 
 **Flutter 3.44.8 / Dart 3.12**, cloné dans `~/development/flutter`. Le clone
