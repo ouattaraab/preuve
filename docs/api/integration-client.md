@@ -346,14 +346,41 @@ Le numéro de la pièce n'est **jamais** conservé en clair, et le client n'a
 aucune raison de le saisir : le serveur n'en garde qu'une empreinte, et ne peut
 donc le restituer à personne — pas même sur réquisition.
 
-## 9. Acheter un rapport détaillé sans compte
+## 9. Acheter un rapport détaillé
 
 ```http
-POST /reports/guest-code {"phone": "..."}
-POST /assets/{asset}/reports {"provider": "paystack", "buyer_name": "...",
-                              "buyer_email": "...", "buyer_phone": "...", "code": "..."}
+POST /reports  {"public_ref": "PRV-XXXXXXXX", "provider": "paystack"}   ← le chemin d'un acheteur
+POST /reports/guest-code {"phone": "..."}      → code, avant paiement, si pas de compte
 GET  /reports/access/{token}
 ```
+
+**Toujours commander par `public_ref`.** Un acheteur ne connaît pas
+l'identifiant interne du bien qu'on lui propose — la consultation le tait, pour
+qu'on ne puisse pas balayer le registre. (`POST /assets/{id}/reports` subsiste
+pour les appelants qui disposent déjà de l'identifiant.)
+
+**Trois réponses possibles, et elles n'appellent pas le même écran :**
+
+| Corps | Ce que ça veut dire |
+|---|---|
+| `free: true` + `access_token` | Le tarif est à **zéro** : rien à payer, le jeton est déjà là. |
+| `checkout_url` + `payment.amount_fcfa` | Ouvrir cette adresse, régler, puis **relire**. |
+| `422` sur `provider` | Aucune clé d'opérateur n'est configurée : personne ne peut payer. |
+
+**LE MONTANT NE SE CODE JAMAIS DANS LE CLIENT.** Il est réglable depuis l'espace
+administrateur : un prix embarqué réclamerait de l'argent le jour où le rapport
+devient gratuit, sur des téléphones qui ne se mettent pas à jour.
+
+**LE RETOUR DE PAIEMENT NE PROUVE RIEN.** Ce qui accorde l'accès est le webhook
+signé de l'opérateur ; le client qui revient ne fait que **relire** l'état.
+Sans cette règle, rappeler l'adresse de retour à la main suffirait à obtenir un
+rapport sans payer. Tant que `GET /reports/access/{token}` rend `404`, le
+paiement n'est pas confirmé — **ne jamais faire recommencer le paiement**, c'est
+la faute la plus coûteuse possible à cet endroit.
+
+**OUVRIR LA PAGE DE RÈGLEMENT DANS LE NAVIGATEUR DU SYSTÈME**, jamais dans une
+vue web embarquée : sans barre d'adresse, l'utilisateur perd le seul endroit où
+vérifier qu'il est chez l'opérateur et non sur une imitation.
 
 L'identité de l'acheteur est vérifiée **avant** le paiement, jamais après. La
 lecture ne passe que par le jeton d'accès : un rapport reçu par SMS doit s'ouvrir
@@ -361,6 +388,21 @@ sur n'importe quel appareil, sans compte.
 
 Le rapport **ne dit pas qui a enregistré le bien**. Payer n'achète pas l'identité
 de quelqu'un.
+
+## 9 bis. Revoir les pièces d'un bien qu'on détient
+
+```http
+GET /assets/{asset}/documents                       → liste + état de revue
+GET /assets/{asset}/documents/{document}/file       → la pièce, en clair
+```
+
+Sans elles, personne ne sait si sa carte grise est arrivée ni si un agent l'a
+acceptée : il la renvoie, ou croit son bien documenté alors qu'il ne l'est pas.
+
+Le fichier est servi par une route **authentifiée**, jamais par un lien signé :
+la pièce est chiffrée au repos — un lien direct ne rendrait que du chiffré — et
+un lien signé est une capacité au porteur, qui ouvre la pièce à quiconque le
+recopie. Joindre le jeton en en-tête, requête par requête.
 
 ## 10. Notifications
 

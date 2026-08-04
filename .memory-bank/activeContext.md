@@ -483,6 +483,67 @@ Les réclamations restent hors de cette file : elles se tranchent sur une grille
 pondérée, et les réduire à deux boutons ferait décider d'un transfert de
 propriété d'un clic.
 
+## Tarifs réglables et paiement Paystack (04/08/2026)
+
+**Tous les montants de la plateforme en un seul endroit** (`PricingService`,
+écran « Tarifs » réservé aux administrateurs) : rapport détaillé, place
+d'enregistrement, frais de dossier. Un prix qui vit dans le code est un prix
+qu'on ne peut pas corriger sans livrer.
+
+**ZÉRO EST UNE VALEUR, PAS UN VIDE.** Un tarif à zéro rend la chose GRATUITE :
+le rapport s'ouvre sans paiement ni jeton d'opérateur, l'enregistrement redevient
+illimité, le recours redevient libre. **`QuotaService` contenait exactement le
+piège annoncé** — un repli `?: 500` qui rétablissait un tarif supprimé. Corrigé,
+et tenu par un test. Chaque changement est journalisé avec l'ANCIEN et le NOUVEAU
+montant.
+
+**Paystack était absent.** L'achat créait une intention et rendait « réglez
+auprès de l'opérateur », **sans adresse** : personne ne pouvait payer.
+`PaystackGateway` ouvre la transaction et rend l'adresse ; la référence est tirée
+par nous et posée AVANT la redirection, pour que le webhook la rapproche et que
+l'unicité `(provider, provider_ref)` rende un rejeu inoffensif.
+
+**LE RETOUR NE PROUVE RIEN**, et c'est la règle à ne pas assouplir : seul le
+webhook signé accorde l'accès. Sans elle, rappeler l'adresse de retour à la main
+suffirait à obtenir un rapport sans payer. Tant que le jeton rend 404, le
+paiement n'est pas confirmé — **ne jamais faire recommencer le paiement**.
+
+**Le règlement s'ouvre dans le NAVIGATEUR DU SYSTÈME**, jamais dans une vue web
+embarquée : une page de carte bancaire sans barre d'adresse prive l'utilisateur
+du seul endroit où vérifier chez qui il paie. D'où `url_launcher`, **troisième et
+dernière dépendance mobile**.
+
+**`POST /reports` par référence publique** : même raison que pour la réclamation
+— un acheteur ne connaît pas l'identifiant interne, et le publier permettrait de
+balayer le registre.
+
+Migration : `report_purchases.payment_id` devient facultatif. Créer un paiement
+de zéro franc pour satisfaire une contrainte mettrait un mensonge dans le journal
+comptable. Écart assumé avec le schéma de référence, consigné dans la migration.
+
+## Ce qui manque encore pour lancer (état vérifié le 04/08/2026)
+
+Constaté en base et en réglages, pas supposé :
+
+1. **`sms.provider` vaut `mail`** — le code de connexion part par COURRIEL.
+   Quelqu'un qui n'a qu'un numéro de téléphone ne peut pas ouvrir de compte.
+   C'est le blocage n° 1 : la passerelle est configurable sans livraison, il
+   manque un opérateur et ses clés.
+2. **Aucune clé Paystack** — tout tarif supérieur à zéro produit un refus au
+   paiement. L'écran Tarifs le dit en rouge. Repli : mettre les montants à zéro.
+3. **Aucune clé Turnstile** — le plafond de 10 consultations/h échoue FERMÉ, sans
+   échappatoire, sur le parcours qui est la promesse du produit.
+4. **Aucune détection de vivacité** — et c'est plus grave depuis que la
+   validation d'identité est opérationnelle : une photo de photo passe.
+5. **`legal.contact_email` vide** — la page de confidentialité annonce un guichet
+   « en cours d'ouverture », alors que la Loi 2013-450 impose un responsable
+   joignable.
+
+Ce qui va bien : le cron bat, l'agrégation des consultations tourne, l'ancrage a
+un destinataire, et **le traitement d'une consultation prend 60 ms** mesuré SUR
+le serveur. Les mesures depuis le poste de développement restent inexploitables
+(un fichier statique y varie de 0,0 s à 4,5 s).
+
 ## Déploiement du 04/08/2026 — et le piège d'adresse qui a coûté une heure
 
 **Tout le travail serveur de la session est en production** (`a16f412`). Avant
