@@ -56,7 +56,18 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', env('LOG_STACK', 'single')),
+            /*
+             * JOURNALIER PAR DÉFAUT, ET NON `single`.
+             *
+             * L'hébergement est mutualisé : ni `logrotate`, ni accès à la
+             * configuration du système. Un `laravel.log` unique grossit sans
+             * fin jusqu'à remplir le quota du compte — et un quota atteint
+             * arrête TOUTE écriture, y compris celle du registre.
+             *
+             * Le défaut compte plus que la variable : une installation neuve
+             * doit être bornée sans que personne ait à y penser.
+             */
+            'channels' => explode(',', env('LOG_STACK', 'daily')),
             'ignore_exceptions' => false,
         ],
 

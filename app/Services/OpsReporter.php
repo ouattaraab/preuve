@@ -44,6 +44,17 @@ use Throwable;
  * serveur : une messagerie traverse des relais que la plateforme ne maîtrise
  * pas, et un rapport de plusieurs centaines de lignes y perdrait de toute façon
  * son lecteur. Le courriel dit quoi, combien, et où regarder.
+ *
+ * ET C'EST LUI QUI ÉCRIT CE JOURNAL. Le chemin annoncé au lecteur n'était
+ * qu'une chaîne de caractères : aucune commande ne créait le fichier, et
+ * l'exploitant qui allait chercher le détail promis ne trouvait rien — pire
+ * qu'aucune indication, puisqu'il cherchait. Celui qui annonce le chemin est
+ * désormais celui qui l'écrit ; la promesse ne peut plus être fausse pour une
+ * commande qui aurait oublié.
+ *
+ * LE JOURNAL EST ÉCRIT MÊME QUAND LE COURRIEL NE PART PAS. Un destinataire non
+ * réglé, une passerelle en panne : ce sont précisément les moments où la trace
+ * locale est la seule qui reste.
  */
 final class OpsReporter
 {
@@ -52,7 +63,10 @@ final class OpsReporter
     /** Au-delà, le détail appartient au journal, pas à la messagerie. */
     private const LIGNES_EXTRAITES = 40;
 
-    public function __construct(private readonly SettingsRepository $settings) {}
+    public function __construct(
+        private readonly SettingsRepository $settings,
+        private readonly OpsJournal $journalLocal,
+    ) {}
 
     public function isConfigured(): bool
     {
@@ -94,6 +108,13 @@ final class OpsReporter
      */
     public function send(string $titre, string $corps, bool $anomalie, ?string $journal = null): bool
     {
+        // AVANT l'envoi, et quel que soit son sort : un destinataire non réglé
+        // ou une passerelle en panne sont précisément les moments où la trace
+        // locale est la seule qui reste.
+        if ($journal !== null) {
+            $this->journalLocal->append($journal, $titre, $corps);
+        }
+
         $destinataire = $this->recipient();
 
         if ($destinataire === null) {
