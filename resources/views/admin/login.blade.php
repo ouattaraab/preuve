@@ -11,6 +11,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Connexion — Preuve Admin</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/console/fonts.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }

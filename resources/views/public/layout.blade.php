@@ -27,6 +27,7 @@
              l'annuaire des numéros enregistrés, moteur après moteur. --}}
         <meta name="robots" content="noindex, nofollow">
     @endunless
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <meta name="theme-color" content="#FAF6EE">
     <link rel="stylesheet" href="/fonts.css">
     <style>

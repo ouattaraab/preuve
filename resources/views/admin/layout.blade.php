@@ -24,6 +24,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $titre ?? 'Administration' }} — Preuve</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/console/fonts.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
