@@ -134,8 +134,8 @@ void main() {
     // du produit, et c'est sur cet écran qu'elle se verrait d'abord.
     await tester.pumpWidget(_app(LookupScreen(session: _session())));
 
-    expect(find.text('Ce bien est-il volé ?'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, 'Vérifier'), findsOneWidget);
+    expect(find.textContaining('Avant'), findsWidgets);
+    expect(find.text('JE VÉRIFIE'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
   });
 
@@ -149,7 +149,7 @@ void main() {
 
     // Un VIN dont le chiffre de contrôle ne tombe pas juste.
     await tester.enterText(find.byType(TextField), '1M8GDM9AXKP042789');
-    await tester.tap(find.widgetWithText(FilledButton, 'Vérifier'));
+    await tester.tap(find.text('JE VÉRIFIE'));
     await tester.pump();
 
     expect(find.textContaining('Recompte les 17 caractères'), findsOneWidget);
@@ -175,7 +175,9 @@ void main() {
     // existe, mais comme une action de barre — jamais comme un passage obligé.
     await tester.pumpWidget(_app(LookupScreen(session: _session())));
 
-    expect(find.text('J\'ai un bien'), findsOneWidget);
-    expect(find.textContaining('gratuit, anonyme'), findsOneWidget);
+    // La pastille de l'en-tête dit la promesse AVANT toute action, et le
+    // bouton de compte n'est qu'une cible parmi d'autres.
+    expect(find.text('Gratuit · Sans compte'), findsOneWidget);
+    expect(find.text('🔔'), findsOneWidget);
   });
 }

@@ -145,6 +145,11 @@ final class OtpAuthController extends Controller
             'purpose' => ['required', Rule::enum(OtpPurpose::class)],
             'code' => ['required', 'string'],
             'email' => ['sometimes', 'nullable', 'email', 'max:150'],
+            // Nom donné à l'inscription. FACULTATIF, ET IL LE RESTE : on
+            // n'exige jamais une identité pour ouvrir un compte, seulement pour
+            // céder un bien ou réclamer (CT-06). Il sert à s'adresser à
+            // quelqu'un, pas à l'identifier — le KYC seul en atteste.
+            'full_name' => ['sometimes', 'nullable', 'string', 'max:120'],
             'revoke_other_devices' => ['sometimes', 'boolean'],
         ]);
 
@@ -179,11 +184,19 @@ final class OtpAuthController extends Controller
 
         $adresseVerifiee = $parSms ? null : $this->pendingEmail($request);
 
+        // À LA CRÉATION SEULEMENT, et jamais en écrasement : accepter un nom à
+        // chaque connexion permettrait de renommer un compte à volonté depuis
+        // n'importe quel appareil, sur la colonne que la revue KYC rapproche de
+        // la pièce d'identité.
+        $nom = $request->string('full_name')->trim()->toString();
+        $nom = $nom === '' ? null : $nom;
+
         $utilisateur = $existant ?? $this->auditChain->transaction(
-            function () use ($telephone, $parSms, $adresseVerifiee): array {
+            function () use ($telephone, $parSms, $adresseVerifiee, $nom): array {
                 $nouveau = User::create(array_filter([
                     'phone' => $telephone,
                     'email' => $adresseVerifiee,
+                    'full_name' => $nom,
                 ]));
 
                 $nouveau->forceFill($parSms

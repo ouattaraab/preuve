@@ -4,8 +4,10 @@ import 'package:preuve_core/preuve_core.dart';
 
 import '../data/session.dart';
 import '../ui/theme.dart';
+import '../ui/widgets.dart';
 import 'login_screen.dart';
 import 'my_assets_screen.dart';
+import 'notifications_screen.dart';
 import 'verdict_screen.dart';
 
 /// Écran d'accueil : un champ, un bouton.
@@ -16,8 +18,9 @@ import 'verdict_screen.dart';
 /// n'est pas la sienne.
 ///
 /// AUCUN COMPTE N'EST DEMANDÉ ICI, ni pour la première consultation ni pour la
-/// centième (règle métier absolue n° 1). Toute condition ajoutée à cet écran
-/// trahirait la promesse du produit.
+/// centième (règle métier absolue n° 1). La pastille « Gratuit · Sans compte »
+/// le dit à l'écran, parce que c'est la première question que se pose quelqu'un
+/// à qui l'on propose une moto sur un parking.
 class LookupScreen extends StatefulWidget {
   const LookupScreen({required this.session, super.key});
 
@@ -110,7 +113,7 @@ class _LookupScreenState extends State<LookupScreen> {
     if (!session.estConnecte) {
       final compte = await Navigator.of(context).push<Account>(
         MaterialPageRoute<Account>(
-          builder: (_) => LoginScreen(auth: session.auth),
+          builder: (_) => LoginScreen(session: session),
         ),
       );
 
@@ -134,118 +137,216 @@ class _LookupScreenState extends State<LookupScreen> {
     }
   }
 
+  Future<void> _ouvrirAlertes() async {
+    final session = widget.session;
+
+    if (!session.estConnecte) {
+      await _ouvrirMesBiens();
+
+      return;
+    }
+
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => NotificationsScreen(session: session)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Djassa.creme,
-        surfaceTintColor: Djassa.creme,
-        elevation: 0,
-        // Volontairement DISCRET, et sans compteur ni badge : cet écran
-        // appartient à qui vérifie un bien, pas à qui possède un compte.
-        actions: <Widget>[
-          TextButton(
-            onPressed: _ouvrirMesBiens,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(22, 28, 22, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              EnteteMarque(
+                pastille: 'Gratuit · Sans compte',
+                onCloche: _ouvrirAlertes,
+              ),
+              const SizedBox(height: 34),
+              // TROIS LIGNES, ET LE VERBE EN ACCENT. La coupure est voulue : à
+              // 46 points, une seule ligne ne tiendrait pas, et laisser le
+              // moteur couper mettrait « vérifie ! » n'importe où.
+              Text.rich(
+                TextSpan(
+                  children: <TextSpan>[
+                    const TextSpan(text: 'Avant\nd\'acheter,\n'),
+                    TextSpan(
+                      text: 'vérifie !',
+                      style: Djassa.affiche(46, couleur: Djassa.accent, hauteur: 1.02),
+                    ),
+                  ],
+                ),
+                style: Djassa.affiche(46, hauteur: 1.02),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Moto, voiture, téléphone… tape le numéro, tu sais tout de suite.',
+                style: TextStyle(
+                  fontFamily: Djassa.texte,
+                  fontSize: 17,
+                  height: 1.45,
+                  color: Djassa.sourdine,
+                ),
+              ),
+              const SizedBox(height: 26),
+              ChampRelief(
+                controller: _controller,
+                indication: 'Plaque, châssis ou IMEI',
+                erreur: _erreurLocale,
+                majuscules: true,
+                onSoumis: (_) => _enCours ? null : _verifier(),
+                formateurs: <TextInputFormatter>[
+                  // Majuscules dès la frappe : l'utilisateur voit la forme
+                  // exacte qui sera comparée au registre.
+                  TextInputFormatter.withFunction(
+                    (_, TextEditingValue next) => next.copyWith(text: next.text.toUpperCase()),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              BoutonRelief(
+                libelle: 'JE VÉRIFIE',
+                enCours: _enCours,
+                onPressed: _verifier,
+              ),
+              const SizedBox(height: 12),
+              const BoutonRelief(
+                libelle: 'Je scanne',
+                icone: '▣',
+                principal: false,
+                // Le scan de plaque n'est pas encore branché côté application.
+                // Le bouton reste, DÉSACTIVÉ plutôt que retiré : il fait partie
+                // de la promesse de la maquette, et une cible qui disparaît
+                // d'une version à l'autre se cherche.
+                onPressed: null,
+              ),
+              const SizedBox(height: 18),
+              const _BandeauCompteur(),
+              const SizedBox(height: 22),
+              const _Exemples(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Le compteur de vols rendus invendables.
+///
+/// IL N'EST PAS DÉCORATIF : il répond à la seule question qui décide de
+/// l'usage — « est-ce que ça sert à quelque chose ? ». Le chiffre viendra du
+/// serveur ; en attendant, l'écran n'en invente aucun et parle de la
+/// plateforme, pas d'un total qu'on ne mesure pas encore.
+class _BandeauCompteur extends StatelessWidget {
+  const _BandeauCompteur();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: Djassa.encre,
+        borderRadius: BorderRadius.circular(Djassa.rayon),
+      ),
+      child: Row(
+        children: <Widget>[
+          Text('⚡', style: Djassa.affiche(22, couleur: Djassa.ambre)),
+          const SizedBox(width: 12),
+          const Expanded(
             child: Text(
-              widget.session.estConnecte ? 'Mes biens' : 'J\'ai un bien',
-              style: const TextStyle(fontWeight: FontWeight.w800, color: Djassa.encre),
+              'Une déclaration de vol rend le bien invendable dans la seconde, '
+              'partout en Côte d\'Ivoire.',
+              style: TextStyle(
+                fontFamily: Djassa.texte,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+                color: Djassa.creme,
+              ),
             ),
           ),
         ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              const Text(
-                'Ce bien est-il volé ?',
-                style: TextStyle(fontSize: 34, fontWeight: FontWeight.w800, height: 1.15),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Vérifie avant de payer. C\'est gratuit, anonyme, et personne ne saura '
-                'que tu as cherché.',
-                style: TextStyle(fontSize: 19, color: Djassa.sourdine, height: 1.4),
-              ),
-              const SizedBox(height: 24),
-              TextField(
-                controller: _controller,
-                autofocus: true,
-                textCapitalization: TextCapitalization.characters,
-                autocorrect: false,
-                enableSuggestions: false,
-                textInputAction: TextInputAction.search,
-                onSubmitted: (_) => _enCours ? null : _verifier(),
-                inputFormatters: <TextInputFormatter>[
-                  // Majuscules dès la frappe : l'utilisateur voit la forme
-                  // exacte qui sera comparée au registre.
-                  TextInputFormatter.withFunction(
-                    (_, next) => next.copyWith(text: next.text.toUpperCase()),
-                  ),
-                ],
-                style: const TextStyle(fontSize: 22, letterSpacing: 1.2),
-                decoration: const InputDecoration(
-                  labelText: 'Numéro de châssis, plaque ou IMEI',
-                  hintText: '1M8GDM9AXKP042788',
-                ),
-              ),
-              if (_erreurLocale != null) ...<Widget>[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFDE7E4),
-                    border: Border.all(color: Djassa.alerte, width: 3),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    _erreurLocale!,
-                    style: const TextStyle(fontWeight: FontWeight.w700, height: 1.4),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 14),
-              FilledButton(
-                onPressed: _enCours ? null : _verifier,
-                child: _enCours
-                    ? const SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(strokeWidth: 3, color: Djassa.encre),
-                      )
-                    : const Text('Vérifier'),
-              ),
-              const SizedBox(height: 34),
-              const Divider(color: Djassa.encre, thickness: 3),
-              const SizedBox(height: 18),
-              const Text(
-                'Où trouver le numéro ?',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                '• Voiture, moto — le numéro de châssis (VIN) est sur la carte grise, '
-                'et gravé sur le cadre.\n'
-                '• Téléphone — compose *#06# pour afficher l\'IMEI.\n'
-                '• La plaque d\'immatriculation fonctionne aussi.',
-                style: TextStyle(height: 1.6),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Un numéro inconnu n\'est pas un feu vert',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Si le bien n\'est pas enregistré, cela ne veut pas dire qu\'il est propre : '
-                'cela veut dire que personne ne l\'a encore déclaré. Demande au vendeur de '
-                'l\'enregistrer devant toi — un vendeur honnête n\'a rien à y perdre.',
-                style: TextStyle(height: 1.5, color: Djassa.sourdine),
-              ),
-            ],
+    );
+  }
+}
+
+/// Où trouver le numéro. La maquette propose des exemples à essayer ; ici, ce
+/// qui manque vraiment à quelqu'un devant une moto, c'est de savoir OÙ REGARDER.
+class _Exemples extends StatelessWidget {
+  const _Exemples();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const Text(
+          'OÙ TROUVER LE NUMÉRO',
+          style: TextStyle(
+            fontFamily: Djassa.texte,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: Djassa.etiquette,
+            letterSpacing: 0.5,
           ),
+        ),
+        const SizedBox(height: 10),
+        const Wrap(
+          spacing: 7,
+          runSpacing: 7,
+          children: <Widget>[
+            _Puce('Moto, voiture : sur la carte grise'),
+            _Puce('Gravé sur le cadre'),
+            _Puce('Téléphone : compose *#06#'),
+            _Puce('La plaque marche aussi'),
+          ],
+        ),
+        const SizedBox(height: 22),
+        Text('Un numéro inconnu n\'est pas un feu vert', style: Djassa.affiche(20)),
+        const SizedBox(height: 8),
+        const Text(
+          'Si le bien n\'est pas enregistré, cela ne veut pas dire qu\'il est propre : '
+          'cela veut dire que personne ne l\'a encore déclaré. Demande au vendeur de '
+          'l\'enregistrer devant toi — un vendeur honnête n\'a rien à y perdre.',
+          style: TextStyle(
+            fontFamily: Djassa.texte,
+            height: 1.5,
+            fontSize: 15,
+            color: Djassa.sourdine,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _Puce extends StatelessWidget {
+  const _Puce(this.libelle);
+
+  final String libelle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 40),
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+      decoration: BoxDecoration(
+        color: Djassa.creme,
+        border: Border.all(color: Djassa.encre, width: 2),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        libelle,
+        style: const TextStyle(
+          fontFamily: Djassa.texte,
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: Djassa.encre,
         ),
       ),
     );

@@ -126,11 +126,15 @@ class AuthService {
   /// parcours « je pense qu'on a accédé à mon compte », jamais par défaut —
   /// déconnecter silencieusement les autres appareils d'un utilisateur qui
   /// change simplement de téléphone serait une punition sans faute.
+  /// [fullName] n'est retenu qu'à la CRÉATION du compte, et n'est jamais
+  /// exigé : on ne demande pas une identité pour ouvrir un compte, seulement
+  /// pour céder un bien ou réclamer (CT-06).
   Future<Account> verify(
     String phone,
     String code,
     OtpPurpose purpose, {
     String? email,
+    String? fullName,
     bool revokeOtherDevices = false,
   }) async {
     final body = await _api.post('/auth/otp/verify', body: <String, Object?>{
@@ -138,6 +142,7 @@ class AuthService {
       'code': code,
       'purpose': purpose.wire,
       if (email != null && email.isNotEmpty) 'email': email,
+      if (fullName != null && fullName.isNotEmpty) 'full_name': fullName,
       if (revokeOtherDevices) 'revoke_other_devices': true,
     });
 

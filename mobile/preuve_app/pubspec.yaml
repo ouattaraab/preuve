@@ -36,10 +36,38 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Pilote l'application RÉELLE sur un appareil : c'est le seul harnais qui
+  # exerce les greffons natifs — trousseau, appareil photo. Livré avec le SDK,
+  # ce n'est donc pas une dépendance tierce de plus.
+  integration_test:
+    sdk: flutter
   flutter_lints: ^4.0.0
 
 flutter:
   uses-material-design: true
-  # Les polices DJASSA (Bricolage Grotesque, Atkinson Hyperlegible) ne sont pas
-  # encore déposées : les déclarer sans les fichiers ferait échouer la
-  # construction. Voir README.
+
+  # Les deux polices de la maquette DJASSA.
+  #
+  # BRICOLAGE GROTESQUE EST INSTANCIÉE EN GRAISSES FIXES, à partir de la police
+  # variable officielle : Flutter n'applique les axes d'une variable que si on
+  # les lui nomme un à un (`fontVariations`), ce qui obligerait chaque style du
+  # thème à les répéter. Deux fichiers statiques rendent exactement la même
+  # chose, et un titre mal graissé ne peut plus passer inaperçu.
+  #
+  # ATKINSON HYPERLEGIBLE n'est pas un choix d'esthétique : elle est dessinée
+  # par le Braille Institute pour distinguer les caractères qui se confondent —
+  # le 0 et le O, le 1 et le I. C'est exactement ce qu'on lit ici : des numéros
+  # de châssis de dix-sept caractères, debout, en plein soleil.
+  fonts:
+    - family: Bricolage
+      fonts:
+        - asset: assets/fonts/BricolageGrotesque-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/BricolageGrotesque-ExtraBold.ttf
+          weight: 800
+    - family: Atkinson
+      fonts:
+        - asset: assets/fonts/AtkinsonHyperlegible-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/AtkinsonHyperlegible-Bold.ttf
+          weight: 700

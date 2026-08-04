@@ -15,7 +15,22 @@ import 'ui/theme.dart';
 /// mise à jour précisément les versions qu'il faut arrêter.
 const String versionInstallee = '0.1.0';
 
-const String baseApi = 'https://preuve.click/api/v1';
+/// Racine de l'API.
+///
+/// LA PRODUCTION EST LE DÉFAUT, DÉLIBÉRÉMENT : une application livrée avec une
+/// adresse de développement ne joindrait rien, et le défaut ne se verrait
+/// qu'après publication. Le remplacer sert au développement, pas l'inverse :
+///
+/// ```
+/// flutter run --dart-define=PREUVE_API=http://192.168.1.10:8000/api/v1
+/// ```
+///
+/// Une adresse locale doit être une adresse de RÉSEAU, jamais `localhost` : sur
+/// un simulateur ou un téléphone, `localhost` désigne l'appareil lui-même.
+const String baseApi = String.fromEnvironment(
+  'PREUVE_API',
+  defaultValue: 'https://preuve.click/api/v1',
+);
 
 Future<void> main() async {
   // Requis avant tout accès au trousseau : le pont natif ne répond pas tant
