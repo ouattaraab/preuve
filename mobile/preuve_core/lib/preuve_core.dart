@@ -10,6 +10,7 @@ export 'src/api/asset_service.dart';
 export 'src/api/auth_service.dart';
 export 'src/api/client.dart';
 export 'src/api/exceptions.dart';
+export 'src/api/lifecycle_service.dart';
 export 'src/api/lookup_service.dart';
 export 'src/api/transport.dart';
 export 'src/identifiers.dart';
