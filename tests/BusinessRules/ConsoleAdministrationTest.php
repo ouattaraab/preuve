@@ -11,6 +11,7 @@ use App\Services\Settings\SettingsRepository;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -192,4 +193,30 @@ it('périme le code après usage', function (): void {
     expect(auth()->check())->toBeFalse();
 
     expect(OtpCode::whereNull('consumed_at')->count())->toBe(0);
+});
+
+it('ne loge aucune ressource sous un préfixe de route', function (): void {
+    /*
+     * CONSTATÉ EN PRODUCTION LE 04/08/2026 : la console avait ses polices et
+     * son script dans `public/admin/`. Le serveur y résolvait `/admin/` —
+     * dossier réel, sans index et sans listage autorisé — et rendait un 403
+     * AVANT que Laravel ne voie la requête. L'écran de connexion restait
+     * accessible, seule la racine de la console était murée : le défaut ne se
+     * voyait donc que pour qui tapait l'adresse à la main.
+     *
+     * Aucun test d'intégration ne pouvait l'attraper : le serveur de test de
+     * PHPUnit ne sert pas de fichiers statiques et passe tout à Laravel.
+     * Celui-ci regarde donc le disque, pas les réponses.
+     */
+    $prefixes = collect(Route::getRoutes())
+        ->map(fn ($route) => strtok((string) $route->uri(), '/'))
+        ->filter(fn ($segment) => is_string($segment) && $segment !== '' && ! str_starts_with($segment, '{'))
+        ->unique();
+
+    foreach ($prefixes as $prefixe) {
+        expect(is_dir(public_path($prefixe)))->toBeFalse(
+            "Le dossier public/{$prefixe} masque le préfixe de route « {$prefixe} » : ".
+            'le serveur le résoudra avant Laravel.'
+        );
+    }
 });

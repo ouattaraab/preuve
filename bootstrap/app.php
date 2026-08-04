@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Exceptions\OtpRefuseException;
+use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -18,6 +19,17 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        /*
+         * En-têtes de sécurité sur TOUTE réponse — API comprise.
+         *
+         * Posés par l'application et non par le serveur : sur un mutualisé, la
+         * configuration ne nous appartient pas et une intervention de
+         * l'hébergeur remet les fichiers en l'état. Ce qui est dans le dépôt
+         * survit au redéploiement ; ce qui est posé à la main disparaît sans
+         * prévenir.
+         */
+        $middleware->append(SecurityHeaders::class);
+
         /*
          * OÙ ENVOYER UN VISITEUR NON AUTHENTIFIÉ — et la réponse diffère selon
          * la porte qu'il pousse.

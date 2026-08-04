@@ -8,7 +8,7 @@
         déclencheurs de base l'interdisent : proposer un bouton qui échouerait
         toujours enseignerait qu'une modification est concevable.
     --}}
-    <form id="filtres-audit" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px" onsubmit="return false">
+    <form id="filtres-audit" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
         <input id="fa-action" placeholder="Action (ex. asset.registered)" autocomplete="off"
                style="flex:1;min-width:220px;padding:10px 14px;border:2px solid #E4DBC8;border-radius:10px;font-size:14px;background:#fff;color:#2B1D12">
         <input id="fa-entite" placeholder="Entité (ex. asset)" autocomplete="off"

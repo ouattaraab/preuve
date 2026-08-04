@@ -5,7 +5,7 @@
         Annuaire des comptes. Colonnes de la maquette : UTILISATEUR,
         CONTACT (MASQUÉ), NIVEAU KYC, BIENS, INSCRIT, ACTION.
     --}}
-    <form id="filtres-comptes" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px" onsubmit="return false">
+    <form id="filtres-comptes" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
         <input id="qu" placeholder="Nom" autocomplete="off"
                style="flex:1;min-width:240px;padding:10px 14px;border:2px solid #E4DBC8;border-radius:10px;font-size:14px;background:#fff;color:#2B1D12">
         <select id="kyc" style="padding:10px 14px;border:2px solid #E4DBC8;border-radius:10px;font-size:14px;background:#fff;color:#2B1D12">
@@ -57,7 +57,7 @@
                 et est consignée dans deux registres inaltérables.
             </p>
 
-            <form id="form-levee" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:16px" onsubmit="return false">
+            <form id="form-levee" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:16px">
                 <input id="lv-user" type="number" min="1" placeholder="Identifiant du compte visé"
                        style="padding:10px 14px;border:2px solid #E4DBC8;border-radius:10px;font-size:14px;background:#fff;color:#2B1D12">
                 <input id="lv-autorite" placeholder="Autorité requérante"

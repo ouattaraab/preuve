@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\SecurityHeaders;
 use App\Models\User;
 use App\Services\Captcha\CaptchaVerifier;
 use App\Services\LookupResult;
@@ -63,6 +64,7 @@ final class PublicLookupController extends Controller
         }
 
         $resultat = $this->consulter($request, $saisie);
+        $this->autoriserLeDefi($request, $resultat);
 
         return response()
             ->view('public.verdict', [
@@ -92,6 +94,7 @@ final class PublicLookupController extends Controller
     public function asset(Request $request, string $publicRef): Response
     {
         $resultat = $this->consulter($request, $publicRef);
+        $this->autoriserLeDefi($request, $resultat);
 
         return response()
             ->view('public.verdict', [
@@ -113,6 +116,21 @@ final class PublicLookupController extends Controller
             // trop de temps à devenir visible — c'est l'information la plus
             // urgente du produit.
             ->header('Cache-Control', $resultat->found ? 'public, max-age=60' : 'no-store, private');
+    }
+
+    /**
+     * Ouvre la politique de sécurité à l'origine du défi, et seulement quand
+     * la page l'affiche réellement.
+     *
+     * L'autoriser en permanence rendrait la promesse « aucune ressource tierce
+     * sur le chemin nominal » invérifiable : elle ne tiendrait plus qu'à ce que
+     * personne n'ajoute un jour la balise.
+     */
+    private function autoriserLeDefi(Request $request, LookupResult $resultat): void
+    {
+        if ($resultat->rateLimited && $this->captcha->isConfigured()) {
+            $request->attributes->set(SecurityHeaders::ATTRIBUT_DEFI, true);
+        }
     }
 
     /**

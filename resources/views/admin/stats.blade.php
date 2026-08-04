@@ -49,7 +49,7 @@
         </h2>
         <p id="etat-version" style="font-size:13px;color:#5C4A33;line-height:1.6;margin-top:8px">Chargement…</p>
 
-        <form id="form-version" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:16px" onsubmit="return false">
+        <form id="form-version" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:16px">
             <input id="vr-minimum" placeholder="Version minimale exigée (ex. 1.4.0)" autocomplete="off"
                    style="min-width:240px;padding:10px 14px;border:2px solid #E4DBC8;border-radius:10px;font-size:14px;background:#fff;color:#2B1D12">
             <input id="vr-derniere" placeholder="Dernière version publiée" autocomplete="off"

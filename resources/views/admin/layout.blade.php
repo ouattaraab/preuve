@@ -9,6 +9,13 @@
 
     Les polices sont servies en fichiers woff2 plutôt qu'en base64 : 154 Ko mis
     en cache par le navigateur, contre 362 Ko rechargés à chaque page.
+
+    ELLES VIVENT SOUS `/console/` ET NON `/admin/`, et ce n'est pas cosmétique :
+    « admin » est le préfixe des ROUTES. Tant qu'un dossier du même nom existait
+    dans la racine servie, le serveur y résolvait `/admin/` — sans index et sans
+    listage autorisé — et rendait un 403 avant que Laravel ne voie la requête.
+    Un préfixe de route et un dossier de ressources ne doivent jamais porter le
+    même nom.
 --}}
 <!DOCTYPE html>
 <html lang="fr">
@@ -17,7 +24,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $titre ?? 'Administration' }} — Preuve</title>
-    <link rel="stylesheet" href="/admin/fonts.css">
+    <link rel="stylesheet" href="/console/fonts.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #EFE9DC; color: #2B1D12; font-family: 'Atkinson Hyperlegible', sans-serif; }
@@ -83,6 +90,6 @@
     </main>
 </div>
 
-<script src="/admin/app.js" defer></script>
+<script src="/console/app.js" defer></script>
 </body>
 </html>

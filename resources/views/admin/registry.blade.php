@@ -8,7 +8,7 @@
         Aucune colonne « détenteur » : l'anonymat est symétrique et ne connaît
         pas d'exception interne (règle métier absolue n° 4).
     --}}
-    <form id="filtres-registre" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px" onsubmit="return false">
+    <form id="filtres-registre" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
         <input id="q" placeholder="Identifiant ou référence publique" autocomplete="off"
                style="flex:1;min-width:240px;padding:10px 14px;border:2px solid #E4DBC8;border-radius:10px;font-size:14px;background:#fff;color:#2B1D12">
         <select id="statut" style="padding:10px 14px;border:2px solid #E4DBC8;border-radius:10px;font-size:14px;background:#fff;color:#2B1D12">

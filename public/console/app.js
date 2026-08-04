@@ -48,6 +48,25 @@ const Api = {
   put(url, donnees) { return this.appel(url, { method: 'PUT', body: JSON.stringify(donnees || {}) }); },
 };
 
+/**
+ * Neutralise l'envoi des formulaires de filtrage.
+ *
+ * Posé ICI et non par un attribut `onsubmit` dans le gabarit : une politique de
+ * sécurité du contenu qui autorise les gestionnaires en ligne doit autoriser
+ * `'unsafe-inline'` pour les scripts, ce qui rouvre la porte que la politique
+ * ferme. Cette console affiche des pièces d'identité et des cartes grises —
+ * elle n'a pas les moyens de cette concession.
+ */
+function neutraliserEnvoi(id) {
+  const formulaire = document.getElementById(id);
+  if (formulaire) formulaire.addEventListener('submit', e => e.preventDefault());
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  ['filtres-registre', 'filtres-comptes', 'filtres-audit', 'form-levee', 'form-version']
+    .forEach(neutraliserEnvoi);
+});
+
 /** Échappe avant insertion : rien de ce qui vient de l'API n'est du HTML. */
 function txt(valeur) {
   const d = document.createElement('div');
