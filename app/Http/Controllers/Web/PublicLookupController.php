@@ -69,6 +69,7 @@ final class PublicLookupController extends Controller
                 'resultat' => $resultat,
                 'saisie' => $saisie,
                 'indexable' => false,
+                ...$this->referencement($resultat),
                 'captcha' => $resultat->rateLimited && $this->captcha->isConfigured()
                     ? $this->captcha->siteKey()
                     : null,
@@ -97,6 +98,7 @@ final class PublicLookupController extends Controller
                 'resultat' => $resultat,
                 'saisie' => $publicRef,
                 'indexable' => $resultat->found,
+                ...$this->referencement($resultat),
                 'captcha' => $resultat->rateLimited && $this->captcha->isConfigured()
                     ? $this->captcha->siteKey()
                     : null,
@@ -111,6 +113,38 @@ final class PublicLookupController extends Controller
             // trop de temps à devenir visible — c'est l'information la plus
             // urgente du produit.
             ->header('Cache-Control', $resultat->found ? 'public, max-age=60' : 'no-store, private');
+    }
+
+    /**
+     * Titre et description de la page.
+     *
+     * Composés ICI et non dans le gabarit : une section Blade multiligne
+     * emporte ses retours à la ligne dans la balise `<title>`, ce qui ne se
+     * voit qu'en regardant le HTML rendu — et se voit ensuite dans les
+     * résultats de recherche.
+     *
+     * @return array<string, string>
+     */
+    private function referencement(LookupResult $resultat): array
+    {
+        $bien = $resultat->asset;
+
+        if ($bien === null) {
+            return [
+                'titre' => "Vérifier un bien avant d'acheter · Preuve",
+                'description' => 'Vérifiez gratuitement, sans compte et en deux gestes si un véhicule '.
+                    'ou un téléphone est déclaré volé, en litige ou en location.',
+            ];
+        }
+
+        return [
+            'titre' => sprintf('%s — bien %s · Preuve', $bien->life_status->label(), $bien->public_ref),
+            'description' => sprintf(
+                'Statut déclaré du bien %s au registre Preuve : %s',
+                $bien->public_ref,
+                $bien->life_status->publicMessage(),
+            ),
+        ];
     }
 
     private function consulter(Request $request, string $saisie): LookupResult

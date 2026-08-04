@@ -198,3 +198,18 @@ it('autorise la mise en cache partagée d\'une page de statut', function (): voi
     expect($this->get('/b/'.$bien->public_ref)->headers->get('Cache-Control'))
         ->toContain('max-age=60');
 });
+
+it('compose un titre et une description propres pour les moteurs', function (): void {
+    $bien = bienDuFrontPublic(LifeStatus::Stolen);
+
+    $corps = (string) $this->get('/b/'.$bien->public_ref)->assertOk()->getContent();
+
+    preg_match('/<title>(.*?)<\/title>/s', $corps, $titre);
+
+    // Une section Blade multiligne emporte ses retours à la ligne dans la
+    // balise : cela ne se voit qu'en lisant le HTML rendu, puis dans les
+    // résultats de recherche.
+    expect($titre[1] ?? '')->not->toContain("\n")
+        ->and($titre[1] ?? '')->toStartWith('Volé déclaré')
+        ->and($corps)->toContain('content="Statut déclaré du bien '.$bien->public_ref);
+});

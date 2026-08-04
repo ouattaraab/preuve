@@ -20,22 +20,6 @@
     };
 @endphp
 
-@section('titre')
-    @if ($resultat->found)
-        {{ $statut?->label() }} — bien {{ $bien?->public_ref }} · Preuve
-    @else
-        Vérification d'un bien · Preuve
-    @endif
-@endsection
-
-@section('description')
-    @if ($resultat->found)
-        Statut déclaré du bien {{ $bien?->public_ref }} au registre Preuve : {{ $statut?->publicMessage() }}
-    @else
-        Vérifiez gratuitement si un véhicule ou un téléphone est déclaré volé, en litige ou en location.
-    @endif
-@endsection
-
 @if ($indexable ?? false)
     @section('canonique', url('/b/'.$bien?->public_ref))
 @endif

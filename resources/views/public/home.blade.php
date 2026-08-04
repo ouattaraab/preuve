@@ -1,7 +1,5 @@
 @extends('public.layout')
 
-@section('titre', 'Preuve — vérifier un bien avant d\'acheter')
-
 @section('contenu')
     {{--
         Deux interactions, pas trois (CT-01) : on saisit, on valide. Aucun

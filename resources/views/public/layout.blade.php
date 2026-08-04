@@ -17,8 +17,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>@yield('titre', 'Preuve — vérifier un bien avant d\'acheter')</title>
-    <meta name="description" content="@yield('description', 'Vérifiez gratuitement, sans compte et en deux gestes si un véhicule ou un téléphone est déclaré volé, en litige ou en location.')">
+    <title>{{ $titre ?? 'Preuve — vérifier un bien avant d\'acheter' }}</title>
+    <meta name="description" content="{{ $description ?? 'Vérifiez gratuitement, sans compte et en deux gestes si un véhicule ou un téléphone est déclaré volé, en litige ou en location.' }}">
     @hasSection('canonique')
         <link rel="canonical" href="@yield('canonique')">
     @endif
