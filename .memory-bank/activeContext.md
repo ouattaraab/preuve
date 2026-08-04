@@ -77,6 +77,50 @@ plus des stories.
 - ✅ **Cron rétabli le 03/08/2026** (commande corrigée dans hPanel : chemin absolu vers `artisan`, sans `cd`). Le témoin de passage confirme un battement toutes les cinq minutes, la sonde rend `scheduler: ok`. Débloque la bascule des notifications en file et l'import de flotte au-delà de 200 lignes. Historique du blocage, conservé pour mémoire :
 - 🔵 ~~BLOQUANT — les tâches cron ne s'exécutent pas sur l'hébergement~~ (constaté le 03/08/2026). Deux tâches indépendantes, dont un simple `/usr/bin/date`, créent leur fichier de sortie à `HH:MM:02` — signature d'un déclenchement — puis n'écrivent **jamais** un octet, sur des observations de 4 à 18 minutes. Ce n'est donc pas la commande : `date` ne peut pas échouer. Écrire directement dans `/var/spool/cron/` (qui appartient pourtant à l'utilisateur) n'est pas lu non plus, et aucun binaire `crontab` ni outil hPanel n'existe en ligne de commande. **Ticket support Hostinger à ouvrir.** Conséquence : aucune des 13 tâches planifiées ne tourne — promotion des biens provisoires, agrégation des consultations, pics, expiration des transferts, **ancrage quotidien**, purges de rétention. Impact immédiat nul (registre vide), inacceptable dès qu'il portera des biens. Repli possible : déclenchement HTTP externe par un service tiers, au prix d'un endpoint protégé par secret — à arbitrer.
 
+## Front public de consultation (ST-0306, 04/08/2026)
+
+`preuve.click/` servait encore le gabarit par défaut de Laravel : une plateforme
+dont la promesse est « vérifier avant d'acheter, sans compte » n'avait aucune page
+pour le faire. Trois routes, sans session ni JavaScript.
+
+- `/` — un champ, un bouton (CT-01, deux interactions). Aucun choix de type de bien
+  à faire d'abord : la normalisation reconnaît seule un châssis, une plaque ou un
+  IMEI, et faire trancher l'acheteur lui ferait porter une erreur qui n'est pas la
+  sienne.
+- `/verifier?q=…` — résultat d'une saisie libre. **`noindex` sans exception**, en
+  balise ET en en-tête : l'URL porte l'identifiant réel, et l'indexer publierait,
+  moteur après moteur, l'annuaire des numéros de châssis enregistrés.
+- `/b/{PRV-XXXXXXXX}` — page de statut **indexable**, adressée par la référence
+  opaque. La route n'accepte que cette forme.
+
+**Partis pris à ne pas rediscuter :**
+1. **Même service que l'API** (`LookupService`) : même empreinte d'adresse, même
+   quota horaire, même échappatoire par défi. Un second chemin plus permissif
+   ferait de ces pages l'outil de balayage que le plafond existe pour empêcher.
+2. **Pas de plan de site.** Un sitemap énumérant les références publierait le
+   registre sous forme de liste : chaque page prise isolément est anodine, leur
+   collection ne l'est pas. Les pages se découvrent par le lien qu'un vendeur
+   partage.
+3. **Aucune session, donc aucun cookie** (routes hors `StartSession`) : un
+   identifiant de session permettrait de recoudre les consultations successives
+   d'un visiteur, ce que le hachage quotidien de l'adresse existe pour empêcher —
+   et un `Set-Cookie` interdirait la mise en cache partagée de la page la plus
+   consultée du site. `Referrer-Policy: no-referrer` en complément.
+4. **Aucune ressource tierce sur le chemin nominal.** Le script Turnstile n'est
+   chargé qu'APRÈS un refus pour plafond atteint. Accueil servi en 4,7 Ko.
+5. Le code HTTP suit le verdict (200 / 404 / 422 / 429), y compris en HTML : un
+   moteur qui verrait un 200 sur une page de refus l'indexerait à la place du
+   verdict.
+
+Titre et description sont composés dans le contrôleur, pas en sections Blade —
+une section multiligne emporte ses retours à la ligne dans la balise `<title>`,
+ce qui ne se voit qu'en lisant le HTML rendu, puis dans les résultats de
+recherche. Un test le verrouille.
+
+**Reste** : le widget Turnstile est en place côté serveur et côté page, mais
+aucune clé Cloudflare n'est renseignée en production — le refus tient, sans
+échappatoire, tant que les clés manquent.
+
 ## Espace administrateur (construction par lots, en production)
 
 Console servie par Laravel, sans étape de construction — l'hébergement cible est
