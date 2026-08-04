@@ -8,6 +8,8 @@ use App\Enums\ActorType;
 use App\Enums\OtpChannel;
 use App\Enums\OtpPurpose;
 use App\Http\Controllers\Controller;
+use App\Models\Company;
+use App\Models\CompanyMember;
 use App\Models\User;
 use App\Services\AuditChain;
 use App\Services\Otp\ConfigurableOtpSender;
@@ -269,7 +271,50 @@ final class OtpAuthController extends Controller
             'phone' => $utilisateur instanceof User ? $utilisateur->phone : null,
             'full_name' => $utilisateur instanceof User ? $utilisateur->full_name : null,
             'kyc_status' => $utilisateur instanceof User ? $utilisateur->kyc_status : null,
+            // LES SOCIÉTÉS DONT LE COMPTE EST MEMBRE. Sans elles, aucun client
+            // ne peut atteindre la flotte : tous ses points d'entrée sont en
+            // `/fleet/{company}/…`, et rien ne disait à l'application qu'un
+            // compte est un loueur, ni de quelle société. Le tableau de bord
+            // existait et n'était ouvrable par personne.
+            //
+            // LE RÔLE ACCOMPAGNE LA SOCIÉTÉ, et il décide de ce que l'écran
+            // propose : un opérateur marque des véhicules en location, il
+            // n'invite pas de collaborateurs. Le deviner côté client ferait
+            // afficher des boutons que le serveur refuse.
+            'companies' => $utilisateur instanceof User ? $this->societesDe($utilisateur) : [],
         ]);
+    }
+
+    /**
+     * Sociétés dont ce compte est membre actif.
+     *
+     * @return list<array{id: int, name: string, role: string, role_label: string}>
+     */
+    private function societesDe(User $utilisateur): array
+    {
+        $societes = [];
+
+        $membres = CompanyMember::query()
+            ->where('user_id', $utilisateur->id)
+            ->where('is_active', true)
+            ->get();
+
+        foreach ($membres as $membre) {
+            $societe = Company::find($membre->company_id);
+
+            if (! $societe instanceof Company) {
+                continue;
+            }
+
+            $societes[] = [
+                'id' => $societe->id,
+                'name' => (string) $societe->legal_name,
+                'role' => $membre->role->value,
+                'role_label' => $membre->role->label(),
+            ];
+        }
+
+        return $societes;
     }
 
     /** Ferme la seule session courante, sans toucher aux autres appareils. */

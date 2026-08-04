@@ -39,6 +39,7 @@ class Account {
     required this.phone,
     this.fullName,
     this.kycStatus,
+    this.companies = const <CompanyMembership>[],
   });
 
   factory Account.fromJson(Map<String, Object?> json) {
@@ -47,6 +48,12 @@ class Account {
       phone: json['phone'] is String ? json['phone']! as String : '',
       fullName: json['full_name'] is String ? json['full_name']! as String : null,
       kycStatus: json['kyc_status'] is String ? json['kyc_status']! as String : null,
+      companies: json['companies'] is List
+          ? (json['companies']! as List)
+              .whereType<Map<String, Object?>>()
+              .map(CompanyMembership.fromJson)
+              .toList(growable: false)
+          : const <CompanyMembership>[],
     );
   }
 
@@ -54,6 +61,45 @@ class Account {
   final String phone;
   final String? fullName;
   final String? kycStatus;
+
+  /// Sociétés dont ce compte est membre actif.
+  ///
+  /// SANS ELLES, LA FLOTTE EST INATTEIGNABLE : tous ses points d'entrée sont
+  /// en `/fleet/{company}/…`, et rien d'autre ne dit à l'application qu'un
+  /// compte est un loueur, ni de quelle société.
+  final List<CompanyMembership> companies;
+
+  bool get isFleetOperator => companies.isNotEmpty;
+}
+
+/// Appartenance à une société, avec le rôle qui décide de ce qu'on peut faire.
+class CompanyMembership {
+  const CompanyMembership({
+    required this.id,
+    required this.name,
+    required this.role,
+    required this.roleLabel,
+  });
+
+  factory CompanyMembership.fromJson(Map<String, Object?> json) {
+    return CompanyMembership(
+      id: json['id'] is int ? json['id']! as int : 0,
+      name: json['name'] is String ? json['name']! as String : '',
+      role: json['role'] is String ? json['role']! as String : '',
+      roleLabel: json['role_label'] is String ? json['role_label']! as String : '',
+    );
+  }
+
+  final int id;
+  final String name;
+
+  /// `admin` ou `operator`. LE RÔLE VIENT DU SERVEUR : un opérateur marque des
+  /// véhicules en location, il n'invite pas de collaborateurs. Le deviner
+  /// ferait afficher des boutons que le serveur refuse.
+  final String role;
+  final String roleLabel;
+
+  bool get isAdmin => role == 'admin';
 }
 
 /// Connexion par code à usage unique. Il n'existe aucun mot de passe.

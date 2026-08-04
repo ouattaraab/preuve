@@ -59,6 +59,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _sansPhotos = false;
   final Set<int> _photosPrises = <int>{};
 
+  /// Identifiant du scan qui a pré-rempli le formulaire, renvoyé à
+  /// l'enregistrement : c'est lui qui permet de mesurer combien de propositions
+  /// survivent intactes jusqu'à la soumission. Sans cette mesure, on ne saurait
+  /// pas si la fonction sert à quelque chose.
+  int? _scanId;
+  bool _scanEnCours = false;
+  String? _scanMessage;
+
   /// Les quatre prises de vue demandées.
   ///
   /// ELLES SONT GÉNÉRIQUES À DESSEIN : le catalogue des catégories est servi à
@@ -186,6 +194,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         category: categorie.key,
         attributes: attributs,
         elapsed: _chrono.elapsed,
+        scanId: _scanId,
       );
 
       if (mounted) {
@@ -238,6 +247,83 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } finally {
       if (mounted) {
         setState(() => _envoi = false);
+      }
+    }
+  }
+
+  /// Lit une carte grise et PROPOSE l'identifiant (ST-0202).
+  ///
+  /// LE SCAN PROPOSE, IL N'ENREGISTRE JAMAIS. La valeur lue est posée dans le
+  /// champ, qui reste modifiable, et le contrôle local s'appliquera comme à une
+  /// saisie manuelle. Un identifiant mal lu est pire qu'un identifiant non lu :
+  /// personne ne relit dix-sept caractères, et l'erreur ne se découvrirait qu'au
+  /// moment où le bien compte.
+  ///
+  /// UNE LECTURE QUI ÉCHOUE LE DIT, et ne propose rien. Une valeur approchée
+  /// serait recopiée sans être vérifiée — c'est exactement ce qu'il faut éviter.
+  Future<void> _scanner() async {
+    final categorie = _categorie;
+
+    if (categorie == null) {
+      return;
+    }
+
+    final photo = await choisirPhoto(context, titre: 'Photo de la carte grise');
+
+    if (photo == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _scanEnCours = true;
+      _erreur = null;
+      _scanMessage = null;
+    });
+
+    try {
+      final lecture = await widget.session.scans.read(
+        await enUnSeulMorceau(photo, champ: 'file'),
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _scanId = lecture.scanId;
+
+        final canonique = categorie.canonical;
+
+        if (lecture.hasIdentifier && canonique != null) {
+          _champs[canonique.key]?.text = lecture.identifier!;
+          _scanMessage = 'Numéro lu sur la carte grise. VÉRIFIE-LE caractère par '
+              'caractère avant de continuer : c\'est lui qui identifiera ton bien.';
+        } else {
+          _scanMessage = 'La lecture n\'a rien donné de sûr. Saisis le numéro à la main : '
+              'mieux vaut le taper que recopier une valeur approximative.';
+        }
+
+        // Les autres champs lus — marque, modèle — remplissent ce qui est vide,
+        // sans jamais écraser ce que la personne a déjà tapé.
+        lecture.attributes.forEach((String cle, Object? valeur) {
+          final champ = _champs[cle];
+
+          if (champ != null && champ.text.isEmpty && valeur is String) {
+            champ.text = valeur;
+          }
+        });
+      });
+    } on PreuveException catch (e) {
+      if (mounted) {
+        setState(() => _erreur = messageDeRefus(e));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _erreur = 'Cette image n\'a pas pu être lue ($e). Reprends la photo.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _scanEnCours = false);
       }
     }
   }
@@ -379,10 +465,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ),
       const SizedBox(height: 16),
-      // Le scan n'est pas encore branché côté application ; le serveur, lui,
-      // sait déjà pré-remplir (ST-0202). Le cadre reste, désactivé et dit
-      // pourquoi : une cible qui disparaît d'une version à l'autre se cherche.
-      const _CadreScan(),
+      _CadreScan(enCours: _scanEnCours, onScanner: _scanner),
+      if (_scanMessage != null) ...<Widget>[
+        const SizedBox(height: 12),
+        EncadreConfirmation(_scanMessage!),
+      ],
       const SizedBox(height: 14),
       const Center(
         child: Text(
@@ -705,33 +792,50 @@ class _CarteType extends StatelessWidget {
 }
 
 class _CadreScan extends StatelessWidget {
-  const _CadreScan();
+  const _CadreScan({required this.enCours, required this.onScanner});
+
+  final bool enCours;
+  final VoidCallback onScanner;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 130,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Djassa.etiquette, width: Djassa.trait),
-        borderRadius: BorderRadius.circular(Djassa.rayon),
-      ),
-      child: const Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          Text('▣', style: TextStyle(fontSize: 34, color: Djassa.etiquette)),
-          SizedBox(height: 8),
-          Text(
-            'Scan de la carte grise — bientôt',
-            style: TextStyle(
-              fontFamily: Djassa.texte,
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: Djassa.etiquette,
-            ),
-          ),
-        ],
+    return InkWell(
+      onTap: enCours ? null : onScanner,
+      child: Container(
+        height: 130,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: Djassa.encre, width: Djassa.trait),
+          borderRadius: BorderRadius.circular(Djassa.rayon),
+        ),
+        child: enCours
+            ? const EnCours()
+            : const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Text('▣', style: TextStyle(fontSize: 34)),
+                  SizedBox(height: 8),
+                  Text(
+                    'Je scanne la carte grise',
+                    style: TextStyle(
+                      fontFamily: Djassa.texte,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Djassa.encre,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Le numéro lu reste modifiable',
+                    style: TextStyle(
+                      fontFamily: Djassa.texte,
+                      fontSize: 13,
+                      color: Djassa.etiquette,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }

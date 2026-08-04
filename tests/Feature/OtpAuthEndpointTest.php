@@ -2,13 +2,17 @@
 
 declare(strict_types=1);
 
+use App\Enums\CompanyRole;
 use App\Enums\OtpPurpose;
 use App\Models\AuditLog;
+use App\Models\Company;
+use App\Models\CompanyMember;
 use App\Models\User;
 use App\Services\Otp\OtpSender;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Laravel\Sanctum\Sanctum;
 
 /**
  * ST-0101 (création de compte par OTP) et ST-0102 (reconnexion sur un nouvel
@@ -31,7 +35,7 @@ function nettoyerAuth(): void
 {
     DB::statement('SET FOREIGN_KEY_CHECKS = 0');
 
-    foreach (['audit_log', 'personal_access_tokens', 'otp_codes', 'users'] as $table) {
+    foreach (['audit_log', 'company_members', 'companies', 'personal_access_tokens', 'otp_codes', 'users'] as $table) {
         DB::statement("TRUNCATE TABLE {$table}");
     }
 
@@ -301,3 +305,45 @@ class CaptureOtpSender implements OtpSender
         return $this->envois[count($this->envois) - 1]['code'];
     }
 }
+
+it('dit à quelles sociétés le compte appartient', function (): void {
+    // SANS CELA, LA FLOTTE EST INATTEIGNABLE : tous ses points d'entrée sont en
+    // `/fleet/{company}/…`, et rien ne disait à l'application qu'un compte est
+    // un loueur, ni de quelle société. Le tableau de bord existait et n'était
+    // ouvrable par personne.
+    $loueur = User::create(['phone' => '+2250701020304']);
+
+    $societe = Company::create([
+        'owner_user_id' => $loueur->id,
+        'legal_name' => 'Loueur Abidjan',
+        'rccm_number' => 'CI-ABJ-2026-B-'.random_int(10000, 99999),
+        'business_type' => 'car_rental',
+        'validation_status' => 'validated',
+    ]);
+
+    CompanyMember::create([
+        'company_id' => $societe->id,
+        'user_id' => $loueur->id,
+        // L'invitation se fait par NUMÉRO : le compte peut ne pas exister
+        // encore au moment où on l'invite.
+        'invited_phone' => $loueur->phone,
+        'role' => CompanyRole::Admin,
+        'is_active' => true,
+    ]);
+
+    Sanctum::actingAs($loueur);
+
+    $reponse = $this->getJson('/api/v1/auth/me')->assertOk();
+
+    expect($reponse->json('companies.0.id'))->toBe($societe->id)
+        ->and($reponse->json('companies.0.name'))->toBe('Loueur Abidjan')
+        // LE RÔLE VIENT DU SERVEUR : il décide de ce que l'écran propose, et le
+        // deviner ferait afficher des boutons que le serveur refuse.
+        ->and($reponse->json('companies.0.role'))->toBe('admin');
+});
+
+it('ne rattache aucune société à un compte ordinaire', function (): void {
+    Sanctum::actingAs(User::create(['phone' => '+2250701020305']));
+
+    expect($this->getJson('/api/v1/auth/me')->assertOk()->json('companies'))->toBe([]);
+});

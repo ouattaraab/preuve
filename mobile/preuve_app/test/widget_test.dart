@@ -92,6 +92,8 @@ PreuveSession _session() {
     claims: ClaimService(transport),
     notifications: NotificationService(transport),
     reports: ReportService(transport),
+    fleet: FleetService(transport),
+    scans: ScanService(transport),
     kyc: KycService(transport),
     envois: UploadManager(
       queue: UploadQueue(

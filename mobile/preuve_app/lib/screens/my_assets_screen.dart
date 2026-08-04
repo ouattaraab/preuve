@@ -6,6 +6,7 @@ import '../ui/code_action.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'asset_screen.dart';
+import 'fleet_screen.dart';
 import 'kyc_screen.dart';
 import 'notifications_screen.dart';
 import 'register_screen.dart';
@@ -195,6 +196,21 @@ class _MyAssetsScreenState extends State<MyAssetsScreen> {
                 },
               ),
               const SizedBox(height: 14),
+              // LA FLOTTE N'APPARAÎT QUE POUR QUI EN A UNE. L'afficher à tout le
+              // monde ferait chercher une fonction qui n'existe pas pour lui ;
+              // la cacher à un loueur lui ferait croire que la plateforme ne
+              // sait pas gérer un parc.
+              ...(widget.session.compte?.companies ?? const <CompanyMembership>[]).map(
+                (CompanyMembership societe) => Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: _CarteFlotte(
+                    societe: societe,
+                    onOuvrir: () => _ouvrir(
+                      FleetScreen(session: widget.session, societe: societe),
+                    ),
+                  ),
+                ),
+              ),
               if (_attentes.isNotEmpty) ...<Widget>[
                 _BandeauTransferts(
                   attentes: _attentes,
@@ -319,6 +335,51 @@ class _Salutation extends StatelessWidget {
           child: const Text('Déconnexion'),
         ),
       ],
+    );
+  }
+}
+
+class _CarteFlotte extends StatelessWidget {
+  const _CarteFlotte({required this.societe, required this.onOuvrir});
+
+  final CompanyMembership societe;
+  final VoidCallback onOuvrir;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onOuvrir,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Djassa.encre,
+          borderRadius: BorderRadius.circular(Djassa.rayon),
+        ),
+        child: Row(
+          children: <Widget>[
+            const Text('🚚', style: TextStyle(fontSize: 26)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(societe.name, style: Djassa.affiche(19, couleur: Djassa.ambre)),
+                  Text(
+                    'Mon parc · ${societe.roleLabel}',
+                    style: const TextStyle(
+                      fontFamily: Djassa.texte,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Djassa.creme,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Text('→', style: TextStyle(fontSize: 22, color: Djassa.creme)),
+          ],
+        ),
+      ),
     );
   }
 }
