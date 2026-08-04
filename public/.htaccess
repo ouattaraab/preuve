@@ -35,3 +35,20 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# En-têtes réécrits par le serveur après le passage de PHP.
+#
+# L'hébergeur mutualisé REMPLACE `Content-Security-Policy` par le sien et
+# réinjecte `X-Powered-By` avec la version exacte de PHP. Constaté le
+# 04/08/2026 : tous les autres en-têtes posés par l'application arrivaient
+# intacts, ces deux-là seuls étaient réécrits. `mod_headers` s'exécute après,
+# et a le dernier mot.
+#
+# La politique est RECOPIÉE depuis `X-Preuve-CSP`, posé par l'application, et
+# non écrite en dur ici : elle varie d'une réponse à l'autre — l'origine du
+# défi anti-automate n'est ouverte que sur la page qui l'affiche réellement.
+<IfModule mod_headers.c>
+    Header always unset X-Powered-By
+    Header always set Content-Security-Policy "expr=%{resp:X-Preuve-CSP}"
+    Header always unset X-Preuve-CSP
+</IfModule>

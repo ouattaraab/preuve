@@ -52,7 +52,22 @@ final class SecurityHeaders
     {
         $reponse = $next($request);
 
-        $reponse->headers->set('Content-Security-Policy', $this->politique($request));
+        $politique = $this->politique($request);
+
+        $reponse->headers->set('Content-Security-Policy', $politique);
+
+        // COPIE DE TRAVAIL, RECOPIÉE PAR `.htaccess` DANS L'EN-TÊTE RÉEL.
+        //
+        // LiteSpeed, chez l'hébergeur, REMPLACE `Content-Security-Policy` par
+        // le sien (« upgrade-insecure-requests ») après le passage de PHP —
+        // constaté le 04/08/2026 : tous les autres en-têtes posés ici
+        // arrivaient, celui-là seul disparaissait. `mod_headers` s'exécute
+        // après, et rétablit la politique depuis cette copie.
+        //
+        // Un en-tête statique dans `.htaccess` aurait suffi à écraser celui de
+        // l'hébergeur, mais aurait figé la politique : l'origine du défi
+        // anti-automate doit n'être ouverte que sur la page qui l'affiche.
+        $reponse->headers->set('X-Preuve-CSP', $politique);
         $reponse->headers->set('X-Content-Type-Options', 'nosniff');
         $reponse->headers->set('X-Frame-Options', 'DENY');
         // Ce que la plateforme n'a aucune raison de demander au navigateur.
