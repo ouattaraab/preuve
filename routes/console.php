@@ -11,6 +11,20 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 /*
+ * TOUTES PORTENT AUSSI `onOneServer()`, ET CE N'EST PAS DÉCORATIF.
+ *
+ * CONSTATÉ EN PRODUCTION LE 04/08/2026 : le planificateur était invoqué DEUX
+ * FOIS, à trois secondes d'intervalle — deux sauvegardes à 01:30:07 et
+ * 01:30:10, deux ancrages à 02:40:06 et 02:40:09. `withoutOverlapping()` n'y
+ * peut rien : il empêche un chevauchement, or la première exécution était
+ * terminée avant que la seconde ne commence. `onOneServer()` prend un verrou
+ * porté par la tâche ET la minute, et le garde jusqu'à la fin de celle-ci :
+ * c'est la seule primitive qui rende une double invocation inoffensive.
+ *
+ * La cause est en amont — une tâche cron déclarée deux fois chez l'hébergeur —
+ * et elle ne nous appartient pas. Une protection qui dépend d'une console tierce
+ * n'est pas une protection.
+ *
  * Les tâches qui écrivent portent toutes `withoutOverlapping()` : elles
  * prennent le verrou nommé de la chaîne d'audit, dont le plafond mesuré est
  * d'une quinzaine d'actions simultanées. Deux passages qui se chevauchent se
@@ -29,7 +43,7 @@ Artisan::command('inspire', function () {
  * d'être est de rendre VISIBLE un planificateur arrêté — panne constatée le
  * 03/08/2026 sur l'hébergement, sans une erreur ni un journal.
  */
-Schedule::command('preuve:heartbeat')->everyFiveMinutes();
+Schedule::command('preuve:heartbeat')->everyFiveMinutes()->onOneServer();
 
 /*
  * Travailleur de la file `notifications` (ST-1003, ST-1004).
@@ -47,50 +61,50 @@ Schedule::command('preuve:heartbeat')->everyFiveMinutes();
  */
 Schedule::command('queue:work --queue=notifications --stop-when-empty --max-time=50 --tries=3')
     ->everyMinute()
-    ->withoutOverlapping();
+    ->withoutOverlapping()->onOneServer();
 
 // Clôture des fenêtres de contestation arrivées à terme (ST-0402). Horaire
 // plutôt que quotidien : un bien enregistré à 14 h ne doit pas attendre le
 // lendemain matin pour devenir Actif au bout de ses 30 jours.
-Schedule::command('preuve:promote-provisional')->hourlyAt(5)->withoutOverlapping();
+Schedule::command('preuve:promote-provisional')->hourlyAt(5)->withoutOverlapping()->onOneServer();
 
 // Agrégation horaire des consultations (ST-1002) : jamais de
 // notification unitaire, qui apprendrait au propriétaire le rythme exact
 // des visites.
-Schedule::command('preuve:aggregate-lookups')->hourlyAt(20)->withoutOverlapping();
+Schedule::command('preuve:aggregate-lookups')->hourlyAt(20)->withoutOverlapping()->onOneServer();
 
 // Relances du contradictoire et clôture des délais échus (ST-0504). Quotidien :
 // les rappels se comptent en jours, un passage horaire n'apporterait rien.
-Schedule::command('preuve:remind-contradictory')->dailyAt('08:15')->withoutOverlapping();
+Schedule::command('preuve:remind-contradictory')->dailyAt('08:15')->withoutOverlapping()->onOneServer();
 
 // Clôture des transferts non confirmés à J+7 (ST-0601) : un transfert laissé
 // ouvert maintiendrait le bien en « Transfert en cours », donc averti aux
 // acheteurs, indéfiniment.
-Schedule::command('preuve:expire-transfers')->hourlyAt(50)->withoutOverlapping();
+Schedule::command('preuve:expire-transfers')->hourlyAt(50)->withoutOverlapping()->onOneServer();
 
 // Détection des pics de consultation (ST-0405) : le signal arrive avant la
 // transaction, seul moment où il a encore une valeur.
-Schedule::command('preuve:detect-lookup-spikes')->hourlyAt(35)->withoutOverlapping();
+Schedule::command('preuve:detect-lookup-spikes')->hourlyAt(35)->withoutOverlapping()->onOneServer();
 
 // Ancrage quotidien du hash de tête hors de la plateforme (ST-0106).
 // SANS LUI, LA CHAÎNE N'EST PAS OPPOSABLE : son algorithme est public et sans
 // secret, donc reproductible par quiconque peut écrire en base. La commande
 // sort en échec si aucun canal externe n'aboutit, ce que le planificateur
 // remonte.
-Schedule::command('preuve:anchor-audit-head')->dailyAt('02:40')->withoutOverlapping();
+Schedule::command('preuve:anchor-audit-head')->dailyAt('02:40')->withoutOverlapping()->onOneServer();
 
 // Relances d'abonnement et suspension douce (ST-0805). Quotidien : les retards
 // se comptent en jours, et aucune relance ne retire la protection acquise.
-Schedule::command('preuve:subscription-dunning')->dailyAt('09:10')->withoutOverlapping();
+Schedule::command('preuve:subscription-dunning')->dailyAt('09:10')->withoutOverlapping()->onOneServer();
 
 // Sauvegarde chiffrée quotidienne, déposée hors machine (ST-0904). Ne fait
 // rien tant qu'aucun disque de sauvegarde n'est configuré.
-Schedule::command('preuve:backup')->dailyAt('01:30')->withoutOverlapping();
+Schedule::command('preuve:backup')->dailyAt('01:30')->withoutOverlapping()->onOneServer();
 
 // Les pièces du bucket, sans lesquelles la base restaurée renverrait à des
 // fichiers introuvables (ST-0904). Après le dump : une pièce sauvegardée sans
 // la ligne qui la désigne ne se rattache à rien.
-Schedule::command('preuve:backup-documents')->dailyAt('01:50')->withoutOverlapping();
+Schedule::command('preuve:backup-documents')->dailyAt('01:50')->withoutOverlapping()->onOneServer();
 
 // Contrôle d'intégrité des pièces, hebdomadaire et non quotidien : il RELIT
 // tout le bucket, quand la sauvegarde ne lit que ce qui manque. C'est le seul
@@ -98,7 +112,7 @@ Schedule::command('preuve:backup-documents')->dailyAt('01:50')->withoutOverlappi
 // l'incrémental ne touche plus jamais.
 Schedule::command('preuve:backup-documents --verify')
     ->weeklyOn(0, '04:30')
-    ->withoutOverlapping();
+    ->withoutOverlapping()->onOneServer();
 
 /*
  * Réconciliation du bucket et de la base, le 1er du mois (ST-0904).
@@ -116,16 +130,23 @@ Schedule::command('preuve:backup-documents --verify')
  *
  * Elle ne prend aucun verrou d'audit : elle ne fait que lire, d'où l'absence de
  * `withoutOverlapping()` ailleurs systématique.
+ *
+ * SON JOURNAL N'EST PLUS ÉCRIT PAR `appendOutputTo()`, mais par le rapporteur
+ * d'exploitation lui-même. Deux raisons. La première : `appendOutputTo()` n'agit
+ * que sous le planificateur — un passage manuel laissait le courriel renvoyer à
+ * un fichier qui n'existait pas. La seconde : il n'a AUCUNE rotation, et sur un
+ * hébergement dont le quota est partagé avec les pièces justificatives, un
+ * fichier qui ne cesse jamais de grossir finit par arrêter toute écriture.
  */
 Schedule::command('preuve:reconcile-documents')
     ->monthlyOn(1, '05:00')
-    ->appendOutputTo(storage_path('logs/reconciliation-documents.log'));
+    ->onOneServer();
 
 // Politique ARTCI : aucune consultation conservée au-delà de 12 mois
 // (ST-0304). Aux heures creuses, la table pouvant être volumineuse.
-Schedule::command('preuve:purge-lookups')->dailyAt('03:20');
+Schedule::command('preuve:purge-lookups')->dailyAt('03:20')->onOneServer();
 
 // Envois différés abandonnés (ST-0206). Plus fréquent que les autres purges :
 // ce sont des fichiers, sur le disque de travail que partagent les sessions et
 // le cache — laissés à eux-mêmes, ils le remplissent.
-Schedule::command('preuve:purge-uploads')->hourlyAt(40)->withoutOverlapping();
+Schedule::command('preuve:purge-uploads')->hourlyAt(40)->withoutOverlapping()->onOneServer();
