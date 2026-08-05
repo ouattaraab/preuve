@@ -764,6 +764,32 @@ voir :
 mise en page ni la cohérence du discours. Les écrans neufs doivent passer sous
 les yeux, à la taille réelle, avant d'être annoncés faits.
 
+## Un bien peut être en base et introuvable en consultation (05/08/2026)
+
+Constaté sur les quatre véhicules de démonstration créés la veille : ils
+s'affichaient dans le registre, dans l'inventaire du détenteur et dans le
+tableau de flotte — **partout sauf là où le produit sert**. Leur
+`identifier_normalized` avait été écrit tel quel, tirets compris, en
+court-circuitant `AssetRegistrationService` ; la consultation, elle, normalise
+toujours, et ne trouvait donc rien.
+
+Conséquence plus grave que l'affichage : l'index unique
+`(identifier_normalized, active_flag)` ne protège plus rien pour ces lignes. Un
+enregistrement régulier du même engin n'aurait rencontré **aucune collision** —
+la règle n° 3 était contournée sans que rien ne l'indique.
+
+**Données corrigées en production** (les quatre lignes renormalisées, `DEMO-AUTO-0003`
+consulté avec succès), **et le piège refermé** : `DemoSeeder` passe désormais par
+le normaliseur.
+
+**Le test qui existait ne pouvait pas voir ça** : il consultait
+`identifier_normalized`, c'est-à-dire la forme déjà normalisée en base. Il
+interroge maintenant `identifier_raw`, la saisie qu'un acheteur recopie du
+pare-chemin. Et le jeu de démonstration porte enfin des plaques écrites comme
+les gens les écrivent (`5000 AB 01`, `AA-123-BC`) — sans quoi le test passait
+même avec le seeder cassé, faute d'avoir quoi que ce soit à normaliser. Vérifié
+dans les deux sens avant d'être conservé.
+
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)

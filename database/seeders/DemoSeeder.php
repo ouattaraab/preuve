@@ -19,6 +19,7 @@ use App\Models\CategoryField;
 use App\Models\Company;
 use App\Models\User;
 use App\Services\CategoryRegistry;
+use App\Services\IdentifierNormalizer;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use RuntimeException;
@@ -83,12 +84,12 @@ class DemoSeeder extends Seeder
             'brand_model' => 'Honda CB 125',
         ], provisoire: true);
 
-        $this->bien($loueur, 'voiture', '5000AB01', LifeStatus::Rented, TrustLevel::Verified, [
+        $this->bien($loueur, 'voiture', '5000 AB 01', LifeStatus::Rented, TrustLevel::Verified, [
             'plate' => '5000AB01',
             'brand_model' => 'Toyota Corolla 2019',
         ], societe: $societe, documente: true, verifie: true);
 
-        $this->bien($particulier, 'voiture', 'AA123BC', LifeStatus::Transferring, TrustLevel::Documented, [
+        $this->bien($particulier, 'voiture', 'AA-123-BC', LifeStatus::Transferring, TrustLevel::Documented, [
             'plate' => 'AA123BC',
             'brand_model' => 'Hyundai i10',
         ], documente: true);
@@ -195,6 +196,17 @@ class DemoSeeder extends Seeder
         ?Carbon $volLe = null,
     ): Asset {
         $enregistreLe = $provisoire ? now()->subDays(4) : now()->subMonths(random_int(2, 14));
+
+        // L'IDENTIFIANT PASSE PAR LE NORMALISEUR, MÊME ICI. Ce chemin
+        // court-circuite `AssetRegistrationService` à dessein — un jeu de
+        // démonstration n'a pas à écrire dans la chaîne d'audit — mais rien ne
+        // dispense de normaliser : une valeur écrite telle quelle donne un bien
+        // que la CONSULTATION NE TROUVE JAMAIS, puisqu'elle, elle normalise.
+        // Le défaut est muet : le bien s'affiche dans le registre, dans
+        // l'inventaire, dans le tableau de flotte, partout sauf là où il sert.
+        // Il a été constaté en production le 05/08/2026 sur quatre véhicules
+        // dont l'identifiant portait des tirets.
+        $identifiant = app(IdentifierNormalizer::class)->normalize($identifiant);
 
         $bien = Asset::firstOrCreate(
             ['identifier_normalized' => $identifiant, 'active_flag' => 1],

@@ -7,6 +7,7 @@ use App\Enums\TrustLevel;
 use App\Models\Asset;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Services\LookupService;
 use Database\Seeders\DemoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -66,7 +67,11 @@ it('rend chaque bien consultable publiquement', function (): void {
 
     $bien = Asset::where('life_status', LifeStatus::Stolen->value)->sole();
 
-    $this->getJson('/api/v1/lookup/'.$bien->identifier_normalized)
+    // LA SAISIE BRUTE, telle qu'un acheteur la recopie de la carte grise. Ce
+    // test interrogeait `identifier_normalized`, la forme déjà normalisée en
+    // base : il ne pouvait donc pas voir un bien stocké sans normalisation,
+    // c'est-à-dire le seul cas où la consultation échoue.
+    $this->getJson('/api/v1/lookup/'.$bien->identifier_raw)
         ->assertOk()
         ->assertJsonPath('found', true)
         ->assertJsonPath('asset.life_status.label', 'Volé déclaré');
@@ -81,4 +86,29 @@ it('refuse de s\'exécuter en production', function (): void {
     // la console de test et masquerait l'exception derrière son propre
     // outillage.
     expect(fn () => (new DemoSeeder)->run())->toThrow(RuntimeException::class);
+});
+
+it('CRÉE DES BIENS QUE LA CONSULTATION TROUVE', function (): void {
+    // Le seeder court-circuite `AssetRegistrationService` à dessein — un jeu de
+    // démonstration n'a pas à écrire dans la chaîne d'audit. Mais rien ne le
+    // dispense de NORMALISER : la consultation, elle, normalise toujours, et un
+    // identifiant écrit tel quel donne un bien introuvable.
+    //
+    // LE DÉFAUT EST MUET. Le bien s'affiche dans le registre, dans l'inventaire
+    // du détenteur, dans le tableau de flotte — partout sauf là où il sert.
+    // Constaté en production le 05/08/2026 sur quatre véhicules dont
+    // l'identifiant portait des tirets.
+    $this->seed(DemoSeeder::class);
+    $service = app(LookupService::class);
+
+    foreach (Asset::where('active_flag', 1)->get() as $bien) {
+        // La saisie BRUTE, telle qu'un acheteur la recopierait de la carte
+        // grise — pas la forme déjà normalisée en base.
+        $verdict = $service->lookup($bien->identifier_raw, '41.66.0.'.$bien->id);
+
+        expect($verdict->verdict)->toBe(
+            'known',
+            "Le bien {$bien->identifier_raw} est en base mais introuvable en consultation."
+        );
+    }
 });
