@@ -159,6 +159,13 @@ class _FleetScreenState extends State<FleetScreen> {
                   Text('À traiter', style: Djassa.affiche(20)),
                   const SizedBox(height: 10),
                   ...tableau.alerts.map((FleetStatusCount s) => _Ligne(statut: s, alerte: true)),
+                  // ET LESQUELS. Un décompte « Volé déclaré : 1 » envoie le
+                  // loueur chercher dans son parc le véhicule concerné ; le
+                  // serveur les nomme déjà.
+                  if (tableau.needsAttention.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 4),
+                    ...tableau.needsAttention.map((FleetAlert a) => _Concerne(alerte: a)),
+                  ],
                   const SizedBox(height: 20),
                 ],
                 Text('Le parc', style: Djassa.affiche(20)),
@@ -238,6 +245,57 @@ class _FleetScreenState extends State<FleetScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Un véhicule nommément concerné par une alerte.
+///
+/// PAR SA RÉFÉRENCE PUBLIQUE, jamais par son immatriculation : ce tableau
+/// s'ouvre au comptoir d'une agence, et un écran s'y lit par-dessus l'épaule.
+/// La référence suffit à retrouver le véhicule dans le parc, elle ne désigne
+/// personne dehors.
+class _Concerne extends StatelessWidget {
+  const _Concerne({required this.alerte});
+
+  final FleetAlert alerte;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8, left: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Djassa.creme,
+        border: Border.all(color: Djassa.sable, width: 2),
+        borderRadius: BorderRadius.circular(Djassa.rayon),
+      ),
+      child: Row(
+        children: <Widget>[
+          Expanded(
+            child: Text(
+              alerte.publicRef,
+              style: const TextStyle(
+                fontFamily: Djassa.texte,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Djassa.encre,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          // LE LIBELLÉ DU SERVEUR, jamais le code (CT-04).
+          Text(
+            alerte.statusLabel,
+            style: const TextStyle(
+              fontFamily: Djassa.texte,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Djassa.alerte,
+            ),
+          ),
+        ],
       ),
     );
   }

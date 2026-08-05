@@ -802,7 +802,13 @@ class _CadreScan extends StatelessWidget {
     return InkWell(
       onTap: enCours ? null : onScanner,
       child: Container(
-        height: 130,
+        // UNE HAUTEUR MINIMALE, PAS UNE HAUTEUR FIXE. Figée à 130, la carte
+        // rognait déjà son propre texte de 19 pixels, et elle aurait rogné bien
+        // davantage chez quelqu'un qui grossit le texte de son téléphone —
+        // c'est-à-dire précisément ceux pour qui « Je scanne » évite de saisir
+        // un numéro de châssis à la main.
+        constraints: const BoxConstraints(minHeight: 130),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: Colors.white,
@@ -818,6 +824,7 @@ class _CadreScan extends StatelessWidget {
                   SizedBox(height: 8),
                   Text(
                     'Je scanne la carte grise',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: Djassa.texte,
                       fontSize: 16,
@@ -828,6 +835,7 @@ class _CadreScan extends StatelessWidget {
                   SizedBox(height: 2),
                   Text(
                     'Le numéro lu reste modifiable',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: Djassa.texte,
                       fontSize: 13,

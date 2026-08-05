@@ -660,8 +660,8 @@ enfoui viderait le forfait de quelqu'un dans son dos.
 **Écrans ajoutés** : alertes + préférences, envois en attente, KYC, et le dépôt
 de justificatifs depuis la fiche d'un bien.
 
-**Reste au mobile** : le scan de carte grise (ST-0202, le serveur est prêt), les
-écrans de flotte B2B, l'achat de rapport détaillé, et **déposer les polices
+**Reste au mobile** (à jour au 05/08/2026 : scan, flotte et rapport sont
+livrés) : **déposer les polices
 DJASSA** sous `assets/fonts/` — non déclarées pour l'instant, car déclarer une
 police sans son fichier fait échouer la construction. Prévoir aussi les
 **déclarations de permission** iOS (`NSCameraUsageDescription`,
@@ -687,6 +687,59 @@ que moi :
 prérequis et il est prêt. Restent à trancher côté produit : le fournisseur de
 détection de vivacité (KYC), et le calendrier de la file d'envoi différée côté
 client.
+
+## Scan de carte grise, flotte B2B, et trois contrats devinés (05/08/2026)
+
+**ST-0202 et EP-07 sont branchés côté mobile.** Le serveur était prêt pour les
+deux depuis des semaines ; il ne leur manquait qu'un point d'entrée client —
+c'est la sixième fois cette série qu'une capacité complète du serveur n'était
+atteignable par personne.
+
+**Le scan** pré-remplit le formulaire d'enregistrement et **laisse le numéro
+modifiable** : une OCR sur une carte grise froissée se trompe, et un numéro de
+châssis faux enregistre le bien de quelqu'un d'autre. L'identifiant du scan
+repart avec la soumission, pour mesurer combien de propositions survivent
+intactes — sans cette mesure, on ne saurait pas si la fonction sert.
+
+**La flotte ouvre sur ce qui ne va pas**, jamais sur un total : un loueur de
+quarante motos sait qu'il en a quarante. Elle **nomme** les véhicules concernés
+par leur référence publique — jamais leur immatriculation, parce que ce tableau
+s'ouvre au comptoir et se lit par-dessus l'épaule.
+
+### Trois noms de champs devinés, les trois faux
+
+Éprouvé contre les DONNÉES RÉELLES (société de démonstration créée en
+production), le tableau de bord affichait **zéro véhicule sur un parc de
+quatre** :
+
+| Ce que le modèle lisait | Ce que le serveur rend       |
+|-------------------------|------------------------------|
+| `total`                 | `fleet_size`                 |
+| `lookups_30d` (entier)  | `{total, most_viewed}`       |
+| — (ignoré)              | `needs_attention` (par bien) |
+
+Aucun test ne l'a vu, **parce que les tests avaient été écrits avec les mêmes
+noms devinés** : la fixture confirmait l'invention au lieu de la démentir. Les
+fixtures de `fleet_test.dart` (core et app) sont désormais la charge utile de
+production recopiée sans retouche.
+
+**Règle qui en sort** : un modèle de réponse ne se déduit pas du contrôleur ni
+du bon sens — il se relève sur une réponse réelle avant d'écrire la fixture.
+Un nom faux ne casse rien, il rend zéro en silence.
+
+### Une régression expédiée au commit précédent
+
+La carte « Je scanne la carte grise » était figée à `height: 130` pour un
+contenu de 149 : **débordement de 19 px**, et bien pire chez quelqu'un qui
+grossit le texte de son téléphone — c'est-à-dire précisément ceux à qui le scan
+évite de taper un châssis à la main. Passée en `minHeight`. Elle était partie en
+production sans que les tests d'enregistrement soient relancés.
+
+**Parc de démonstration en production** : société #1 « DEMO Loueur Abidjan »,
+quatre véhicules aux plaques volontairement fictives (`DEMO-MOTO-0001`…), créés
+hors chaîne d'audit comme le fait `DemoSeeder`.
+
+**Couverture** : 99 tests `preuve_core`, 18 tests `preuve_app`, 839 tests Pest.
 
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
