@@ -790,6 +790,33 @@ les gens les écrivent (`5000 AB 01`, `AA-123-BC`) — sans quoi le test passait
 même avec le seeder cassé, faute d'avoir quoi que ce soit à normaliser. Vérifié
 dans les deux sens avant d'être conservé.
 
+## Tous les modèles clients confrontés au serveur réel (05/08/2026)
+
+Après quatre noms de champs devinés et faux dans la même journée, chaque
+`fromJson` de `preuve_core` a été confronté à la **réponse réelle de la
+production**, en interrogeant les vingt-six points d'entrée avec un jeton
+temporaire (révoqué depuis).
+
+**Un seul défaut restant, mais réel** : `KycStatus` lisait le motif de refus
+sous `rejection_reason`, un nom que le serveur n'envoie pas — il le place dans
+`last_submission.review_reason`. L'écran KYC affichait déjà un encadré rouge
+« Dossier refusé : … » ; le motif existait côté serveur, l'encadré existait côté
+client, **et les deux ne se sont jamais rencontrés**. Un dossier refusé se
+redéposait donc à l'identique, pour être refusé à l'identique : deux fois
+l'attente pour la personne, deux fois le travail pour l'agent.
+
+Ajouté au passage : `can_submit` est désormais lu **du serveur** plutôt que
+déduit localement. C'est lui qui refusera ; une règle recopiée dans le client
+dériverait au premier changement.
+
+**Vérifiés conformes** : catalogue, inventaire + quota + pagination, transferts
+(dont le `role` calculé par le serveur), réclamations et frais, documents,
+notifications et leur `meta`, préférences, rapport, `config/app`, `auth/me`.
+
+**Ce qui rendait le balayage nécessaire** : un nom de champ faux ne casse rien.
+Il rend zéro, vide ou nul, en silence — et un test écrit avec le même nom
+confirme l'invention au lieu de la démentir.
+
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)

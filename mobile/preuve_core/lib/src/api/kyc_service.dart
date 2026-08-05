@@ -66,21 +66,34 @@ class KycService {
 
 /// État du dossier d'identité.
 class KycStatus {
-  const KycStatus({required this.status, this.label, this.rejectionReason});
+  const KycStatus({
+    required this.status,
+    this.label,
+    this.rejectionReason,
+    this.canSubmit,
+  });
 
+  /// Les noms sont RELEVÉS SUR LE SERVEUR, aucun n'est deviné : `status`,
+  /// `status_label`, `can_submit`, et le motif dans `last_submission`.
   factory KycStatus.fromJson(Map<String, Object?> json) {
-    final dossier = json['kyc'] is Map<String, Object?>
-        ? json['kyc']! as Map<String, Object?>
-        : json;
+    final Object? dernier = json['last_submission'];
+    final Map<String, Object?> dossier =
+        dernier is Map<String, Object?> ? dernier : const <String, Object?>{};
 
     return KycStatus(
-      status: dossier['status'] is String ? dossier['status']! as String : 'none',
-      label: dossier['status_label'] is String ? dossier['status_label']! as String : null,
+      status: json['status'] is String ? json['status']! as String : 'none',
+      label: json['status_label'] is String ? json['status_label']! as String : null,
       // LE MOTIF DE REFUS EST RENDU À L'INTÉRESSÉ. Un dossier refusé sans
-      // raison se redépose à l'identique, et se fait refuser à l'identique.
-      rejectionReason: dossier['rejection_reason'] is String
-          ? dossier['rejection_reason']! as String
+      // raison se redépose à l'identique, et se fait refuser à l'identique —
+      // deux fois la même attente, deux fois le même travail pour l'agent.
+      //
+      // Il était lu sous `rejection_reason`, que le serveur n'envoie PAS : il
+      // le place dans `last_submission.review_reason`. Le motif existait donc
+      // depuis le début, et personne ne l'a jamais vu.
+      rejectionReason: dossier['review_reason'] is String
+          ? dossier['review_reason']! as String
           : null,
+      canSubmit: json['can_submit'] is bool ? json['can_submit']! as bool : null,
     );
   }
 
@@ -88,10 +101,18 @@ class KycStatus {
   final String? label;
   final String? rejectionReason;
 
+  /// Ce que le SERVEUR autorise. Il tranche : c'est lui qui refusera, et une
+  /// règle recopiée ici dériverait au premier changement — en proposant un
+  /// dépôt que le serveur rejette, ou en interdisant celui qu'il accepte.
+  final bool? canSubmit;
+
   bool get isVerified => status == 'verified';
 
   bool get isPending => status == 'pending' || status == 'submitted';
 
   /// Vrai quand il reste quelque chose à faire à l'utilisateur.
-  bool get needsAction => !isVerified && !isPending;
+  ///
+  /// La réponse du serveur prime ; la déduction locale n'est qu'un repli pour
+  /// une version plus ancienne qui ne rendrait pas `can_submit`.
+  bool get needsAction => canSubmit ?? (!isVerified && !isPending);
 }
