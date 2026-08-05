@@ -97,7 +97,7 @@ final class LookupService
             // usage unique, le brûler sans nécessité obligerait le visiteur à
             // résoudre un défi qu'on ne lui a jamais demandé.
             if ($captchaToken === null || ! $this->grantAfterChallenge($empreinte, $captchaToken)) {
-                return LookupResult::rateLimited();
+                return LookupResult::rateLimited($this->captcha->isConfigured());
             }
         }
 

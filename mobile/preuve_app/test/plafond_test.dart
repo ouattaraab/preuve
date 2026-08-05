@@ -43,6 +43,12 @@ void main() {
     expect(find.text('Continuer la vérification'), findsOneWidget);
     // Et le conseil dit qu'on peut continuer TOUT DE SUITE, pas d'attendre.
     expect(find.textContaining('tout de suite'), findsOneWidget);
+
+    // L'ÉCRAN NE SE CONTREDIT PAS. « PATIENTE » en grand au-dessus d'un bouton
+    // qui fait passer immédiatement ferait renoncer quelqu'un qui pouvait
+    // passer — le mot est lu bien avant le bouton.
+    expect(find.text('PATIENTE'), findsNothing);
+    expect(find.text('UN CONTRÔLE'), findsOneWidget);
   });
 
   testWidgets('N\'OFFRE RIEN quand aucun défi n\'est configuré',
@@ -59,6 +65,8 @@ void main() {
 
     expect(find.text('Continuer la vérification'), findsNothing);
     expect(find.textContaining('Attends un moment'), findsOneWidget);
+    // Là, l'attente est bien la seule issue : l'écran doit le dire.
+    expect(find.text('PATIENTE'), findsOneWidget);
   });
 
   testWidgets('aucun autre verdict n\'ouvre cette porte', (WidgetTester tester) async {

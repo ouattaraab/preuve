@@ -48,13 +48,25 @@ final class LookupResult
         );
     }
 
-    public static function rateLimited(): self
+    /**
+     * Plafond atteint.
+     *
+     * LE MESSAGE DÉPEND DE L'EXISTENCE D'UNE PORTE DE SORTIE. « Réessayez dans
+     * un moment » au-dessus d'un défi qui fait passer immédiatement est une
+     * contradiction, et c'est la phrase qui est lue en premier : elle ferait
+     * renoncer quelqu'un qui pouvait continuer, sur le seul parcours que le
+     * produit promet gratuit et sans compte.
+     */
+    public static function rateLimited(bool $challengeAvailable = false): self
     {
         return new self(
             found: false,
             asset: null,
             verdict: 'rate_limited',
-            message: 'Trop de consultations depuis cette connexion. Réessayez dans un moment.',
+            message: $challengeAvailable
+                ? 'Beaucoup de consultations depuis cette connexion. Prouvez que vous '.
+                    "n'êtes pas un robot pour continuer tout de suite."
+                : 'Trop de consultations depuis cette connexion. Réessayez dans un moment.',
             rateLimited: true,
         );
     }

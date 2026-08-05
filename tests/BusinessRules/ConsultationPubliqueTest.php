@@ -7,7 +7,9 @@ use App\Enums\TrustLevel;
 use App\Models\Asset;
 use App\Models\Lookup;
 use App\Models\User;
+use App\Services\Captcha\TurnstileVerifier;
 use App\Services\LookupService;
+use App\Services\Settings\SettingsRepository;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 
@@ -154,6 +156,42 @@ it('plafonne les consultations anonymes à dix par heure', function (): void {
 
     expect($onzieme->rateLimited)->toBeTrue()
         ->and($onzieme->asset)->toBeNull();
+});
+
+it('N\'ANNONCE PAS UNE ATTENTE quand un défi permet de passer tout de suite', function (): void {
+    // La phrase du refus est LUE AVANT LE BOUTON. « Réessayez dans un moment »
+    // au-dessus d'un défi qui rouvre le passage immédiatement ferait renoncer
+    // quelqu'un qui pouvait continuer — sur le seul parcours que le produit
+    // promet gratuit et sans compte.
+    app(SettingsRepository::class)->set(TurnstileVerifier::SITE_KEY_SETTING, '0x4AAA');
+    app(SettingsRepository::class)->set(TurnstileVerifier::SECRET_SETTING, '0x2BBB');
+
+    bienConsultable();
+    $service = app(LookupService::class);
+
+    foreach (range(1, 10) as $consultation) {
+        $service->lookup('1M8GDM9AXKP042788', '41.66.0.9');
+    }
+
+    $refus = $service->lookup('1M8GDM9AXKP042788', '41.66.0.9');
+
+    expect($refus->rateLimited)->toBeTrue()
+        ->and($refus->message)->not->toContain('Réessayez dans un moment')
+        ->and($refus->message)->toContain('tout de suite');
+});
+
+it('annonce bien une attente quand AUCUN défi n\'est configuré', function (): void {
+    // Là, l'attente est réellement la seule issue : la dire est honnête.
+    bienConsultable();
+    $service = app(LookupService::class);
+
+    foreach (range(1, 10) as $consultation) {
+        $service->lookup('1M8GDM9AXKP042788', '41.66.0.8');
+    }
+
+    $refus = $service->lookup('1M8GDM9AXKP042788', '41.66.0.8');
+
+    expect($refus->message)->toContain('Réessayez dans un moment');
 });
 
 it('ne compte le plafond que sur l\'heure écoulée', function (): void {

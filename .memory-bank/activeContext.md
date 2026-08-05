@@ -660,8 +660,9 @@ enfoui viderait le forfait de quelqu'un dans son dos.
 **Écrans ajoutés** : alertes + préférences, envois en attente, KYC, et le dépôt
 de justificatifs depuis la fiche d'un bien.
 
-**Reste au mobile** (à jour au 05/08/2026 : scan, flotte et rapport sont
-livrés) : **déposer les polices
+**Reste au mobile** — plus rien de bloquant au 05/08/2026 : scan, flotte,
+rapport, polices DJASSA et déclarations de permission iOS sont tous en place,
+vérifiés sur simulateur. Historique conservé : **déposer les polices
 DJASSA** sous `assets/fonts/` — non déclarées pour l'instant, car déclarer une
 police sans son fichier fait échouer la construction. Prévoir aussi les
 **déclarations de permission** iOS (`NSCameraUsageDescription`,
@@ -740,6 +741,28 @@ quatre véhicules aux plaques volontairement fictives (`DEMO-MOTO-0001`…), cr�
 hors chaîne d'audit comme le fait `DemoSeeder`.
 
 **Couverture** : 99 tests `preuve_core`, 18 tests `preuve_app`, 839 tests Pest.
+
+## Vu tourner sur simulateur, et deux contradictions corrigées (05/08/2026)
+
+Les écrans de flotte et de plafond n'avaient jamais été vus rendus ailleurs
+qu'en test de widget, c'est-à-dire à 800x600 — pas à la taille d'un téléphone.
+Passés sur simulateur iPhone 15, deux défauts que les tests ne pouvaient pas
+voir :
+
+- **Le nom de la société s'affichait deux fois** en haut du tableau de flotte,
+  dans la barre puis en titre. Une ligne entière perdue sur le seul écran où un
+  loueur cherche ce qui ne va pas. La barre dit maintenant « Ma flotte ».
+- **L'écran de plafond se contredisait** : « PATIENTE » en très gros au-dessus
+  d'un bouton qui fait passer tout de suite, et un message serveur disant
+  « Réessayez dans un moment ». Le grand mot est lu bien avant le bouton — il
+  aurait fait renoncer quelqu'un qui pouvait continuer. **Corrigé des deux
+  côtés** : le client affiche « UN CONTRÔLE », et `LookupResult::rateLimited()`
+  prend désormais un argument, de sorte que le message change selon qu'un défi
+  est configuré ou non. Le front web en profite sans une ligne de plus.
+
+**Leçon de méthode** : un test de widget prouve la logique d'affichage, pas la
+mise en page ni la cohérence du discours. Les écrans neufs doivent passer sous
+les yeux, à la taille réelle, avant d'être annoncés faits.
 
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter

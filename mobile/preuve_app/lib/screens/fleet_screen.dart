@@ -124,7 +124,10 @@ class _FleetScreenState extends State<FleetScreen> {
     final tableau = _tableau;
 
     return Scaffold(
-      appBar: BarrePreuve(titre: widget.societe.name),
+      // LA BARRE NE RÉPÈTE PAS LE NOM DE LA SOCIÉTÉ : il est déjà en titre
+      // juste en dessous, et le redoubler coûtait une ligne entière du seul
+      // écran où le loueur cherche ce qui ne va pas.
+      appBar: const BarrePreuve(titre: 'Ma flotte'),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _charger,

@@ -86,14 +86,20 @@ class VerdictScreen extends StatelessWidget {
         : Djassa.encre.withValues(alpha: 0.10);
 
     final symbole = switch (resultat.outcome) {
-      LookupOutcome.rateLimited => '⏳',
+      // Un sablier annonce une attente. Quand une porte de sortie existe, il n'y
+      // en a pas : le dire ferait renoncer quelqu'un qui pouvait passer.
+      LookupOutcome.rateLimited => resultat.challengeAvailable ? '🤖' : '⏳',
       LookupOutcome.invalid => '?',
       LookupOutcome.unknown => '?',
       LookupOutcome.known => resultat.isWarning ? '!' : '✓',
     };
 
     final mot = switch (resultat.outcome) {
-      LookupOutcome.rateLimited => 'PATIENTE',
+      // « PATIENTE » AU-DESSUS D'UN BOUTON QUI FAIT PASSER TOUT DE SUITE est une
+      // contradiction : l'écran doit dire ce que l'utilisateur peut faire, pas
+      // ce qu'il aurait dû subir. Le contrôle est un mot d'usage courant ici.
+      LookupOutcome.rateLimited =>
+        resultat.challengeAvailable ? 'UN CONTRÔLE' : 'PATIENTE',
       LookupOutcome.invalid => 'NUMÉRO ILLISIBLE',
       LookupOutcome.unknown => 'PAS ENREGISTRÉ',
       // Le libellé du serveur, jamais un mot inventé ici : « Volé déclaré »,
