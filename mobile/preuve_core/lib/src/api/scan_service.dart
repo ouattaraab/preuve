@@ -57,6 +57,40 @@ class ScanService {
     ));
   }
 
+  /// Sélection à partir de mots DÉJÀ LUS SUR L'APPAREIL, sans compte.
+  ///
+  /// AUCUNE IMAGE NE CIRCULE : une carte grise porte le nom et l'adresse de son
+  /// propriétaire, et il n'a jamais fallu l'envoyer pour en extraire dix-sept
+  /// caractères. Ne partent que des mots — quelques centaines d'octets, ce qui
+  /// change tout sur une 3G de bord de route (CT-05).
+  ///
+  /// LA SÉLECTION RESTE AU SERVEUR. Le téléphone lit ; le chiffre de contrôle
+  /// du VIN, le Luhn de l'IMEI et l'ordre de priorité sont des règles métier,
+  /// et les embarquer ici les ferait se périmer sur des téléphones qui ne se
+  /// mettent pas à jour.
+  Future<ScanResult> readWordsForLookup(
+    List<String> mots, {
+    String docType = 'registration_card',
+  }) async {
+    return ScanResult.fromJson(await _api.postAnonymous(
+      '/lookup/scan/text',
+      body: <String, Object?>{'doc_type': docType, 'words': mots},
+    ));
+  }
+
+  /// Le même, pour l'enregistrement : la trace est alors rattachée au compte,
+  /// parce que c'est elle qui mesure si le pré-remplissage tient jusqu'à la
+  /// soumission.
+  Future<ScanResult> readWords(
+    List<String> mots, {
+    String docType = 'registration_card',
+  }) async {
+    return ScanResult.fromJson(await _api.post(
+      '/assets/scan/text',
+      body: <String, Object?>{'doc_type': docType, 'words': mots},
+    ));
+  }
+
   static MultipartFile _piece(MultipartFile fichier) => MultipartFile(
         field: 'file',
         filename: fichier.filename,

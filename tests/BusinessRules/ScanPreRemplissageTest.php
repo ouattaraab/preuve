@@ -594,3 +594,109 @@ function lecteurNonConfigure(): void
         $lecteur->configure = false;
     }
 }
+
+/*
+|--------------------------------------------------------------------------
+| Lecture SUR L'APPAREIL (ST-0202)
+|--------------------------------------------------------------------------
+|
+| Le téléphone lit, le serveur tranche. L'image ne circule plus : une carte
+| grise porte le nom et l'adresse de son propriétaire, et il n'a jamais fallu
+| l'envoyer pour en extraire dix-sept caractères.
+*/
+
+/**
+ * @param  list<string>  $mots
+ */
+function scannerDesMots(array $mots, string $route = '/api/v1/lookup/scan/text'): TestResponse
+{
+    return test()->postJson($route, ['doc_type' => 'registration_card', 'words' => $mots]);
+}
+
+it('LIT SANS QU\'AUCUNE IMAGE NE CIRCULE', function (): void {
+    scannerDesMots(['REPUBLIQUE', 'CHASSIS', '1M8GDM9AXKP042788', 'YAMAHA'])
+        ->assertOk()
+        ->assertJsonPath('identifier.value', '1M8GDM9AXKP042788')
+        ->assertJsonPath('identifier.type', 'vin');
+});
+
+it('APPLIQUE EXACTEMENT LA MÊME SÉLECTION que le chemin par image', function (): void {
+    // LE test de ce chantier. Le chiffre de contrôle du VIN, le Luhn de
+    // l'IMEI, l'ordre de priorité : ce sont des règles métier, et elles
+    // restent sur le serveur. Embarquées dans l'application, elles se
+    // périmeraient sur des téléphones qui ne se mettent pas à jour.
+    $mots = ['CHASSIS', '1M8GDM9AXKP042789', 'IMEI', '490154203237518'];
+
+    // Le premier est un VIN au chiffre de contrôle FAUX : il doit être écarté,
+    // et l'IMEI valide retenu — exactement comme par le chemin image.
+    lecteurRendant(new ScanExtraction(tokens: $mots));
+    $parImage = scannerSansCompte()->assertOk()->json('identifier');
+
+    $parTexte = scannerDesMots($mots)->assertOk()->json('identifier');
+
+    expect($parTexte)->toBe($parImage)
+        ->and($parTexte['value'])->toBe('490154203237518');
+});
+
+it('N\'ACCEPTE PAS UN MOT SUR PAROLE', function (): void {
+    // Rien ne dit à l'appareil lequel de ces mots est un châssis. Le traiter
+    // comme un champ nommé ferait accepter sans contrôle une chaîne
+    // quelconque, et un identifiant faux est pire qu'un identifiant absent.
+    scannerDesMots(['PREUVE', 'ABIDJAN', 'CARTE', 'GRISE'])
+        ->assertOk()
+        ->assertJsonPath('identifier', null);
+});
+
+it('NE DIVULGUE PAS LE STATUT, comme le chemin par image', function (): void {
+    bienScanneEnregistre();
+
+    $reponse = scannerDesMots(['1M8GDM9AXKP042788'])->assertOk();
+
+    expect($reponse->json())->not->toHaveKey('existing_asset');
+    expect(json_encode($reponse->json()))->not->toContain('life_status');
+});
+
+it('NE COÛTE RIEN, DONC NE RATIONNE RIEN', function (): void {
+    // Le plafond de la route par image protège une facture chez le
+    // fournisseur d'extraction. Ici aucun tiers n'est appelé : rationner
+    // priverait l'utilisateur d'un service qui ne coûte à personne.
+    config()->set('preuve.scan_rate_limit.anonymous_per_hour', 1);
+
+    foreach (range(1, 6) as $essai) {
+        scannerDesMots(['1M8GDM9AXKP042788'])->assertOk();
+    }
+});
+
+it('marche même sans fournisseur d\'extraction configuré', function (): void {
+    // C'est tout l'intérêt : la lecture ne dépend plus d'aucune clé.
+    lecteurNonConfigure();
+
+    scannerDesMots(['1M8GDM9AXKP042788'])
+        ->assertOk()
+        ->assertJsonPath('identifier.value', '1M8GDM9AXKP042788');
+});
+
+it('borne ce qu\'on lui envoie', function (): void {
+    scannerDesMots(array_fill(0, 401, 'MOT'))->assertStatus(422);
+});
+
+it('n\'attache la trace à personne, et dit d\'où elle vient', function (): void {
+    scannerDesMots(['1M8GDM9AXKP042788'])->assertOk();
+
+    $scan = DocumentScan::latest('id')->first();
+
+    expect($scan?->user_id)->toBeNull()
+        // Distinguer les deux sources est ce qui permettra de comparer leurs
+        // taux de pré-remplissage, et de trancher sur le fournisseur payant.
+        ->and($scan?->provider)->toBe('device');
+});
+
+it('le chemin authentifié attache bien la trace à son auteur', function (): void {
+    $utilisateur = utilisateurScan();
+
+    scannerDesMots(['1M8GDM9AXKP042788'], '/api/v1/assets/scan/text')
+        ->assertOk()
+        ->assertJsonPath('identifier.value', '1M8GDM9AXKP042788');
+
+    expect(DocumentScan::latest('id')->first()?->user_id)->toBe($utilisateur->id);
+});

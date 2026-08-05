@@ -88,13 +88,6 @@ class PreuveSession {
   /// ne l'apprenne, et proposer un scan sans fournisseur d'extraction branché.
   AppRelease? annonce;
 
-  /// Vrai quand la lecture automatique est réellement possible.
-  ///
-  /// PRUDENT PAR DÉFAUT : tant que l'annonce n'est pas revenue — ou si elle
-  /// n'est jamais revenue, faute de réseau — on ne propose pas un raccourci
-  /// qui rendrait un échec attribué à la photo de l'utilisateur.
-  bool get scanDisponible => annonce?.scanAvailable ?? false;
-
   Future<void> reprendre() async {
     // AVANT TOUT LE RESTE, et sans jamais bloquer : elle est anonyme, elle dit
     // ce que l'application a le droit de proposer, et son échec n'empêche rien.

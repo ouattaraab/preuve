@@ -8,6 +8,7 @@ use App\Enums\DocumentType;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PublicAssetResource;
 use App\Models\Asset;
+use App\Models\DocumentScan;
 use App\Models\User;
 use App\Services\AssetScanService;
 use Illuminate\Http\JsonResponse;
@@ -64,6 +65,48 @@ final class AssetScanController extends Controller
             $fichier,
         );
 
+        return $this->presenter($resultat);
+    }
+
+    /**
+     * Même sélection, à partir de mots DÉJÀ LUS SUR L'APPAREIL.
+     *
+     * L'image ne quitte pas le téléphone. Voir AssetScanService::scanText().
+     */
+    public function text(Request $request): JsonResponse
+    {
+        $request->validate([
+            'doc_type' => ['required', Rule::in(array_map(
+                static fn (DocumentType $type): string => $type->value,
+                self::TYPES_SCANNABLES,
+            ))],
+            'words' => ['required', 'array', 'max:400'],
+            'words.*' => ['string', 'max:64'],
+        ]);
+
+        $utilisateur = $request->user();
+
+        if (! $utilisateur instanceof User) {
+            abort(401);
+        }
+
+        /** @var list<string> $mots */
+        $mots = array_values($request->collect('words')->filter(
+            static fn (mixed $mot): bool => is_string($mot) && $mot !== '',
+        )->all());
+
+        return $this->presenter($this->scans->scanText(
+            $utilisateur,
+            DocumentType::from($request->string('doc_type')->toString()),
+            $mots,
+        ));
+    }
+
+    /**
+     * @param  array{scan: DocumentScan, identifier: array{value: string, type: string}|null, attributes: array<string, string>, confidence: int|null, existing: Asset|null, message: string}  $resultat
+     */
+    private function presenter(array $resultat): JsonResponse
+    {
         $existant = $resultat['existing'];
 
         return response()->json([

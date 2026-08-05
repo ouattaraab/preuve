@@ -113,6 +113,11 @@ class PreuveApi implements PreuveTransport {
   }
 
   @override
+  Future<Map<String, Object?>> postAnonymous(String path, {Map<String, Object?>? body}) {
+    return _send('POST', path, body: body, authenticated: false);
+  }
+
+  @override
   Future<Map<String, Object?>> put(String path, {Map<String, Object?>? body}) {
     return _send('PUT', path, body: body);
   }

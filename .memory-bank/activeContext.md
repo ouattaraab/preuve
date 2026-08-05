@@ -889,6 +889,55 @@ même motif.** L'annonce est désormais lue au lancement, sans jamais bloquer.
 
 **Couverture** : 852 Pest, 116 `preuve_core`, 29 `preuve_app`.
 
+## Lecture sur l'appareil : ML Kit remplace Mindee (05/08/2026)
+
+**Décision d'Aboubakar**, prise après ce constat dans le code : l'endpoint
+Mindee configuré est `mindee/expense_receipts/v5` — un produit **notes de
+frais**. Aucun des champs cherchés (`vin`, `chassis_number`, `license_plate`,
+`make`, `model`) n'existe dans la réponse d'un produit reçus. Tout le travail
+réel était déjà fait par `tokensFromText()` — les mots bruts de l'OCR — puis par
+`bestCandidate()` : chiffre de contrôle du VIN, Luhn de l'IMEI, format de
+plaque. **On payait à l'appel pour du texte.**
+
+Or le téléphone sait produire ce texte, gratuitement. `google_mlkit_text_recognition`
+lit la photo **sur l'appareil** ; seuls les mots partent (`POST
+/lookup/scan/text` et `/assets/scan/text`), et la **sélection reste au serveur**
+— le chiffre de contrôle et l'ordre de priorité sont des règles métier, qui
+embarquées se périmeraient sur des téléphones jamais mis à jour.
+
+**Ce que cela change, et qu'aucun réglage ne pouvait changer** :
+
+- **L'image ne part plus.** Une carte grise porte le nom et l'adresse de son
+  propriétaire ; l'envoyer à un tiers pour en extraire dix-sept caractères
+  contredisait la minimisation appliquée partout ailleurs (Loi 2013-450).
+- **Cela marche hors ligne**, et l'envoi d'une photo de plusieurs mégaoctets en
+  3G quitte le chemin (CT-05, et les 90 s de CT-02).
+- **Cela ne coûte rien**, donc plus rien n'a à être rationné : la route texte
+  n'a pas de plafond de dépense, seulement un débit borné pour elle-même.
+- Le bouton « Je scanne » n'est plus conditionné à une clé : le conditionner
+  cacherait une fonction qui marche sans elle.
+
+**Ce que cela coûte, honnêtement** :
+
+- **Quatrième dépendance**, contre la règle des trois. Justifiée dans le
+  `pubspec.yaml` comme les autres.
+- **Cible iOS passée de 13.0 à 15.5** (exigence de ML Kit). **Aucun appareil
+  n'est perdu** : iOS 15 couvre le même matériel qu'iOS 13, iPhone 6s et plus
+  récents. Seul un utilisateur resté sur iOS 13/14 devra mettre à jour.
+- **`EXCLUDED_ARCHS` arm64 sur le simulateur** : le framework MLImage n'expose
+  pas de tranche arm64 simulateur — limite en amont, chez Google. Les
+  compilations pour appareil réel ne sont pas touchées. **À retirer** dès que
+  Google publie la tranche manquante.
+- Les champs `make`/`model` restent non extraits. Ils l'étaient déjà : un
+  produit « notes de frais » ne les rend pas.
+
+Mindee reste branché comme repli serveur, désactivé par défaut. `DocumentReader`
+n'a pas changé de forme, et `provider` distingue `mindee` de `device` — c'est ce
+qui permettra de comparer les deux taux de pré-remplissage sur données réelles.
+
+**Couverture** : 861 Pest, 118 `preuve_core`, 29 `preuve_app`. Compilation iOS
+vérifiée, application lancée sur simulateur.
+
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)

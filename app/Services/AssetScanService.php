@@ -10,6 +10,7 @@ use App\Models\Asset;
 use App\Models\DocumentScan;
 use App\Models\User;
 use App\Services\Scan\DocumentReader;
+use App\Services\Scan\ScanExtraction;
 use Illuminate\Http\UploadedFile;
 
 /**
@@ -68,6 +69,58 @@ final class AssetScanService
         $extraction = $this->reader->read($image);
         $duree = (int) round((hrtime(true) - $debut) / 1_000_000);
 
+        return $this->retenir($utilisateur, $type, $extraction, $duree, 'mindee');
+    }
+
+    /**
+     * Même sélection, mais à partir de mots DÉJÀ LUS SUR L'APPAREIL.
+     *
+     * POURQUOI CE CHEMIN EXISTE. La lecture d'une carte grise se fait
+     * parfaitement sur le téléphone, et cela change trois choses qu'aucun
+     * réglage de fournisseur ne pouvait changer :
+     *
+     * — L'IMAGE NE PART PAS. Une carte grise porte le nom et l'adresse de son
+     *   propriétaire ; envoyer la photo entière à un tiers pour en extraire
+     *   dix-sept caractères contredisait la minimisation appliquée partout
+     *   ailleurs (Loi 2013-450). Ici ne circulent que des mots.
+     * — CELA MARCHE SANS RÉSEAU, et l'envoi d'une photo de plusieurs
+     *   mégaoctets en 3G disparaît du chemin (CT-05, et les 90 s de CT-02).
+     * — CELA NE COÛTE RIEN, donc rien n'a à être plafonné : le plafond de
+     *   dépense ne protégeait qu'une facture, et il n'y en a plus.
+     *
+     * LA SÉLECTION RESTE ICI, SUR LE SERVEUR, et c'est le point important : le
+     * téléphone ne fait que lire. Le chiffre de contrôle du VIN, le Luhn de
+     * l'IMEI, le format de plaque et l'ordre de priorité sont des règles
+     * métier ; embarquées dans l'application, elles se périmeraient sur des
+     * téléphones qui ne se mettent pas à jour.
+     *
+     * @param  list<string>  $mots  ce que l'appareil a lu, sans tri ni filtre
+     * @return array{scan: DocumentScan, identifier: array{value: string, type: string}|null, attributes: array<string, string>, confidence: int|null, existing: Asset|null, message: string}
+     */
+    public function scanText(?User $utilisateur, DocumentType $type, array $mots): array
+    {
+        $debut = hrtime(true);
+
+        // Traités comme du TEXTE BRUT et non comme des champs nommés : rien ne
+        // dit à l'appareil lequel de ces mots est un châssis, et le prétendre
+        // ferait accepter sans contrôle une chaîne quelconque. Seul un
+        // identifiant à contrôle intégré ou à format contraint sera retenu.
+        $extraction = new ScanExtraction(tokens: $mots);
+        $duree = (int) round((hrtime(true) - $debut) / 1_000_000);
+
+        return $this->retenir($utilisateur, $type, $extraction, $duree, 'device');
+    }
+
+    /**
+     * @return array{scan: DocumentScan, identifier: array{value: string, type: string}|null, attributes: array<string, string>, confidence: int|null, existing: Asset|null, message: string}
+     */
+    private function retenir(
+        ?User $utilisateur,
+        DocumentType $type,
+        ScanExtraction $extraction,
+        int $duree,
+        string $fournisseur,
+    ): array {
         $retenu = $extraction->failed
             ? null
             : $this->bestCandidate($extraction->candidates, $extraction->tokens);
@@ -75,7 +128,7 @@ final class AssetScanService
         $scan = DocumentScan::create([
             'user_id' => $utilisateur?->id,
             'doc_type' => $type->value,
-            'provider' => 'mindee',
+            'provider' => $fournisseur,
             // Empreinte seule : voir la migration. Comparer suffit.
             'proposed_hash' => $retenu === null ? null : $this->fingerprint($retenu['value']),
             'proposed_type' => $retenu['type'] ?? null,

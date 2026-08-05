@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:preuve_core/preuve_core.dart';
 
 import '../data/fichiers.dart';
+import '../data/ocr.dart';
 import '../data/session.dart';
 import '../ui/code_action.dart';
 import '../ui/photo_choice.dart';
@@ -67,6 +68,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _scanEnCours = false;
   String? _scanMessage;
 
+  /// Le moteur de lecture, gardé le temps de l'écran : le recharger à chaque
+  /// scan coûterait plusieurs centaines de millisecondes, sur un parcours qui
+  /// en promet quatre-vingt-dix au total (CT-02).
+  final LecteurEmbarque _lecteur = LecteurEmbarque();
+
   /// Les quatre prises de vue demandées.
   ///
   /// ELLES SONT GÉNÉRIQUES À DESSEIN : le catalogue des catégories est servi à
@@ -97,6 +103,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     _tic?.cancel();
+    // Plusieurs mégaoctets de mémoire vive : les laisser derrière soi se paie
+    // sur un téléphone d'entrée de gamme.
+    unawaited(_lecteur.fermer());
 
     for (final TextEditingController controleur in _champs.values) {
       controleur.dispose();
@@ -281,9 +290,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      final lecture = await widget.session.scans.read(
-        await enUnSeulMorceau(photo, champ: 'file'),
-      );
+      // LUE SUR LE TÉLÉPHONE : la photo de la carte grise ne part pas. Elle
+      // porte le nom et l'adresse du propriétaire, et il n'a jamais fallu
+      // l'envoyer pour en extraire dix-sept caractères. Seuls les mots partent.
+      final List<String> mots = await _lecteur.lire(photo.chemin);
+
+      if (!mounted) {
+        return;
+      }
+
+      if (mots.isEmpty) {
+        setState(() => _scanMessage =
+            'Rien de lisible sur cette photo. Rapproche-toi du numéro, ou saisis-le à la main.');
+
+        return;
+      }
+
+      final lecture = await widget.session.scans.readWords(mots);
 
       if (!mounted) {
         return;

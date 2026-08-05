@@ -82,6 +82,16 @@ class FakeTransport implements PreuveTransport {
     return _prochaine('POST $path');
   }
 
+  /// TRACE DISTINCTE, et c'est le but : un test doit pouvoir constater qu'un
+  /// appel censé être anonyme ne transporte pas de session. Un harnais qui
+  /// noterait le même chemin dans les deux cas ne prouverait rien.
+  @override
+  Future<Map<String, Object?>> postAnonymous(String path, {Map<String, Object?>? body}) {
+    corpsEnvoyes.add(body ?? const <String, Object?>{});
+
+    return _prochaine('POST(anonyme) $path');
+  }
+
   @override
   Future<Map<String, Object?>> put(String path, {Map<String, Object?>? body}) {
     corpsEnvoyes.add(body ?? const <String, Object?>{});

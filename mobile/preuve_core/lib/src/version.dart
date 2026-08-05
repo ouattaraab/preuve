@@ -77,13 +77,16 @@ class AppRelease {
   final String? latestVersion;
   final bool updateRequiredForWrites;
 
-  /// Vrai quand un fournisseur d'extraction est réellement branché.
+  /// Vrai quand un fournisseur d'extraction est branché CÔTÉ SERVEUR.
   ///
-  /// PAR DÉFAUT FAUX, ET C'EST VOULU. Un serveur plus ancien ne rend pas ce
-  /// champ ; supposer que le scan marche ferait prendre une photo, la ferait
-  /// envoyer, et rendrait un échec que l'utilisateur attribuerait à sa photo —
-  /// il recommencerait. Ne pas proposer un raccourci coûte moins cher que le
-  /// proposer sans qu'il puisse aboutir.
+  /// L'APPLICATION MOBILE NE S'EN SERT PLUS pour décider quoi que ce soit :
+  /// elle lit sur l'appareil, ce qui marche hors ligne et sans clé. Le champ
+  /// reste parce qu'il décrit une capacité réelle de la plateforme, dont
+  /// dépendent la route par image et les intégrateurs qui n'ont pas d'OCR
+  /// embarqué — un front web, par exemple.
+  ///
+  /// Par défaut faux : un serveur plus ancien ne rend pas ce champ, et
+  /// annoncer une capacité qu'on n'a pas vérifiée ferait promettre à sa place.
   final bool scanAvailable;
 
   /// LA CONSULTATION N'EST JAMAIS BLOQUÉE, quelle que soit la version. Cette

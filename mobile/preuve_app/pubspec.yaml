@@ -39,6 +39,30 @@ dependencies:
   # d'adresse — le seul endroit où il peut vérifier qu'il est bien chez
   # l'opérateur et non sur une imitation. Greffon maintenu par l'équipe Flutter.
   url_launcher: ^6.3.0
+  # Lecture de texte SUR L'APPAREIL, pour le scan de carte grise (ST-0202).
+  #
+  # QUATRIÈME DÉPENDANCE, et elle en REMPLACE une dépense. Le scan passait par
+  # un fournisseur facturé à l'appel, sur un produit « notes de frais » qui ne
+  # nomme aucun champ « châssis » : tout le travail réel était déjà fait par la
+  # sélection côté serveur, à partir des mots bruts de l'OCR. On paie donc pour
+  # du texte — que le téléphone sait produire lui-même.
+  #
+  # CE QU'ELLE CHANGE, ET QU'AUCUN RÉGLAGE NE POUVAIT CHANGER :
+  # — L'IMAGE NE PART PLUS. Une carte grise porte le nom et l'adresse de son
+  #   propriétaire. L'envoyer à un tiers pour en extraire dix-sept caractères
+  #   contredisait la minimisation appliquée partout ailleurs (Loi 2013-450).
+  # — CELA MARCHE HORS LIGNE, et l'envoi d'une photo de plusieurs mégaoctets en
+  #   3G quitte le chemin (CT-05, et les 90 secondes de CT-02).
+  # — CELA NE COÛTE RIEN, donc le raccourci n'a plus à être rationné.
+  #
+  # La SÉLECTION reste sur le serveur : chiffre de contrôle du VIN, Luhn de
+  # l'IMEI, format de plaque. Embarquées ici, ces règles se périmeraient sur des
+  # téléphones qui ne se mettent pas à jour.
+  #
+  # Modèle EMBARQUÉ et non téléchargé via Play Services : environ 4 Mo, contre
+  # une dépendance à un service absent de certains appareils. Greffon officiel
+  # de Google, maintenu avec ML Kit.
+  google_mlkit_text_recognition: ^0.15.0
 
 dev_dependencies:
   flutter_test:

@@ -1,5 +1,12 @@
 # Uncomment this line to define a global platform for your project
-# platform :ios, '13.0'
+# EXIGÉ PAR ML KIT (lecture de texte sur l'appareil, ST-0202).
+#
+# AUCUN APPAREIL N'EST PERDU : iOS 15 couvre exactement le même matériel
+# qu'iOS 13 — iPhone 6s et plus récents. Ce qui change, c'est qu'un utilisateur
+# resté sur iOS 13 ou 14 devra mettre à jour son système. Le compromis a été
+# retenu parce que la lecture embarquée évite d'envoyer à un tiers la photo
+# d'une carte grise, qui porte le nom et l'adresse de son propriétaire.
+platform :ios, '15.5'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -39,5 +46,30 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+
+    # SIMULATEUR SEULEMENT — les compilations pour appareil réel ne sont pas
+    # touchées, et c'est le seul artefact qui est livré.
+    #
+    # Le framework MLImage, dont dépend ML Kit, n'expose pas de tranche arm64
+    # pour le simulateur : sur un Mac Apple Silicon, l'éditeur de liens refuse
+    # « building for iOS-simulator, but linking in object file built for iOS ».
+    # C'est une limite en amont, chez Google, pas dans ce dépôt.
+    #
+    # On force donc le simulateur en x86_64 (via Rosetta). Le simulateur y perd
+    # en vivacité ; c'est le prix pour pouvoir éprouver l'application ailleurs
+    # que sur un téléphone branché. À RETIRER dès que MLImage publiera la
+    # tranche manquante.
+    target.build_configurations.each do |config|
+      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
+    end
+  end
+
+  installer.aggregate_targets.each do |target|
+    target.user_project.native_targets.each do |native_target|
+      native_target.build_configurations.each do |config|
+        config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
+      end
+    end
+    target.user_project.save
   end
 end

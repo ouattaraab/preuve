@@ -29,6 +29,10 @@ class _TransportMuet implements PreuveTransport {
       const <String, Object?>{};
 
   @override
+  Future<Map<String, Object?>> postAnonymous(String path, {Map<String, Object?>? body}) async =>
+      const <String, Object?>{};
+
+  @override
   Future<Map<String, Object?>> put(String path, {Map<String, Object?>? body}) async =>
       const <String, Object?>{};
 

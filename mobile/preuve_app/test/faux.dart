@@ -13,6 +13,13 @@ class FauxTransport implements PreuveTransport {
 
   final List<String> appels = <String>[];
 
+  /// Les corps envoyés, dans l'ordre. ENREGISTRÉS, PAS SUPPOSÉS : un harnais
+  /// qui ne note que le chemin ne peut pas constater un contrat rompu.
+  final List<Map<String, Object?>> corpsEnvoyes = <Map<String, Object?>>[];
+
+  Map<String, Object?> get dernierCorps =>
+      corpsEnvoyes.isEmpty ? const <String, Object?>{} : corpsEnvoyes.last;
+
   void enfile(Object reponse) => _reponses.add(reponse);
 
   Future<Map<String, Object?>> _prochaine(String trace) async {
@@ -44,8 +51,20 @@ class FauxTransport implements PreuveTransport {
       _prochaine('GET $path');
 
   @override
-  Future<Map<String, Object?>> post(String path, {Map<String, Object?>? body}) =>
-      _prochaine('POST $path');
+  Future<Map<String, Object?>> post(String path, {Map<String, Object?>? body}) {
+    corpsEnvoyes.add(body ?? const <String, Object?>{});
+
+    return _prochaine('POST $path');
+  }
+
+  /// Trace distincte : un test doit pouvoir constater qu'un appel censé être
+  /// anonyme ne transporte pas de session.
+  @override
+  Future<Map<String, Object?>> postAnonymous(String path, {Map<String, Object?>? body}) {
+    corpsEnvoyes.add(body ?? const <String, Object?>{});
+
+    return _prochaine('POST(anonyme) $path');
+  }
 
   @override
   Future<Map<String, Object?>> put(String path, {Map<String, Object?>? body}) =>

@@ -147,6 +147,52 @@ final class LookupScanController extends Controller
         ]);
     }
 
+    /**
+     * Sélection à partir de mots DÉJÀ LUS SUR L'APPAREIL.
+     *
+     * NI PLAFOND DE DÉPENSE, NI DÉFI. Le plafond de `store()` ne protégeait
+     * qu'une facture chez le fournisseur d'extraction ; ici aucun tiers n'est
+     * appelé et rien n'est dépensé, donc rien n'a à être rationné. Le débit de
+     * la route reste borné en amont, pour elle-même.
+     *
+     * AUCUNE IMAGE NE CIRCULE. C'est la raison d'être de ce chemin : une carte
+     * grise porte le nom et l'adresse de son propriétaire, et il n'y a jamais
+     * eu besoin de l'envoyer pour en extraire dix-sept caractères.
+     */
+    public function text(Request $request): JsonResponse
+    {
+        $request->validate([
+            'doc_type' => ['required', Rule::in(array_map(
+                static fn (DocumentType $type): string => $type->value,
+                self::TYPES_SCANNABLES,
+            ))],
+            // Borné : au-delà, ce n'est plus une carte grise mais un envoi qui
+            // cherche à faire travailler le serveur pour rien.
+            'words' => ['required', 'array', 'max:400'],
+            'words.*' => ['string', 'max:64'],
+        ]);
+
+        /** @var list<string> $mots */
+        $mots = array_values($request->collect('words')->filter(
+            static fn (mixed $mot): bool => is_string($mot) && $mot !== '',
+        )->all());
+
+        $resultat = $this->scans->scanText(
+            null,
+            DocumentType::from($request->string('doc_type')->toString()),
+            $mots,
+        );
+
+        return response()->json([
+            'scan_id' => $resultat['scan']->id,
+            'identifier' => $resultat['identifier'],
+            'attributes' => $resultat['attributes'],
+            'confidence' => $resultat['confidence'],
+            'rate_limited' => false,
+            'message' => $resultat['message'],
+        ]);
+    }
+
     /** La même empreinte que le plafond de consultation, salée du jour. */
     private function empreinte(string $ip): string
     {

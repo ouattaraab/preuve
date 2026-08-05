@@ -62,6 +62,30 @@ void main() {
     expect(propre.dernierCorps.containsKey('captcha_token'), isFalse);
   });
 
+  test('LES MOTS PARTENT SANS JETON, et sans image', () async {
+    // Toute la raison d'être du chemin embarqué : la photo d'une carte grise
+    // porte le nom et l'adresse de son propriétaire. Ne partent que des mots —
+    // et sans session, sur un parcours dont l'anonymat est la promesse.
+    final transport = FakeTransport()..enfile(lu());
+
+    await ScanService(transport).readWordsForLookup(<String>['1M8GDM9AXKP042788', 'YAMAHA']);
+
+    expect(transport.appels.single, equals('POST(anonyme) /lookup/scan/text'));
+    expect(transport.dernierCorps['words'], equals(<String>['1M8GDM9AXKP042788', 'YAMAHA']));
+    // Aucun fichier n'a été joint : c'est ce qui distingue ce chemin.
+    expect(transport.fichiersEnvoyes, isEmpty);
+  });
+
+  test('le chemin d\'enregistrement, lui, porte la session', () async {
+    // La trace y est rattachée au compte : c'est elle qui mesure si le
+    // pré-remplissage tient jusqu'à la soumission.
+    final transport = FakeTransport()..enfile(lu());
+
+    await ScanService(transport).readWords(<String>['1M8GDM9AXKP042788']);
+
+    expect(transport.appels.single, equals('POST /assets/scan/text'));
+  });
+
   test('NE PROPOSE RIEN plutôt qu\'une valeur approchée', () async {
     // Un identifiant mal lu est pire qu'un identifiant non lu : personne ne
     // recompte dix-sept caractères, et l'erreur ne se découvre qu'au moment où

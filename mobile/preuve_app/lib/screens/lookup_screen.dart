@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:preuve_core/preuve_core.dart';
 
 import '../data/fichiers.dart';
+import '../data/ocr.dart';
 import '../data/session.dart';
 import '../ui/code_action.dart';
 import '../ui/photo_choice.dart';
@@ -39,6 +42,10 @@ class _LookupScreenState extends State<LookupScreen> {
   bool _scanEnCours = false;
   String? _erreurLocale;
 
+  /// Le moteur de lecture, gardé le temps de l'écran : le charger à chaque
+  /// scan coûterait plusieurs centaines de millisecondes à chaque fois.
+  final LecteurEmbarque _lecteur = LecteurEmbarque();
+
   /// Ce que la lecture a donné, dit à l'utilisateur.
   ///
   /// TOUJOURS AFFICHÉ, RÉUSSITE COMME ÉCHEC. Un scan qui ne remplit rien sans
@@ -50,6 +57,9 @@ class _LookupScreenState extends State<LookupScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    // Le modèle occupe plusieurs mégaoctets de mémoire vive : le laisser
+    // ouvert derrière soi sur un téléphone d'entrée de gamme se paie.
+    unawaited(_lecteur.fermer());
     super.dispose();
   }
 
@@ -120,21 +130,35 @@ class _LookupScreenState extends State<LookupScreen> {
     });
 
     try {
-      final ScanResult lecture = await widget.session.scans.readForLookup(
-        await enUnSeulMorceau(photo, champ: 'file'),
-      );
+      // LA PHOTO EST LUE ICI, SUR LE TÉLÉPHONE, et ne part jamais. Une carte
+      // grise porte le nom et l'adresse de son propriétaire ; il n'a jamais
+      // fallu l'envoyer pour en extraire dix-sept caractères. Seuls les mots
+      // partent — quelques centaines d'octets, ce qui change tout en 3G.
+      final List<String> mots = await _lecteur.lire(photo.chemin);
+
+      if (!mounted) {
+        return;
+      }
+
+      if (mots.isEmpty) {
+        setState(() => _messageScan =
+            'Rien de lisible sur cette photo. Rapproche-toi du numéro, ou tape-le à la main.');
+
+        return;
+      }
+
+      // LA SÉLECTION EST FAITE PAR LE SERVEUR, pas ici : le chiffre de contrôle
+      // du VIN et l'ordre de priorité sont des règles métier, et embarquées
+      // dans l'application elles se périmeraient sur des téléphones qui ne se
+      // mettent pas à jour.
+      final ScanResult lecture = await widget.session.scans.readWordsForLookup(mots);
 
       if (!mounted) {
         return;
       }
 
       setState(() {
-        if (!lecture.available) {
-          // Le serveur vient de dire qu'il ne sait pas lire. Refaire la photo
-          // ne servirait à rien : on renvoie à la saisie, pas à un second essai.
-          _messageScan = lecture.message ??
-              'La lecture automatique n\'est pas disponible. Tape le numéro à la main.';
-        } else if (lecture.hasIdentifier) {
+        if (lecture.hasIdentifier) {
           _controller.text = lecture.identifier!.toUpperCase();
           _messageScan = 'Numéro lu sur la carte grise. RELIS-LE avant de vérifier : '
               'une machine se trompe, et un caractère de travers change le verdict.';
@@ -293,20 +317,18 @@ class _LookupScreenState extends State<LookupScreen> {
               // anonyme, celui que le produit sert d'abord, qui n'y avait pas
               // droit.
               //
-              // ABSENT PLUTÔT QUE GRISÉ quand aucun fournisseur d'extraction
-              // n'est branché : un bouton qui prend une photo, l'envoie, et
-              // rend un échec fait recommencer l'utilisateur, qui attribue la
-              // faute à sa photo. Ne rien proposer coûte moins cher.
-              if (widget.session.scanDisponible) ...<Widget>[
-                const SizedBox(height: 12),
-                BoutonRelief(
-                  libelle: 'Je scanne',
-                  icone: '▣',
-                  principal: false,
-                  enCours: _scanEnCours,
-                  onPressed: _scanner,
-                ),
-              ],
+              // TOUJOURS OFFERT, parce que la lecture se fait SUR L'APPAREIL.
+              // Il fut un temps conditionné à une clé de fournisseur côté
+              // serveur ; le conditionner encore cacherait une fonction qui
+              // marche parfaitement sans elle, et hors ligne.
+              const SizedBox(height: 12),
+              BoutonRelief(
+                libelle: 'Je scanne',
+                icone: '▣',
+                principal: false,
+                enCours: _scanEnCours,
+                onPressed: _scanner,
+              ),
               if (_messageScan != null) ...<Widget>[
                 const SizedBox(height: 12),
                 EncadreConfirmation(_messageScan!),

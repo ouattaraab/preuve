@@ -104,6 +104,21 @@ Route::prefix('v1')->group(function (): void {
     Route::post('lookup/scan', [LookupScanController::class, 'store'])
         ->middleware('throttle:10,10');
 
+    // Le MÊME service, à partir de mots déjà lus sur l'appareil.
+    //
+    // AUCUNE IMAGE NE CIRCULE : une carte grise porte le nom et l'adresse de
+    // son propriétaire, et il n'a jamais fallu l'envoyer pour en extraire
+    // dix-sept caractères. La lecture se fait sur le téléphone, hors ligne ;
+    // la SÉLECTION reste ici, parce que le chiffre de contrôle du VIN et
+    // l'ordre de priorité sont des règles métier — embarquées dans
+    // l'application, elles se périmeraient sur des téléphones qui ne se
+    // mettent pas à jour.
+    //
+    // Plus généreux que la route par image, et c'est cohérent : rien n'est
+    // dépensé chez personne. Le débit reste borné pour la route elle-même.
+    Route::post('lookup/scan/text', [LookupScanController::class, 'text'])
+        ->middleware('throttle:60,10');
+
     Route::prefix('auth')->group(function (): void {
         // Le rythme des envois est déjà borné par destination dans
         // OtpService ; ce plafond-ci borne l'origine de l'appel, pour qu'un
@@ -135,6 +150,11 @@ Route::prefix('v1')->group(function (): void {
         // client en boucle épuiserait le quota de toute la plateforme.
         Route::post('assets/scan', [AssetScanController::class, 'store'])
             ->middleware('throttle:20,10');
+
+        // Le même service à partir de mots lus sur l'appareil : aucune image
+        // ne circule, rien n'est facturé, donc le débit peut être plus large.
+        Route::post('assets/scan/text', [AssetScanController::class, 'text'])
+            ->middleware('throttle:60,10');
 
         // Renforcement de la fiabilité APRÈS l'enregistrement (ST-0207) : c'est
         // ce qui permet au parcours initial de tenir en 90 secondes sans KYC.

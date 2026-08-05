@@ -60,6 +60,14 @@ abstract interface class PreuveTransport {
     bool anonymous = false,
   });
 
+  /// Envoi JSON SANS le jeton de session, même s'il y en a un.
+  ///
+  /// Le scan de consultation est ouvert à qui n'a pas de compte ; y attacher le
+  /// jeton d'un utilisateur par ailleurs connecté ferait porter au registre la
+  /// trace de QUI a photographié quelle carte grise, sur le parcours dont
+  /// l'anonymat est la promesse (règle métier n° 1).
+  Future<Map<String, Object?>> postAnonymous(String path, {Map<String, Object?>? body});
+
   /// Jeton de session, ou `null` pour le retirer.
   void setToken(String? token);
 

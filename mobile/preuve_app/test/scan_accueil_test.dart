@@ -11,13 +11,9 @@ import 'faux.dart';
 /// « Je scanne » sur l'accueil : le raccourci de celui qui n'a PAS de compte.
 ///
 /// Recopier dix-sept caractères de châssis debout devant un vendeur est le
-/// premier motif de « bien introuvable ». Le bouton était grisé depuis le
-/// début : le raccourci existait, mais pas pour l'acheteur anonyme — celui que
-/// le produit sert d'abord.
-///
-/// IL N'APPARAÎT QUE SI LE SERVEUR ANNONCE POUVOIR LIRE. Sans fournisseur
-/// d'extraction, il ferait prendre une photo, l'enverrait, et rendrait un échec
-/// que l'utilisateur attribuerait à sa photo — il recommencerait.
+/// premier motif de « bien introuvable ». Le bouton fut grisé, puis conditionné
+/// à une clé de fournisseur payant. Il ne l'est plus : la lecture se fait SUR
+/// L'APPAREIL, donc hors ligne, sans clé, et sans que la photo parte.
 void main() {
   Future<void> ouvrir(WidgetTester tester, {AppRelease? annonce}) async {
     final PreuveSession session = fauxSession(FauxTransport())..annonce = annonce;
@@ -31,8 +27,8 @@ void main() {
 
   Finder leBouton() => find.text('Je scanne');
 
-  testWidgets('OFFERT ET ACTIF quand le serveur sait lire', (WidgetTester tester) async {
-    await ouvrir(tester, annonce: const AppRelease(scanAvailable: true));
+  testWidgets('OFFERT ET ACTIF, sans aucun compte', (WidgetTester tester) async {
+    await ouvrir(tester);
 
     expect(leBouton(), findsOneWidget);
 
@@ -44,23 +40,24 @@ void main() {
         reason: 'Un bouton grisé sans explication est ce que ce projet s\'interdit.');
   });
 
-  testWidgets('ABSENT quand aucun fournisseur n\'est branché', (WidgetTester tester) async {
+  testWidgets('OFFERT MÊME SANS FOURNISSEUR CÔTÉ SERVEUR', (WidgetTester tester) async {
+    // C'est tout l'intérêt de la lecture embarquée : elle ne dépend d'aucune
+    // clé. Conditionner le bouton à `scan_available` cacherait désormais une
+    // fonction qui marche parfaitement sans elle.
     await ouvrir(tester, annonce: const AppRelease(scanAvailable: false));
 
-    expect(leBouton(), findsNothing);
+    expect(leBouton(), findsOneWidget);
   });
 
-  testWidgets('ABSENT tant que le serveur n\'a rien annoncé', (WidgetTester tester) async {
-    // Réseau absent au lancement : on reste prudent plutôt que d'annoncer une
-    // capacité qu'on n'a pas vérifiée.
+  testWidgets('OFFERT MÊME SANS RÉSEAU au lancement', (WidgetTester tester) async {
+    // L'annonce du serveur n'est jamais revenue. La lecture, elle, marche hors
+    // ligne — c'est justement le cas où elle sert le plus.
     await ouvrir(tester);
 
-    expect(leBouton(), findsNothing);
+    expect(leBouton(), findsOneWidget);
   });
 
-  testWidgets('LA VÉRIFICATION RESTE OFFERTE dans tous les cas',
-      (WidgetTester tester) async {
-    // Le raccourci peut manquer ; la promesse du produit, jamais.
+  testWidgets('LA VÉRIFICATION RESTE OFFERTE, et gratuite', (WidgetTester tester) async {
     await ouvrir(tester, annonce: const AppRelease(scanAvailable: false));
 
     expect(find.text('JE VÉRIFIE'), findsOneWidget);
