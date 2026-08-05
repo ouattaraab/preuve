@@ -19,4 +19,16 @@ use Illuminate\Http\UploadedFile;
 interface DocumentReader
 {
     public function read(UploadedFile $image): ScanExtraction;
+
+    /**
+     * Vrai quand la lecture est réellement possible.
+     *
+     * DISTINGUE « JE N'AI PAS PU LIRE CE DOCUMENT » DE « JE NE SAIS PAS LIRE ».
+     * Sans clé de fournisseur, `read()` rend « illisible » — indiscernable, pour
+     * l'utilisateur, d'une photo floue. Il refait donc la photo, la renvoie,
+     * échoue encore, et épuise son plafond horaire sur une fonction qui ne
+     * pouvait pas marcher. L'appelant doit pouvoir le dire AVANT de lui
+     * demander de prendre une photo.
+     */
+    public function isConfigured(): bool;
 }

@@ -72,6 +72,8 @@ class ScanResult {
     this.identifierType,
     this.attributes = const <String, Object?>{},
     this.confidence,
+    this.message,
+    this.available = true,
   });
 
   factory ScanResult.fromJson(Map<String, Object?> json) {
@@ -92,6 +94,10 @@ class ScanResult {
       identifierType: propose['type'] is String ? propose['type']! as String : null,
       attributes: attributs is Map<String, Object?> ? attributs : const <String, Object?>{},
       confidence: json['confidence'] is num ? (json['confidence']! as num).toDouble() : null,
+      message: json['message'] is String ? json['message']! as String : null,
+      // Absent = disponible : seule l'indisponibilité est annoncée, et un
+      // serveur plus ancien ne connaît pas ce champ.
+      available: json['scan_available'] != false,
     );
   }
 
@@ -105,6 +111,20 @@ class ScanResult {
   final String? identifierType;
   final Map<String, Object?> attributes;
   final double? confidence;
+
+  /// Ce que le serveur veut qu'on dise. TOUJOURS AFFICHÉ, réussite comme échec :
+  /// un scan qui ne remplit rien sans rien dire laisse croire à une panne, et
+  /// un scan réussi doit demander une relecture — un numéro mal lu est pire
+  /// qu'un numéro non lu, parce que personne ne recompte dix-sept caractères
+  /// qu'une machine a proposés.
+  final String? message;
+
+  /// Faux quand aucun fournisseur d'extraction n'est branché.
+  ///
+  /// À DISTINGUER D'UNE LECTURE RATÉE. « Illisible » invite à refaire la photo ;
+  /// ici, la refaire ne servirait à rien, et l'écran doit renvoyer à la saisie
+  /// manuelle plutôt qu'à un second essai.
+  final bool available;
 
   bool get hasIdentifier => identifier != null && identifier!.isNotEmpty;
 }

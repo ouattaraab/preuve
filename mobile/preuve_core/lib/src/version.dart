@@ -58,6 +58,7 @@ class AppRelease {
     this.minimumVersion,
     this.latestVersion,
     this.updateRequiredForWrites = false,
+    this.scanAvailable = false,
   });
 
   factory AppRelease.fromJson(Map<String, Object?> json) {
@@ -68,12 +69,22 @@ class AppRelease {
       latestVersion:
           json['latest_version'] is String ? json['latest_version']! as String : null,
       updateRequiredForWrites: json['update_required_for_writes'] == true,
+      scanAvailable: json['scan_available'] == true,
     );
   }
 
   final String? minimumVersion;
   final String? latestVersion;
   final bool updateRequiredForWrites;
+
+  /// Vrai quand un fournisseur d'extraction est réellement branché.
+  ///
+  /// PAR DÉFAUT FAUX, ET C'EST VOULU. Un serveur plus ancien ne rend pas ce
+  /// champ ; supposer que le scan marche ferait prendre une photo, la ferait
+  /// envoyer, et rendrait un échec que l'utilisateur attribuerait à sa photo —
+  /// il recommencerait. Ne pas proposer un raccourci coûte moins cher que le
+  /// proposer sans qu'il puisse aboutir.
+  final bool scanAvailable;
 
   /// LA CONSULTATION N'EST JAMAIS BLOQUÉE, quelle que soit la version. Cette
   /// constante existe pour que la règle soit lisible dans le code du client et

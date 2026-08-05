@@ -857,7 +857,37 @@ budget épuisé, fournisseur en panne. Un repli naïf sur la valeur par défaut
 rallumerait les appels payants que l'exploitant vient d'arrêter, et il ne le
 découvrirait qu'à la facture. Le projet avait déjà payé ce piège sur les tarifs.
 
-**Couverture** : 849 Pest, 113 `preuve_core`, 27 `preuve_app`.
+### Le bouton aurait échoué à tous les coups en production
+
+Vérifié juste après : **sans clé Mindee, `read()` rend « illisible »
+immédiatement**. Le bouton venait donc d'être activé sur un serveur incapable de
+lire — chaque appui aurait pris une photo, l'aurait envoyée, aurait consommé une
+place du plafond, et rendu un échec que l'utilisateur aurait attribué à SA
+photo. Il aurait recommencé. C'était pire que le bouton grisé.
+
+Trois corrections :
+
+1. `DocumentReader::isConfigured()` distingue **« je n'ai pas pu lire ce
+   document »** de **« je ne sais pas lire »**. Sans fournisseur, la route
+   répond sans rien facturer ni décompter — aucun appel n'a eu lieu, punir
+   l'utilisateur d'une panne qui n'est pas la sienne n'aurait aucun sens.
+2. `GET /config/app` annonce `scan_available`, pour que le client **ne propose
+   pas ce qui n'existe pas**. Le bouton est ABSENT, pas grisé.
+3. **200 et non 503** : le contrat de cette route est « toujours 200, et on dit
+   pourquoi », et le client traduit tout 503 en « plateforme en lecture seule »
+   — un message faux, qui laisserait croire la consultation fermée.
+
+### `GET /config/app` n'était lu par personne
+
+Découvert en branchant le point 2 : la route existe depuis le 04/08,
+`LookupService.release()` aussi, et **aucun écran ne les appelait**. La
+plateforme pouvait donc exiger une mise à jour minimale sans qu'aucune
+application ne l'apprenne — la fonction de forçage était injoignable, comme
+l'inventaire, les transferts, la réclamation par référence, le rapport par
+référence, la flotte, et le défi anti-robot avant elle. **Septième occurrence du
+même motif.** L'annonce est désormais lue au lancement, sans jamais bloquer.
+
+**Couverture** : 852 Pest, 116 `preuve_core`, 29 `preuve_app`.
 
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter

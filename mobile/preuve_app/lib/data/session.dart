@@ -79,7 +79,31 @@ class PreuveSession {
   /// consultation, qui ne demande aucun compte (règle métier absolue n° 1) :
   /// un serveur injoignable au démarrage doit laisser passer quelqu'un qui
   /// vient seulement vérifier une moto au marché.
+  /// Ce que le serveur annonce : version minimale, et capacités réellement
+  /// branchées.
+  ///
+  /// PERSONNE NE LA LISAIT. `GET /config/app` existe depuis le 04/08 et
+  /// `LookupService.release()` aussi ; aucun écran ne les appelait. La
+  /// plateforme pouvait donc exiger une mise à jour sans qu'aucune application
+  /// ne l'apprenne, et proposer un scan sans fournisseur d'extraction branché.
+  AppRelease? annonce;
+
+  /// Vrai quand la lecture automatique est réellement possible.
+  ///
+  /// PRUDENT PAR DÉFAUT : tant que l'annonce n'est pas revenue — ou si elle
+  /// n'est jamais revenue, faute de réseau — on ne propose pas un raccourci
+  /// qui rendrait un échec attribué à la photo de l'utilisateur.
+  bool get scanDisponible => annonce?.scanAvailable ?? false;
+
   Future<void> reprendre() async {
+    // AVANT TOUT LE RESTE, et sans jamais bloquer : elle est anonyme, elle dit
+    // ce que l'application a le droit de proposer, et son échec n'empêche rien.
+    try {
+      annonce = await lookups.release();
+    } on PreuveException {
+      // Sans réponse, on reste prudent : voir `scanDisponible`.
+    }
+
     try {
       // LA FILE D'ABORD, ET HORS DE TOUTE CONDITION DE SESSION : des pièces
       // peuvent attendre depuis des jours, et les relire ne coûte rien. Ne les

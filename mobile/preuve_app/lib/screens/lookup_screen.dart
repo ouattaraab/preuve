@@ -129,7 +129,12 @@ class _LookupScreenState extends State<LookupScreen> {
       }
 
       setState(() {
-        if (lecture.hasIdentifier) {
+        if (!lecture.available) {
+          // Le serveur vient de dire qu'il ne sait pas lire. Refaire la photo
+          // ne servirait à rien : on renvoie à la saisie, pas à un second essai.
+          _messageScan = lecture.message ??
+              'La lecture automatique n\'est pas disponible. Tape le numéro à la main.';
+        } else if (lecture.hasIdentifier) {
           _controller.text = lecture.identifier!.toUpperCase();
           _messageScan = 'Numéro lu sur la carte grise. RELIS-LE avant de vérifier : '
               'une machine se trompe, et un caractère de travers change le verdict.';
@@ -282,19 +287,26 @@ class _LookupScreenState extends State<LookupScreen> {
                 enCours: _enCours,
                 onPressed: _verifier,
               ),
-              const SizedBox(height: 12),
               // LE RACCOURCI DE CELUI QUI N'A PAS DE COMPTE. Recopier dix-sept
               // caractères de châssis debout devant un vendeur est le premier
               // motif de « bien introuvable » — et c'est justement l'acheteur
-              // anonyme, celui que le produit sert d'abord, qui n'avait pas
-              // droit au raccourci.
-              BoutonRelief(
-                libelle: 'Je scanne',
-                icone: '▣',
-                principal: false,
-                enCours: _scanEnCours,
-                onPressed: _scanner,
-              ),
+              // anonyme, celui que le produit sert d'abord, qui n'y avait pas
+              // droit.
+              //
+              // ABSENT PLUTÔT QUE GRISÉ quand aucun fournisseur d'extraction
+              // n'est branché : un bouton qui prend une photo, l'envoie, et
+              // rend un échec fait recommencer l'utilisateur, qui attribue la
+              // faute à sa photo. Ne rien proposer coûte moins cher.
+              if (widget.session.scanDisponible) ...<Widget>[
+                const SizedBox(height: 12),
+                BoutonRelief(
+                  libelle: 'Je scanne',
+                  icone: '▣',
+                  principal: false,
+                  enCours: _scanEnCours,
+                  onPressed: _scanner,
+                ),
+              ],
               if (_messageScan != null) ...<Widget>[
                 const SizedBox(height: 12),
                 EncadreConfirmation(_messageScan!),

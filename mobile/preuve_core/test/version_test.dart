@@ -8,6 +8,8 @@ import 'package:test/test.dart';
 /// EN CAS DE DOUTE, ON LAISSE PASSER : refuser sur une chaîne qu'on n'a pas su
 /// lire punirait l'utilisateur pour un défaut de la plateforme.
 void main() {
+  _capacitesAnnoncees();
+
   group('comparaison', () {
     test('reconnaît une version antérieure', () {
       expect(AppVersion.isOutdated(installed: '1.9.9', minimum: '2.0.0'), isTrue);
@@ -54,5 +56,38 @@ void main() {
     expect(release.minimumVersion, equals('1.4.0'));
     expect(release.blocksWritesFor('1.3.9'), isTrue);
     expect(release.blocksWritesFor('1.4.0'), isFalse);
+  });
+}
+
+/// Capacités annoncées par `GET /config/app`.
+///
+/// PERSONNE NE LES LISAIT. La route existe depuis le 04/08, `release()` aussi ;
+/// aucun écran ne les appelait. La plateforme pouvait exiger une mise à jour
+/// sans qu'aucune application ne l'apprenne, et proposer un scan sans
+/// fournisseur d'extraction branché.
+void _capacitesAnnoncees() {
+  group('AppRelease', () {
+    test('lit la disponibilité du scan telle que le serveur la rend', () {
+      final AppRelease a = AppRelease.fromJson(<String, Object?>{
+        'minimum_version': null,
+        'latest_version': null,
+        'update_required_for_writes': false,
+        'lookup_always_available': true,
+        'scan_available': true,
+      });
+
+      expect(a.scanAvailable, isTrue);
+    });
+
+    test('PRUDENT quand le serveur ne dit rien', () {
+      // Un serveur plus ancien ne connaît pas ce champ. Supposer que le scan
+      // marche ferait prendre une photo, l'enverrait, et rendrait un échec que
+      // l'utilisateur attribuerait à sa photo — il recommencerait.
+      expect(AppRelease.fromJson(const <String, Object?>{}).scanAvailable, isFalse);
+    });
+
+    test('la consultation ne dépend d\'aucune annonce', () {
+      expect(AppRelease.lookupAlwaysAvailable, isTrue);
+    });
   });
 }

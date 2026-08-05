@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Services\AnonymousScanAllowance;
 use App\Services\AssetScanService;
 use App\Services\Captcha\CaptchaVerifier;
+use App\Services\Scan\DocumentReader;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -48,6 +49,7 @@ final class LookupScanController extends Controller
         private readonly AssetScanService $scans,
         private readonly AnonymousScanAllowance $budget,
         private readonly CaptchaVerifier $captcha,
+        private readonly DocumentReader $lecteur,
     ) {}
 
     public function store(Request $request): JsonResponse
@@ -62,6 +64,30 @@ final class LookupScanController extends Controller
             ))],
             'file' => ['required', 'file', 'max:'.$tailleMax, 'mimes:pdf,jpg,jpeg,png,heic'],
         ]);
+
+        // AUCUN FOURNISSEUR, AUCUNE PROMESSE. Sans clé d'extraction, `read()`
+        // rendrait « illisible » — indiscernable, pour l'utilisateur, d'une
+        // photo floue. Il referait la photo, la renverrait, échouerait encore,
+        // et épuiserait son plafond horaire sur une fonction qui ne pouvait pas
+        // marcher. On le dit, on ne compte rien, et on n'appelle personne.
+        if (! $this->lecteur->isConfigured()) {
+            return response()->json([
+                'scan_id' => null,
+                'identifier' => null,
+                'attributes' => [],
+                'confidence' => null,
+                'rate_limited' => false,
+                'scan_available' => false,
+                'message' => 'La lecture automatique n\'est pas disponible pour le moment. '.
+                    'Tape le numéro à la main : la vérification, elle, marche normalement.',
+                // 200, PAS 503, POUR DEUX RAISONS. Le contrat de cette route est
+                // déjà « toujours 200, et on dit pourquoi » : un écran d'erreur
+                // détournerait de la saisie manuelle, qui est le chemin
+                // nominal. Et le client traduit tout 503 en « plateforme en
+                // lecture seule » — un message faux, qui laisserait croire que
+                // la consultation elle-même est fermée.
+            ]);
+        }
 
         $empreinte = $this->empreinte($request->ip() ?? '');
 

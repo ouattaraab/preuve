@@ -87,9 +87,17 @@ final class LecteurDeTest implements DocumentReader
 {
     public ScanExtraction $extraction;
 
+    /** Réglable : un test doit pouvoir jouer l'absence de fournisseur. */
+    public bool $configure = true;
+
     public function __construct()
     {
         $this->extraction = ScanExtraction::unreadable();
+    }
+
+    public function isConfigured(): bool
+    {
+        return $this->configure;
     }
 
     public function read(UploadedFile $image): ScanExtraction
@@ -105,6 +113,8 @@ function lecteurRendant(ScanExtraction $extraction): void
 
     if ($lecteur instanceof LecteurDeTest) {
         $lecteur->extraction = $extraction;
+        // Un lecteur qui rend une extraction est, par définition, branché.
+        $lecteur->configure = true;
     }
 }
 
@@ -532,3 +542,55 @@ it('ZÉRO COUPE LA DÉPENSE, et ne rétablit pas le réglage par défaut', funct
 
     expect(DocumentScan::count())->toBe(0, 'Aucun appel au fournisseur ne doit avoir eu lieu.');
 });
+
+it('NE PROMET PAS UN SCAN QUAND AUCUN FOURNISSEUR N\'EST BRANCHÉ', function (): void {
+    // « Illisible » et « je ne sais pas lire » sont indiscernables pour
+    // l'utilisateur : il refait la photo, la renvoie, échoue encore, et épuise
+    // son plafond horaire sur une fonction qui ne pouvait pas marcher.
+    lecteurNonConfigure();
+
+    scannerSansCompte()
+        // 200 : un écran d'erreur détournerait de la saisie manuelle, qui est
+        // le chemin nominal. Et le client traduit tout 503 en « plateforme en
+        // lecture seule », ce qui laisserait croire la consultation fermée.
+        ->assertOk()
+        ->assertJsonPath('scan_available', false)
+        ->assertJsonPath('identifier', null)
+        ->assertJsonPath('message', fn (?string $m): bool => str_contains((string) $m, 'à la main'));
+});
+
+it('ne facture ni ne compte rien quand le fournisseur manque', function (): void {
+    // Aucun appel n'a lieu : la place ne doit donc pas être décomptée. La
+    // décompter punirait l'utilisateur d'une panne qui n'est pas la sienne.
+    config()->set('preuve.scan_rate_limit.anonymous_per_hour', 1);
+    lecteurNonConfigure();
+
+    scannerSansCompte()->assertOk()->assertJsonPath('scan_available', false);
+    scannerSansCompte()->assertOk()->assertJsonPath('scan_available', false);
+
+    expect(DocumentScan::count())->toBe(0);
+});
+
+it('ANNONCE LA CAPACITÉ, pour que le client ne propose pas ce qui n\'existe pas',
+    function (): void {
+        lecteurNonConfigure();
+
+        test()->getJson('/api/v1/config/app')
+            ->assertOk()
+            ->assertJsonPath('scan_available', false)
+            // La consultation, elle, ne dépend de rien.
+            ->assertJsonPath('lookup_always_available', true);
+
+        lecteurRendant(new ScanExtraction(candidates: ['1M8GDM9AXKP042788']));
+
+        test()->getJson('/api/v1/config/app')->assertJsonPath('scan_available', true);
+    });
+
+function lecteurNonConfigure(): void
+{
+    $lecteur = app(DocumentReader::class);
+
+    if ($lecteur instanceof LecteurDeTest) {
+        $lecteur->configure = false;
+    }
+}

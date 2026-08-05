@@ -9,6 +9,7 @@ use App\Models\AssetCategory;
 use App\Models\CategoryField;
 use App\Services\AppRelease;
 use App\Services\CategoryRegistry;
+use App\Services\Scan\DocumentReader;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -18,6 +19,7 @@ final class ConfigController extends Controller
     public function __construct(
         private readonly CategoryRegistry $registry,
         private readonly AppRelease $release,
+        private readonly DocumentReader $lecteur,
     ) {}
 
     /**
@@ -42,6 +44,12 @@ final class ConfigController extends Controller
             // Répété ici parce que c'est la promesse n° 1 du produit : un
             // verdict ne dépend jamais de la version installée.
             'lookup_always_available' => true,
+            // ANNONCÉ POUR QUE LE CLIENT NE PROPOSE PAS CE QUI N'EXISTE PAS.
+            // Sans fournisseur d'extraction, offrir « Je scanne » fait prendre
+            // une photo, la fait envoyer, et rend un échec que l'utilisateur
+            // attribuera à sa photo — il recommencera. Mieux vaut ne pas
+            // proposer le raccourci que le proposer sans qu'il puisse aboutir.
+            'scan_available' => $this->lecteur->isConfigured(),
         ])->header('Cache-Control', 'no-store');
     }
 

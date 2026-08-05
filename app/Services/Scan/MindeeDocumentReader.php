@@ -64,11 +64,24 @@ final class MindeeDocumentReader implements DocumentReader
 
     public function __construct(private readonly SettingsRepository $settings) {}
 
-    public function read(UploadedFile $image): ScanExtraction
+    public function isConfigured(): bool
+    {
+        return $this->cle() !== null;
+    }
+
+    /** La clé du fournisseur, ou nul si elle n'est pas renseignée. */
+    private function cle(): ?string
     {
         $cle = $this->settings->get(MindeeIdentityReader::API_KEY_SETTING);
 
-        if (! is_string($cle) || $cle === '') {
+        return is_string($cle) && $cle !== '' ? $cle : null;
+    }
+
+    public function read(UploadedFile $image): ScanExtraction
+    {
+        $cle = $this->cle();
+
+        if ($cle === null) {
             return ScanExtraction::unreadable();
         }
 
