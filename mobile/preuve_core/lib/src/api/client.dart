@@ -35,6 +35,27 @@ class PreuveApi implements PreuveTransport {
   /// serveur de refuser une version dont les règles ont changé.
   final String appVersion;
 
+  /// Racine du site public, DÉDUITE de celle de l'API. Ex. `https://preuve.click`.
+  ///
+  /// ELLE N'EST PAS ÉCRITE EN DUR : quelqu'un qui pointe l'application sur une
+  /// recette (`--dart-define`) verrait sinon ses liens de partage et son défi
+  /// anti-robot repartir vers la production, c'est-à-dire vers un registre qui
+  /// ne contient pas ce qu'il vient d'enregistrer.
+  String get siteBase {
+    final Uri u = Uri.parse(baseUrl);
+    final List<String> segments = u.pathSegments.toList()
+      ..removeWhere((String s) => s.isEmpty);
+
+    // On retire le suffixe d'API (`/api/v1`) et rien d'autre : le reste du
+    // chemin peut être un sous-répertoire d'hébergement, qu'il faut garder.
+    while (segments.isNotEmpty &&
+        (segments.last == 'api' || RegExp(r'^v\d+$').hasMatch(segments.last))) {
+      segments.removeLast();
+    }
+
+    return u.replace(pathSegments: segments).toString().replaceAll(RegExp(r'/$'), '');
+  }
+
   /// Généreux : CT-01 promet moins d'une seconde de traitement, mais une 3G de
   /// bord de route ajoute plusieurs secondes que l'utilisateur préfère attendre
   /// plutôt que de recommencer.

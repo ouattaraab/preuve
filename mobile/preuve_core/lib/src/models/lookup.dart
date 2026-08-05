@@ -13,6 +13,7 @@ class LookupResult {
     required this.outcome,
     required this.message,
     this.asset,
+    this.captchaSiteKey,
   });
 
   factory LookupResult.fromJson(Map<String, Object?> json) {
@@ -34,6 +35,20 @@ class LookupResult {
   final LookupOutcome outcome;
   final String message;
   final PublicAsset? asset;
+
+  /// Clé publique du défi anti-robot, quand le plafond a été atteint ET qu'un
+  /// défi est configuré côté serveur.
+  ///
+  /// ELLE NE DOIT PAS ÊTRE PERDUE EN CHEMIN. Sans elle, « plafond atteint »
+  /// devient une impasse d'une heure sur le seul parcours que le produit
+  /// promet gratuit et sans compte — et le serveur, lui, offrait la sortie.
+  final String? captchaSiteKey;
+
+  /// Vrai quand une porte de sortie existe réellement. Proposer un bouton qui
+  /// n'aboutit à rien est pire que ne rien proposer : on recommence, puis on
+  /// conclut que l'application est cassée.
+  bool get challengeAvailable =>
+      outcome == LookupOutcome.rateLimited && captchaSiteKey != null;
 
   bool get isKnown => outcome == LookupOutcome.known && asset != null;
 

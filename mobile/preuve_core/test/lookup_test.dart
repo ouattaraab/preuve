@@ -1,10 +1,14 @@
 import 'package:preuve_core/preuve_core.dart';
 import 'package:test/test.dart';
 
+import 'fake_transport.dart';
+
 /// Le verdict a TROIS issues qu'il ne faut jamais confondre à l'écran. Un
 /// identifiant inconnu n'est ni un bon ni un mauvais signe : le présenter
 /// comme rassurant ferait acheter un bien volé que personne n'a déclaré.
 void main() {
+  _cleDuDefi();
+
   group('verdict', () {
     test('lit un bien connu et son statut en langage courant', () {
       final result = LookupResult.fromJson(const <String, Object?>{
@@ -93,5 +97,42 @@ void main() {
     final uri = asset.shareUri('https://preuve.click');
 
     expect(uri.toString(), equals('https://preuve.click/b/PRV-2H4K9MNP'));
+  });
+}
+
+/// La clé du défi ne doit pas se perdre entre le serveur et l'écran.
+///
+/// `check()` avale le refus 429 pour le rendre comme un VERDICT — c'est juste :
+/// un plafond atteint n'est pas une panne. Mais il jetait la clé du défi au
+/// passage, et l'écran affichait « PATIENTE » sans issue alors que le serveur
+/// venait d'indiquer par où passer.
+void _cleDuDefi() {
+  group('plafond atteint', () {
+    test('CONSERVE la clé du défi jusqu\'au verdict', () async {
+      final transport = FakeTransport()
+        ..enfile(const RateLimited('Trop de vérifications.', captchaSiteKey: '0x4AAA'));
+
+      final r = await LookupService(transport).check('1M8GDM9AXKP042788');
+
+      expect(r.outcome, equals(LookupOutcome.rateLimited));
+      expect(r.captchaSiteKey, equals('0x4AAA'));
+      expect(r.challengeAvailable, isTrue);
+    });
+
+    test('n\'invente aucune porte quand le serveur n\'en offre pas', () async {
+      final transport = FakeTransport()..enfile(const RateLimited('Réessaie plus tard.'));
+
+      final r = await LookupService(transport).check('1M8GDM9AXKP042788');
+
+      expect(r.captchaSiteKey, isNull);
+      expect(r.challengeAvailable, isFalse);
+    });
+
+    test('aucun autre verdict n\'annonce de défi', () {
+      const LookupResult inconnu =
+          LookupResult(outcome: LookupOutcome.unknown, message: 'Pas enregistré.');
+
+      expect(inconnu.challengeAvailable, isFalse);
+    });
   });
 }

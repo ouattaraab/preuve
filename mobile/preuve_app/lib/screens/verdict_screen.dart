@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:preuve_core/preuve_core.dart';
 
 import '../data/session.dart';
@@ -184,6 +185,22 @@ class VerdictScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(18, 16, 18, 20),
               child: Column(
                 children: <Widget>[
+                  // LA PORTE DE SORTIE DU PLAFOND. « PATIENTE » sans issue est
+                  // une heure d'attente imposée sur le seul parcours que le
+                  // produit promet gratuit et sans compte — devant une moto,
+                  // sur un parking, personne ne l'attendra. Le serveur venait
+                  // d'indiquer par où passer ; l'écran le dit maintenant.
+                  //
+                  // Rien n'est proposé si aucun défi n'est configuré : un
+                  // bouton qui n'aboutit à rien fait recommencer, puis conclure
+                  // que l'application est cassée.
+                  if (resultat.challengeAvailable) ...<Widget>[
+                    _ActionSombre(
+                      libelle: 'Continuer la vérification',
+                      onPressed: () => _resoudreLeDefi(context),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   if (bien != null) ...<Widget>[
                     // LE MONTANT N'EST PAS ÉCRIT ICI : il vient du serveur.
                     // L'annoncer d'avance ferait promettre un prix que
@@ -208,7 +225,9 @@ class VerdictScreen extends StatelessWidget {
                         // laisse rien deviner du numéro réel du bien, ni de son
                         // propriétaire.
                         await Clipboard.setData(
-                          ClipboardData(text: bien.shareUri('https://preuve.click').toString()),
+                          ClipboardData(
+                            text: bien.shareUri(session.api.siteBase).toString(),
+                          ),
                         );
 
                         if (context.mounted) {
@@ -257,10 +276,35 @@ class VerdictScreen extends StatelessWidget {
   /// C'est la différence entre informer et servir : quelqu'un debout devant un
   /// vendeur n'a pas besoin d'un état, il a besoin de savoir s'il sort son
   /// argent.
+  /// Renvoie le défi anti-robot au site public, où il est DÉJÀ résolu.
+  ///
+  /// PLUTÔT QU'EMBARQUER UNE WEBVIEW : le widget tourne déjà sur `/verifier`,
+  /// et une quatrième dépendance native — plus un moteur web complet dans
+  /// l'application — coûterait plusieurs mégaoctets à tout le monde pour un
+  /// écran que presque personne ne verra. Le navigateur du téléphone sait
+  /// faire, et le verdict qui s'y affiche est le même.
+  ///
+  /// La saisie repart avec, pour que personne n'ait à retaper dix-sept
+  /// caractères après avoir prouvé qu'il n'est pas un robot.
+  Future<void> _resoudreLeDefi(BuildContext context) async {
+    final Uri cible = Uri.parse('${session.api.siteBase}/verifier')
+        .replace(queryParameters: <String, String>{'q': saisie.trim()});
+
+    final bool ouverte = await launchUrl(cible, mode: LaunchMode.externalApplication);
+
+    if (!ouverte && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ouvre ${session.api.siteBase}/verifier pour continuer.')),
+      );
+    }
+  }
+
   static String _conseil(LookupResult resultat) {
     return switch (resultat.outcome) {
-      LookupOutcome.rateLimited =>
-        'Tu as fait beaucoup de vérifications d\'affilée. Attends un moment, puis reprends.',
+      LookupOutcome.rateLimited => resultat.challengeAvailable
+          ? 'Tu as fait beaucoup de vérifications d\'affilée. Prouve que tu n\'es pas un robot '
+              'et tu continues tout de suite.'
+          : 'Tu as fait beaucoup de vérifications d\'affilée. Attends un moment, puis reprends.',
       LookupOutcome.invalid =>
         'Recompte le numéro, caractère par caractère. Le 1 et le I, le 0 et le O se confondent.',
       LookupOutcome.unknown =>

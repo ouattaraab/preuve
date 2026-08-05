@@ -34,7 +34,14 @@ class LookupService {
       // n'est pas une panne, et l'utilisateur doit lire pourquoi.
       return LookupResult(outcome: LookupOutcome.invalid, message: e.message);
     } on RateLimited catch (e) {
-      return LookupResult(outcome: LookupOutcome.rateLimited, message: e.message);
+      // LA CLÉ DU DÉFI REPART AVEC LE VERDICT. Elle était jetée ici : l'écran
+      // affichait « PATIENTE » sans issue, alors que le serveur venait
+      // précisément d'indiquer par où passer.
+      return LookupResult(
+        outcome: LookupOutcome.rateLimited,
+        message: e.message,
+        captchaSiteKey: e.captchaSiteKey,
+      );
     }
   }
 
