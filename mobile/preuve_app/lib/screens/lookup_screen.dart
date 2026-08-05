@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:preuve_core/preuve_core.dart';
 
+import '../data/fichiers.dart';
 import '../data/session.dart';
+import '../ui/code_action.dart';
+import '../ui/photo_choice.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'login_screen.dart';
@@ -33,7 +36,16 @@ class LookupScreen extends StatefulWidget {
 class _LookupScreenState extends State<LookupScreen> {
   final TextEditingController _controller = TextEditingController();
   bool _enCours = false;
+  bool _scanEnCours = false;
   String? _erreurLocale;
+
+  /// Ce que la lecture a donné, dit à l'utilisateur.
+  ///
+  /// TOUJOURS AFFICHÉ, RÉUSSITE COMME ÉCHEC. Un scan qui ne remplit rien sans
+  /// rien dire laisse croire à une panne ; et un scan réussi doit demander une
+  /// relecture, parce qu'un numéro mal lu est PIRE qu'un numéro non lu —
+  /// personne ne recompte dix-sept caractères qu'une machine a proposés.
+  String? _messageScan;
 
   @override
   void dispose() {
@@ -82,6 +94,65 @@ class _LookupScreenState extends State<LookupScreen> {
     } finally {
       if (mounted) {
         setState(() => _enCours = false);
+      }
+    }
+  }
+
+  /// Lit le numéro sur une carte grise, SANS COMPTE.
+  ///
+  /// C'EST LE RACCOURCI, JAMAIS LE CHEMIN. Le numéro lu atterrit dans le champ
+  /// et rien de plus : c'est l'utilisateur qui lance la vérification, après
+  /// avoir relu. Une lecture qui déclencherait elle-même la consultation
+  /// ferait afficher un verdict sur un numéro que personne n'a validé — et
+  /// « pas enregistré » sur un caractère de travers ferait renoncer à un achat
+  /// parfaitement sain, ou l'inverse.
+  Future<void> _scanner() async {
+    final PhotoLocale? photo = await choisirPhoto(context, titre: 'Carte grise du bien');
+
+    if (photo == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _scanEnCours = true;
+      _erreurLocale = null;
+      _messageScan = null;
+    });
+
+    try {
+      final ScanResult lecture = await widget.session.scans.readForLookup(
+        await enUnSeulMorceau(photo, champ: 'file'),
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        if (lecture.hasIdentifier) {
+          _controller.text = lecture.identifier!.toUpperCase();
+          _messageScan = 'Numéro lu sur la carte grise. RELIS-LE avant de vérifier : '
+              'une machine se trompe, et un caractère de travers change le verdict.';
+        } else {
+          _messageScan = 'La lecture n\'a rien donné de sûr. Tape le numéro à la main : '
+              'mieux vaut le taper que recopier une valeur approximative.';
+        }
+      });
+    } on RateLimited catch (e) {
+      // LE RACCOURCI EST PLAFONNÉ, PAS LA VÉRIFICATION. Le scan coûte de
+      // l'argent à chaque appel ; taper le numéro n'en coûte aucun, et reste
+      // ouvert. L'écran doit le dire, sans quoi le refus paraît fermer le
+      // produit entier.
+      if (mounted) {
+        setState(() => _messageScan = e.message);
+      }
+    } on PreuveException catch (e) {
+      if (mounted) {
+        setState(() => _erreurLocale = messageDeRefus(e));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _scanEnCours = false);
       }
     }
   }
@@ -212,16 +283,22 @@ class _LookupScreenState extends State<LookupScreen> {
                 onPressed: _verifier,
               ),
               const SizedBox(height: 12),
-              const BoutonRelief(
+              // LE RACCOURCI DE CELUI QUI N'A PAS DE COMPTE. Recopier dix-sept
+              // caractères de châssis debout devant un vendeur est le premier
+              // motif de « bien introuvable » — et c'est justement l'acheteur
+              // anonyme, celui que le produit sert d'abord, qui n'avait pas
+              // droit au raccourci.
+              BoutonRelief(
                 libelle: 'Je scanne',
                 icone: '▣',
                 principal: false,
-                // Le scan de plaque n'est pas encore branché côté application.
-                // Le bouton reste, DÉSACTIVÉ plutôt que retiré : il fait partie
-                // de la promesse de la maquette, et une cible qui disparaît
-                // d'une version à l'autre se cherche.
-                onPressed: null,
+                enCours: _scanEnCours,
+                onPressed: _scanner,
               ),
+              if (_messageScan != null) ...<Widget>[
+                const SizedBox(height: 12),
+                EncadreConfirmation(_messageScan!),
+              ],
               const SizedBox(height: 18),
               const _BandeauCompteur(),
               const SizedBox(height: 22),

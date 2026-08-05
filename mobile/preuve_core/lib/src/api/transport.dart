@@ -46,10 +46,18 @@ abstract interface class PreuveTransport {
   /// coupure a eu lieu (ST-0206, CT-05) ; une pièce de réclamation coupée à
   /// 90 % est à renvoyer depuis le début. À corriger côté serveur le jour où
   /// les dossiers porteront des pièces lourdes.
+  ///
+  /// [anonymous] envoie SANS le jeton de session, même s'il y en a un.
+  ///
+  /// Le scan de consultation est ouvert à qui n'a pas de compte ; y attacher le
+  /// jeton d'un utilisateur par ailleurs connecté ferait porter au registre la
+  /// trace de QUI a photographié quelle carte grise, sur le parcours dont
+  /// l'anonymat est la promesse (règle métier n° 1).
   Future<Map<String, Object?>> postMultipart(
     String path, {
     required Map<String, String> fields,
     List<MultipartFile> files = const <MultipartFile>[],
+    bool anonymous = false,
   });
 
   /// Jeton de session, ou `null` pour le retirer.

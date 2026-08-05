@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\V1\FleetController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\KycController;
 use App\Http\Controllers\Api\V1\LookupController;
+use App\Http\Controllers\Api\V1\LookupScanController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\OtpAuthController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
@@ -88,6 +89,20 @@ Route::prefix('v1')->group(function (): void {
     // rendre le jeton nécessaire.
     Route::get('lookup/{identifier}', [LookupController::class, 'show'])
         ->where('identifier', '.*');
+
+    // Lire le numéro sur une carte grise SANS COMPTE, pour le vérifier ensuite.
+    // Celui à qui l'on propose une moto sur un parking n'a pas de compte, et
+    // c'est lui à qui recopier dix-sept caractères de châssis coûte le plus.
+    //
+    // Ne consulte RIEN : elle rend l'identifiant lu, pas le statut du bien.
+    // Rendre le statut ici serait une consultation qui échappe au journal, aux
+    // compteurs de trente jours et au plafond horaire.
+    //
+    // Double garde : le plafond de dépense (AnonymousScanAllowance, avec sortie
+    // par défi) borne le coût chez le fournisseur d'extraction ; le `throttle`
+    // borne le débit avant même qu'on lise un octet du fichier.
+    Route::post('lookup/scan', [LookupScanController::class, 'store'])
+        ->middleware('throttle:10,10');
 
     Route::prefix('auth')->group(function (): void {
         // Le rythme des envois est déjà borné par destination dans

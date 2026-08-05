@@ -68,6 +68,7 @@ class FauxTransport implements PreuveTransport {
     String path, {
     required Map<String, String> fields,
     List<MultipartFile> files = const <MultipartFile>[],
+    bool anonymous = false,
   }) =>
       _prochaine('POST(multipart) $path');
 

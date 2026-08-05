@@ -30,6 +30,14 @@ class FakeTransport implements PreuveTransport {
   /// Pièces jointes transmises, pour les envois `multipart`.
   final List<MultipartFile> fichiersEnvoyes = <MultipartFile>[];
 
+  /// Vrai quand le DERNIER envoi multipart a été fait sans le jeton.
+  ///
+  /// ENREGISTRÉ, PAS SUPPOSÉ : un harnais qui ne note que le chemin ne peut
+  /// pas constater qu'un appel censé être anonyme transporte une session. Le
+  /// contrat serait alors rompu sans qu'aucun test ne bronche — c'est déjà
+  /// arrivé trois fois sur ce paquet.
+  bool? dernierEnvoiAnonyme;
+
   String? token;
 
   /// Dernier corps transmis, à défaut une carte vide.
@@ -93,9 +101,11 @@ class FakeTransport implements PreuveTransport {
     String path, {
     required Map<String, String> fields,
     List<MultipartFile> files = const <MultipartFile>[],
+    bool anonymous = false,
   }) {
     corpsEnvoyes.add(Map<String, Object?>.from(fields));
     fichiersEnvoyes.addAll(files);
+    dernierEnvoiAnonyme = anonymous;
 
     return _prochaine('POST(multipart) $path');
   }

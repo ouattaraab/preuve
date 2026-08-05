@@ -102,6 +102,21 @@ return [
         'grant_lookups' => (int) env('PREUVE_CAPTCHA_GRANT', 10),
     ],
 
+    /*
+    | Ce qu'un visiteur SANS COMPTE peut scanner en une heure.
+    |
+    | SÉPARÉ DU PLAFOND DE CONSULTATION, et bien plus bas : une consultation est
+    | une lecture de base à deux millisecondes, un scan appelle un fournisseur
+    | qui facture à l'appel. Les compter ensemble ferait qu'un après-midi de
+    | vérifications au marché épuise le budget d'extraction de la plateforme —
+    | ou, à l'inverse, qu'un plafond taillé pour protéger la dépense étrangle la
+    | consultation, qui est la promesse du produit.
+    */
+    'scan_rate_limit' => [
+        'anonymous_per_hour' => (int) env('PREUVE_SCAN_ANON_PER_HOUR', 5),
+        'captcha_grant' => (int) env('PREUVE_SCAN_CAPTCHA_GRANT', 5),
+    ],
+
     // Conservation des consultations : politique déclarée à l'ARTCI
     'lookup_retention_months' => 12,
 

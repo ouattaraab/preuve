@@ -55,9 +55,14 @@ final class AssetScanService
     /**
      * Lit un document et rend une proposition.
      *
+     * @param  User|null  $utilisateur  nul pour un scan de CONSULTATION, fait
+     *                                  sans compte. La trace reste écrite —
+     *                                  c'est elle qui mesure si le
+     *                                  pré-remplissage sert — mais elle ne
+     *                                  désigne personne.
      * @return array{scan: DocumentScan, identifier: array{value: string, type: string}|null, attributes: array<string, string>, confidence: int|null, existing: Asset|null, message: string}
      */
-    public function scan(User $utilisateur, DocumentType $type, UploadedFile $image): array
+    public function scan(?User $utilisateur, DocumentType $type, UploadedFile $image): array
     {
         $debut = hrtime(true);
         $extraction = $this->reader->read($image);
@@ -68,7 +73,7 @@ final class AssetScanService
             : $this->bestCandidate($extraction->candidates, $extraction->tokens);
 
         $scan = DocumentScan::create([
-            'user_id' => $utilisateur->id,
+            'user_id' => $utilisateur?->id,
             'doc_type' => $type->value,
             'provider' => 'mindee',
             // Empreinte seule : voir la migration. Comparer suffit.

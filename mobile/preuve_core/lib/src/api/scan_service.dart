@@ -20,39 +20,76 @@ class ScanService {
   final PreuveTransport _api;
 
   Future<ScanResult> read(MultipartFile fichier, {String docType = 'registration_card'}) async {
-    final body = await _api.postMultipart(
+    return ScanResult.fromJson(await _api.postMultipart(
       '/assets/scan',
       fields: <String, String>{'doc_type': docType},
-      files: <MultipartFile>[
-        MultipartFile(
-          field: 'file',
-          filename: fichier.filename,
-          bytes: fichier.bytes,
-          contentType: fichier.contentType,
-        ),
-      ],
-    );
-
-    return ScanResult.fromJson(body);
+      files: <MultipartFile>[_piece(fichier)],
+    ));
   }
+
+  /// Lit une carte grise POUR CONSULTER, sans compte.
+  ///
+  /// ROUTE DISTINCTE, ET SANS JETON MÊME SI L'ON EN A UN. Celui à qui l'on
+  /// propose une moto sur un parking n'a pas de compte, et c'est lui à qui
+  /// recopier dix-sept caractères de châssis coûte le plus — l'erreur de
+  /// recopie est le premier motif de « bien introuvable ». Joindre le jeton
+  /// d'un utilisateur par ailleurs connecté ferait porter au registre la trace
+  /// de QUI a photographié quelle carte grise, sur le parcours dont l'anonymat
+  /// est justement la promesse (règle métier n° 1).
+  ///
+  /// ELLE NE REND PAS LE STATUT DU BIEN, et c'est voulu : ce serait une
+  /// consultation échappant au journal, aux compteurs de trente jours et au
+  /// plafond horaire. L'appelant met le numéro lu dans un champ MODIFIABLE et
+  /// laisse l'utilisateur lancer la vérification lui-même.
+  Future<ScanResult> readForLookup(
+    MultipartFile fichier, {
+    String docType = 'registration_card',
+    String? captchaToken,
+  }) async {
+    return ScanResult.fromJson(await _api.postMultipart(
+      '/lookup/scan',
+      fields: <String, String>{
+        'doc_type': docType,
+        if (captchaToken != null && captchaToken.isNotEmpty) 'captcha_token': captchaToken,
+      },
+      files: <MultipartFile>[_piece(fichier)],
+      anonymous: true,
+    ));
+  }
+
+  static MultipartFile _piece(MultipartFile fichier) => MultipartFile(
+        field: 'file',
+        filename: fichier.filename,
+        bytes: fichier.bytes,
+        contentType: fichier.contentType,
+      );
 }
 
 class ScanResult {
   const ScanResult({
     required this.scanId,
     this.identifier,
+    this.identifierType,
     this.attributes = const <String, Object?>{},
     this.confidence,
   });
 
   factory ScanResult.fromJson(Map<String, Object?> json) {
-    final attributs = json['attributes'];
+    final Object? attributs = json['attributes'];
+
+    // LE SERVEUR REND UN OBJET `{value, type}`, PAS UNE CHAÎNE. Lu comme une
+    // chaîne, `identifier` valait TOUJOURS null : le pré-remplissage entier ne
+    // remplissait rien, en silence, et le formulaire s'ouvrait vide comme si
+    // le document avait été illisible. Relevé sur le contrôleur, pas deviné.
+    final Object? lu = json['identifier'];
+    final Map<String, Object?> propose = lu is Map<String, Object?> ? lu : const <String, Object?>{};
 
     return ScanResult(
       scanId: json['scan_id'] is int ? json['scan_id']! as int : 0,
       // `null` sans détour quand la lecture a échoué : pas de valeur approchée,
       // qui serait recopiée sans être vérifiée.
-      identifier: json['identifier'] is String ? json['identifier']! as String : null,
+      identifier: propose['value'] is String ? propose['value']! as String : null,
+      identifierType: propose['type'] is String ? propose['type']! as String : null,
       attributes: attributs is Map<String, Object?> ? attributs : const <String, Object?>{},
       confidence: json['confidence'] is num ? (json['confidence']! as num).toDouble() : null,
     );
@@ -60,6 +97,12 @@ class ScanResult {
 
   final int scanId;
   final String? identifier;
+
+  /// `vin`, `imei`, `plate`… Le serveur le déduit du chiffre de contrôle ou du
+  /// format ; le client s'en sert pour PROPOSER une catégorie, jamais pour en
+  /// choisir une — une carte grise ne dit pas si le catalogue range l'engin en
+  /// « voiture » ou en « moto », et pré-choisir change tout le formulaire.
+  final String? identifierType;
   final Map<String, Object?> attributes;
   final double? confidence;
 

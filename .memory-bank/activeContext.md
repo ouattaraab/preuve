@@ -817,6 +817,48 @@ notifications et leur `meta`, préférences, rapport, `config/app`, `auth/me`.
 Il rend zéro, vide ou nul, en silence — et un test écrit avec le même nom
 confirme l'invention au lieu de la démentir.
 
+## Scan sans compte, et le pré-remplissage qui ne remplissait rien (05/08/2026)
+
+**Décision d'Aboubakar** : ouvrir le scan de carte grise aux visiteurs sans
+compte, plafonné. Le bouton « Je scanne » de l'accueil était grisé depuis le
+début — le raccourci existait, mais pas pour l'acheteur anonyme, celui que le
+produit sert d'abord. Recopier dix-sept caractères de châssis debout devant un
+vendeur est le premier motif de « bien introuvable ».
+
+**Ce qui a été construit** : `POST /lookup/scan`, anonyme, et
+`AnonymousScanAllowance` — un plafond de dépense **distinct** de celui des
+consultations. Une consultation lit la base en deux millisecondes ; un scan
+appelle un fournisseur qui facture à l'appel. Les compter ensemble ferait qu'un
+après-midi de vérifications au marché épuise le budget d'extraction de la
+plateforme, ou qu'un plafond taillé pour la dépense étrangle la consultation.
+Cinq scans par heure et par empreinte, sortie par défi anti-robot, décompte en
+cache (aucune adresse conservée, pas même hachée en ligne).
+
+**La route ne consulte RIEN, délibérément.** Le scan d'enregistrement rend
+`existing_asset` pour éviter un formulaire de quatre-vingt-dix secondes voué au
+refus ; ici ce champ serait une consultation déguisée, échappant au journal, aux
+compteurs de trente jours, à l'alerte de pic et au plafond horaire lui-même. Un
+test le verrouille.
+
+### Le pré-remplissage n'a JAMAIS fonctionné
+
+Cinquième contrat deviné de la journée, et le plus coûteux : le serveur rend
+`identifier` comme un **objet** `{value, type}`, le client le lisait comme une
+chaîne. `ScanResult.identifier` valait donc **toujours null** — le scan de
+carte grise livré la veille ouvrait un formulaire vide, exactement comme si le
+document avait été illisible, sans le dire. Trouvé en écrivant le test du
+nouveau parcours ; jamais vu avant parce que la fonction n'avait pas de test
+avec une charge utile réelle.
+
+### Zéro coupe la dépense
+
+`scan_rate_limit.anonymous_per_hour = 0` désactive entièrement le scan anonyme —
+budget épuisé, fournisseur en panne. Un repli naïf sur la valeur par défaut
+rallumerait les appels payants que l'exploitant vient d'arrêter, et il ne le
+découvrirait qu'à la facture. Le projet avait déjà payé ce piège sur les tarifs.
+
+**Couverture** : 849 Pest, 113 `preuve_core`, 27 `preuve_app`.
+
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)

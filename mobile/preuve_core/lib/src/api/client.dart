@@ -151,6 +151,7 @@ class PreuveApi implements PreuveTransport {
     String path, {
     required Map<String, String> fields,
     List<MultipartFile> files = const <MultipartFile>[],
+    bool anonymous = false,
   }) {
     final frontiere = '----preuve${DateTime.now().microsecondsSinceEpoch}';
     final corps = <int>[];
@@ -183,6 +184,7 @@ class PreuveApi implements PreuveTransport {
       headers: <String, String>{
         HttpHeaders.contentTypeHeader: 'multipart/form-data; boundary=$frontiere',
       },
+      authenticated: !anonymous,
     );
   }
 
