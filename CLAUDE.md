@@ -18,7 +18,7 @@ En fin de session significative, mets à jour `activeContext.md` et `progress.md
 - **Mobile** : Flutter (iOS/Android)
 - **Web public** : front léger orienté consultation/SEO (pages de statut par `public_ref`)
 - **Stockage objets** : MinIO (documents chiffrés au repos) · **OCR/KYC** : Mindee · **Secrets** : Vault
-- **Paiements** : Paystack + PawaPay (Wave, Orange Money, MTN MoMo). **CinetPay est INTERDIT.**
+- **Paiements** : **Paystack seul** (il porte Wave, Orange Money, MTN MoMo en XOF — vérifié le 06/08/2026 : sur ce compte le canal actif est le mobile money, la carte ne l'est pas). **PawaPay écarté** le 06/08/2026 ; ses valeurs restent dans l'ENUM SQL de `payments` mais rien ne les propose. **CinetPay est INTERDIT.**
 - Schéma de référence : `database/preuve_schema_mysql8.sql` (14 tables) — les migrations doivent lui rester conformes
 
 ## Règles métier absolues (violations = bug critique)

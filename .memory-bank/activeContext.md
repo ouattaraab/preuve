@@ -1283,6 +1283,46 @@ La note « devra renseigner un numéro » plus haut ne vaut plus pour la cession
 **Couverture** : 981 Pest, 126 `preuve_core`, 43 `preuve_app`. Déployé sur
 preuve.click ; APK 1.2.0+3 vérifié au démarrage sur émulateur (arm64).
 
+## Paystack branché pour de vrai, et deux défauts de parcours (06/08/2026)
+
+**LE WEBHOOK N'ÉTAIT PAS AU FORMAT PAYSTACK.** L'endpoint attendait un format
+maison — `X-Preuve-Signature`, SHA-256 sur un secret partagé, corps
+`{reference, status}`. Paystack signe en `x-paystack-signature`, en **SHA-512**,
+avec la **clé secrète elle-même**, et poste `{event, data:{reference, status}}`
+où l'état abouti se dit « success » et non « succeeded ». Quatre différences,
+chacune suffisante seule à faire encaisser sans rien livrer. Le format maison
+reste pour un éventuel autre opérateur ; le détail est dans
+`docs/infrastructure/paiements-paystack.md`.
+
+**`/paiement/retour` N'EXISTAIT PAS**, et `ReportController` la désignait depuis
+toujours : après avoir réglé, l'acheteur tombait sur un 404. La page relit
+l'état — le retour du navigateur ne prouve aucun paiement — et sait dire « pas
+encore » plutôt qu'« échec » : le rappel arrive parfois après le navigateur, et
+annoncer un échec dans cet intervalle ferait repayer.
+
+**LE CANAL ACTIF EST LE MOBILE MONEY, PAS LA CARTE.** Relevé sur l'API :
+`card` seul est refusé (« No active channel »), `mobile_money` passe. C'est ce
+qui rend **PawaPay inutile** — écarté par l'éditeur le 06/08/2026 — puisque
+Paystack porte Wave, Orange et MTN en XOF. `PaystackGateway` ne fige aucun
+`channels` : ils suivent la configuration du compte.
+
+**DEUX DÉFAUTS DE PARCOURS MOBILE, invisibles sans quitter l'application :**
+
+1. Le règlement se fait dans le navigateur. Les écrans ne relisaient rien au
+   retour : l'utilisateur revenait sur un bouton « Payer et publier » inchangé,
+   et la seule conduite évidente était de payer une seconde fois. Les deux
+   écrans observent désormais le cycle de vie — mais seulement si une caisse a
+   été ouverte (CT-05).
+2. Après un règlement, l'application redemandait un code alors que le serveur
+   venait d'en émettre un au webhook : le délai de 60 s entre deux envois
+   répondait « trop de demandes », juste après un paiement.
+
+**`Account.identifiant` EXISTAIT DÉJÀ** et répondait à « où ce compte reçoit
+ses codes ». J'avais commencé par ajouter un second accesseur ; supprimé. Deux
+notions concurrentes pour la même question divergent au premier correctif.
+
+**Couverture** : 993 Pest, 126 `preuve_core`, 54 `preuve_app`. APK 1.2.2+5.
+
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)
