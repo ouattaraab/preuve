@@ -271,6 +271,11 @@ Route::prefix('v1')->group(function (): void {
             // agent. Suspendre ne suspend jamais la protection des biens.
             Route::get('users', [UserDirectoryController::class, 'index']);
             Route::post('users/{user}/status', [UserDirectoryController::class, 'setStatus']);
+            // Corriger une coordonnée mal saisie. Sans ce geste, une adresse
+            // fautive enferme son titulaire dehors : le code part dans une
+            // boîte qui n'existe pas, et il ne peut pas se corriger lui-même
+            // puisqu'il ne peut pas se connecter.
+            Route::post('users/{user}/contact', [UserDirectoryController::class, 'setContact']);
 
             /*
              * Levée d'anonymat sur réquisition (Loi 2013-450).

@@ -162,15 +162,38 @@ final class OtpService
     }
 
     /**
-     * Numéro au format E.164. Sans cette normalisation, « 07 00 00 00 01 » et
-     * « +225 07-00-00-00-01 » seraient deux destinations distinctes et le
-     * plafond de tentatives se contournerait par un simple espace.
+     * Vrai si cette destination est une adresse électronique.
      *
-     * @throws OtpRefuseException si le numéro n'est pas exploitable
+     * L'ARBRITRE EST L'ARROBASE, et rien d'autre : aucun numéro de téléphone
+     * n'en contient, et un utilisateur qui tape une adresse ne doit pas voir
+     * son entrée traitée comme un numéro mal formé.
+     */
+    public function isEmail(string $destination): bool
+    {
+        return str_contains($destination, '@');
+    }
+
+    /**
+     * Destination normalisée : numéro au format E.164, ou adresse en minuscules.
+     *
+     * DEUX FORMES D'IDENTITÉ, UNE SEULE CLÉ. La destination sert à trois
+     * choses — le verrouillage, le plafond de rythme et l'empreinte du code —
+     * et chacune se contournerait par une simple variation d'écriture. Sans
+     * normalisation, « 07 00 00 00 01 » et « +225 07-00-00-00-01 » seraient
+     * deux destinations distinctes ; « Awa@Example.CI » et « awa@example.ci »
+     * aussi.
+     *
+     * @throws OtpRefuseException si la destination n'est pas exploitable
      */
     public function normalizeDestination(string $destination): string
     {
-        $numero = preg_replace('/[\s().\-]/', '', trim($destination)) ?? '';
+        $destination = trim($destination);
+
+        if ($this->isEmail($destination)) {
+            return $this->normalizeEmail($destination);
+        }
+
+        $numero = preg_replace('/[\s().\-]/', '', $destination) ?? '';
 
         if (str_starts_with($numero, '00')) {
             $numero = '+'.mb_substr($numero, 2);
@@ -188,6 +211,28 @@ final class OtpService
         }
 
         return $numero;
+    }
+
+    /**
+     * Adresse en minuscules, validée.
+     *
+     * EN MINUSCULES EN ENTIER, partie locale comprise. La norme autorise une
+     * partie locale sensible à la casse, mais aucun fournisseur grand public ne
+     * l'exploite — et la respecter ici ferait de « Awa@… » et « awa@… » deux
+     * comptes distincts, avec deux plafonds de tentatives distincts. Le risque
+     * de collision est théorique ; celui du contournement ne l'est pas.
+     *
+     * @throws OtpRefuseException
+     */
+    private function normalizeEmail(string $adresse): string
+    {
+        $adresse = mb_strtolower($adresse);
+
+        if (filter_var($adresse, FILTER_VALIDATE_EMAIL) === false || mb_strlen($adresse) > 150) {
+            throw new OtpRefuseException(OtpRefus::DestinationInvalide);
+        }
+
+        return $adresse;
     }
 
     /**

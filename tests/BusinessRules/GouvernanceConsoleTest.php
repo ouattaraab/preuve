@@ -340,3 +340,95 @@ it('sert les écrans de configuration à un administrateur', function (): void {
         $this->actingAs($admin)->get($url)->assertOk();
     }
 });
+
+/*
+|--------------------------------------------------------------------------
+| Corriger une coordonnée mal saisie (06/08/2026)
+|--------------------------------------------------------------------------
+|
+| Une adresse mal tapée à l'inscription enferme son titulaire dehors : le code
+| part dans une boîte qui n'existe pas, et il ne peut pas se corriger lui-même
+| puisqu'il ne peut pas se connecter.
+*/
+
+it('CORRIGE UNE ADRESSE MAL SAISIE', function (): void {
+    $compte = User::create(['email' => 'awa@exmple.ci']);
+    $compte->forceFill(['email_verified_at' => now()])->save();
+
+    test()->actingAs(administrateurGouvernance())
+        ->postJson("/api/v1/admin/users/{$compte->id}/contact", [
+            'email' => 'awa@exemple.ci',
+            'reason' => 'Faute de frappe constatée au support.',
+        ])->assertOk();
+
+    $frais = $compte->fresh();
+
+    expect($frais?->email)->toBe('awa@exemple.ci')
+        // MODIFIER N'EST PAS VÉRIFIER : la marque de vérification tombe, sinon
+        // on ferait passer pour prouvée une adresse qu'aucun code n'a atteinte.
+        ->and($frais?->email_verified_at)->toBeNull();
+});
+
+it('REFUSE DE LAISSER UN COMPTE SANS AUCUNE COORDONNÉE', function (): void {
+    // Ce ne serait pas une correction mais une suppression déguisée : le
+    // titulaire ne pourrait plus jamais se connecter.
+    $compte = User::create(['email' => 'awa@exemple.ci']);
+
+    test()->actingAs(administrateurGouvernance())
+        ->postJson("/api/v1/admin/users/{$compte->id}/contact", [
+            'email' => null,
+            'reason' => 'Nettoyage.',
+        ])->assertStatus(422);
+
+    expect($compte->fresh()?->email)->toBe('awa@exemple.ci');
+});
+
+it('REFUSE UNE COORDONNÉE DÉJÀ PRISE, avec un message lisible', function (): void {
+    // Laisser la contrainte de base parler rendrait une erreur 500 illisible,
+    // là où l'agent a besoin de savoir QUE la coordonnée est prise.
+    User::create(['email' => 'occupee@exemple.ci']);
+    $compte = User::create(['email' => 'awa@exemple.ci']);
+
+    test()->actingAs(administrateurGouvernance())
+        ->postJson("/api/v1/admin/users/{$compte->id}/contact", [
+            'email' => 'occupee@exemple.ci',
+            'reason' => 'Fusion demandée.',
+        ])->assertStatus(422)
+        ->assertJsonPath('message', fn (?string $m): bool => str_contains((string) $m, 'déjà cette coordonnée'));
+});
+
+it('N\'INSCRIT PAS LA COORDONNÉE DANS LA CHAÎNE D\'AUDIT', function (): void {
+    // La chaîne est inaltérable : un numéro qui y entre devient ineffaçable, et
+    // survivrait à toute demande de suppression au titre de la Loi 2013-450.
+    $compte = User::create(['email' => 'awa@exemple.ci']);
+
+    test()->actingAs(administrateurGouvernance())
+        ->postJson("/api/v1/admin/users/{$compte->id}/contact", [
+            'phone' => '+2250700999111',
+            'reason' => 'Numéro communiqué par le titulaire.',
+        ])->assertOk();
+
+    $entree = AuditLog::where('action', 'admin.user_contact_changed')->latest('id')->first();
+
+    // `payload` est un TABLEAU une fois relu : on le sérialise pour chercher
+    // une sous-chaîne, sinon `toContain` compare des éléments entiers et le
+    // test passerait même si le numéro y figurait au milieu d'une phrase.
+    $serialise = json_encode($entree?->payload, JSON_UNESCAPED_UNICODE);
+
+    expect($entree)->not->toBeNull()
+        ->and($serialise)->not->toContain('+2250700999111')
+        ->and($serialise)->toContain('Numéro communiqué');
+});
+
+it('FERME CETTE CORRECTION à qui n\'est pas du back-office', function (): void {
+    $compte = User::create(['email' => 'awa@exemple.ci']);
+    $quidam = User::create(['phone' => '+2250700222333']);
+
+    test()->actingAs($quidam)
+        ->postJson("/api/v1/admin/users/{$compte->id}/contact", [
+            'email' => 'pirate@exemple.ci',
+            'reason' => 'Bonjour.',
+        ])->assertForbidden();
+
+    expect($compte->fresh()?->email)->toBe('awa@exemple.ci');
+});

@@ -90,6 +90,97 @@ final class UserDirectoryController extends Controller
     }
 
     /** Suspend ou rétablit un compte. */
+    /**
+     * Corrige le numéro ou l'adresse d'un compte.
+     *
+     * POURQUOI UN AGENT DOIT POUVOIR LE FAIRE. Une adresse mal tapée à
+     * l'inscription enferme son titulaire dehors : le code part dans une boîte
+     * qui n'existe pas, et il n'a aucun moyen de se corriger lui-même —
+     * précisément parce qu'il ne peut pas se connecter. Sans ce geste, le
+     * seul recours serait d'ouvrir un second compte et d'abandonner le premier,
+     * avec les biens qu'il porte.
+     *
+     * CE N'EST PAS UNE VÉRIFICATION. Modifier l'adresse ne prouve pas que le
+     * titulaire la contrôle : les colonnes `*_verified_at` sont donc REMISES À
+     * ZÉRO. Les laisser en place ferait passer pour vérifiée une coordonnée
+     * qu'aucun code n'a jamais atteinte.
+     *
+     * L'UN DES DEUX AU MOINS DOIT SUBSISTER. Un compte sans numéro NI adresse
+     * ne peut plus jamais se connecter : ce n'est pas une correction, c'est une
+     * suppression déguisée — et la suppression a sa propre procédure.
+     */
+    public function setContact(Request $request, int $user): JsonResponse
+    {
+        $request->validate([
+            'phone' => ['sometimes', 'nullable', 'string', 'max:30'],
+            'email' => ['sometimes', 'nullable', 'email', 'max:150'],
+            'reason' => ['required', 'string', 'max:280'],
+        ]);
+
+        $compte = User::find($user);
+
+        if (! $compte instanceof User) {
+            abort(404);
+        }
+
+        $telephone = $request->has('phone')
+            ? ($request->string('phone')->trim()->toString() ?: null)
+            : $compte->phone;
+        $adresse = $request->has('email')
+            ? (mb_strtolower($request->string('email')->trim()->toString()) ?: null)
+            : $compte->email;
+
+        if ($telephone === null && $adresse === null) {
+            return response()->json([
+                'message' => 'Il faut au moins un numéro ou une adresse : sans les deux, '
+                    .'ce compte ne pourrait plus jamais se connecter.',
+            ], 422);
+        }
+
+        // L'UNICITÉ EST VÉRIFIÉE ICI plutôt que laissée à la base : une
+        // violation de contrainte rendrait une erreur 500 illisible, là où
+        // l'agent a besoin de savoir QUE la coordonnée est déjà prise.
+        foreach ([['phone', $telephone], ['email', $adresse]] as [$colonne, $valeur]) {
+            if ($valeur !== null && User::where($colonne, $valeur)->whereKeyNot($compte->id)->exists()) {
+                return response()->json([
+                    'message' => 'Un autre compte porte déjà cette coordonnée.',
+                ], 422);
+            }
+        }
+
+        $administrateur = $request->user();
+
+        $this->auditChain->append(
+            ActorType::Agent,
+            $administrateur instanceof User ? $administrateur->id : null,
+            'admin.user_contact_changed',
+            'user',
+            $compte->id,
+            [
+                // LE MOTIF, JAMAIS LES COORDONNÉES. La chaîne est inaltérable :
+                // y inscrire un numéro le rendrait ineffaçable, et survivrait à
+                // toute demande de suppression au titre de la Loi 2013-450.
+                'reason' => $request->string('reason')->toString(),
+                'changed' => array_values(array_filter([
+                    $telephone !== $compte->phone ? 'phone' : null,
+                    $adresse !== $compte->email ? 'email' : null,
+                ])),
+            ],
+        );
+
+        $compte->forceFill([
+            'phone' => $telephone,
+            'email' => $adresse,
+            'phone_verified_at' => $telephone === $compte->phone ? $compte->phone_verified_at : null,
+            'email_verified_at' => $adresse === $compte->email ? $compte->email_verified_at : null,
+        ])->save();
+
+        return response()->json([
+            'message' => 'Coordonnées mises à jour. Le titulaire devra prouver la nouvelle '
+                .'en recevant un code.',
+        ]);
+    }
+
     public function setStatus(Request $request, int $user): JsonResponse
     {
         $request->validate([

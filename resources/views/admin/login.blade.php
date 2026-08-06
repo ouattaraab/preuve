@@ -74,9 +74,9 @@
 
             <form method="POST" action="{{ route('admin.login.request') }}">
                 @csrf
-                <label for="phone" style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Numéro de téléphone</label>
-                <input id="phone" name="phone" type="tel" autocomplete="tel" required autofocus
-                       placeholder="+225 01 01 18 16 86"
+                <label for="phone" style="display:block;font-size:13px;font-weight:700;margin-bottom:6px">Numéro de téléphone ou adresse e-mail</label>
+                <input id="phone" name="phone" type="text" autocomplete="username" required autofocus
+                       placeholder="+225 01 02 03 04 05  ·  ou  agent@exemple.ci"
                        style="width:100%;padding:14px;border:2px solid #E4DBC8;border-radius:10px;font-size:16px;background:#fff;color:#2B1D12">
 
                 <button type="submit"

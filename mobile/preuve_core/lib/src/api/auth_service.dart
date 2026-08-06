@@ -37,6 +37,7 @@ class Account {
   const Account({
     required this.id,
     required this.phone,
+    this.email,
     this.fullName,
     this.kycStatus,
     this.companies = const <CompanyMembership>[],
@@ -46,6 +47,7 @@ class Account {
     return Account(
       id: json['id'] is int ? json['id']! as int : 0,
       phone: json['phone'] is String ? json['phone']! as String : '',
+      email: json['email'] is String ? json['email']! as String : null,
       fullName: json['full_name'] is String ? json['full_name']! as String : null,
       kycStatus: json['kyc_status'] is String ? json['kyc_status']! as String : null,
       companies: json['companies'] is List
@@ -58,7 +60,13 @@ class Account {
   }
 
   final int id;
+
+  /// VIDE POUR UN COMPTE OUVERT PAR ADRESSE. La colonne est désormais
+  /// facultative côté serveur : lui inventer une valeur ici ferait afficher un
+  /// numéro qui ne désigne personne.
   final String phone;
+
+  final String? email;
   final String? fullName;
   final String? kycStatus;
 
@@ -70,6 +78,13 @@ class Account {
   final List<CompanyMembership> companies;
 
   bool get isFleetOperator => companies.isNotEmpty;
+
+  /// Ce sous quoi le titulaire s'est inscrit, à afficher tel quel.
+  ///
+  /// L'UN DES DEUX PEUT MANQUER, jamais les deux : un compte se joint par un
+  /// numéro ou par une adresse, et l'écran doit montrer celle qui existe plutôt
+  /// qu'un champ vide.
+  String get identifiant => phone.isNotEmpty ? phone : (email ?? '');
 }
 
 /// Appartenance à une société, avec le rôle qui décide de ce qu'on peut faire.
@@ -144,19 +159,28 @@ class AuthService {
     }
   }
 
-  /// Demande un code.
+  /// Demande un code, à un NUMÉRO OU À UNE ADRESSE.
   ///
-  /// LA RÉPONSE DU SERVEUR EST INVARIABLE, que le numéro soit connu ou non :
+  /// LES DEUX SONT ACCEPTÉS PARCE QU'AUCUNE PASSERELLE SMS N'EST BRANCHÉE :
+  /// le code part par courriel, et n'exiger qu'un numéro fermerait le produit
+  /// à quiconque n'a pas déjà un compte. Le serveur reconnaît une adresse à
+  /// son arrobase et rien d'autre.
+  ///
+  /// LA RÉPONSE DU SERVEUR EST INVARIABLE, que la destination soit connue ou non :
   /// toute différence observable ferait de cette route un service
   /// d'énumération d'abonnés. Le client ne doit donc RIEN en déduire — ni
   /// afficher « compte inconnu », ni proposer une inscription sur cette base.
   Future<Duration> requestCode(
-    String phone,
+    String identifier,
     OtpPurpose purpose, {
     String? email,
   }) async {
     final body = await _api.post('/auth/otp/request', body: <String, Object?>{
-      'phone': phone,
+      // LES DEUX NOMS, le temps que le parc se renouvelle. `identifier` porte
+      // désormais un numéro OU une adresse ; `phone` reste envoyé pour qu'un
+      // serveur plus ancien continue de comprendre cette application.
+      'identifier': identifier,
+      'phone': identifier,
       'purpose': purpose.wire,
       if (email != null && email.isNotEmpty) 'email': email,
     });
@@ -176,7 +200,7 @@ class AuthService {
   /// exigé : on ne demande pas une identité pour ouvrir un compte, seulement
   /// pour céder un bien ou réclamer (CT-06).
   Future<Account> verify(
-    String phone,
+    String identifier,
     String code,
     OtpPurpose purpose, {
     String? email,
@@ -184,7 +208,8 @@ class AuthService {
     bool revokeOtherDevices = false,
   }) async {
     final body = await _api.post('/auth/otp/verify', body: <String, Object?>{
-      'phone': phone,
+      'identifier': identifier,
+      'phone': identifier,
       'code': code,
       'purpose': purpose.wire,
       if (email != null && email.isNotEmpty) 'email': email,

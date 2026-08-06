@@ -45,23 +45,29 @@ final class OtpAuthController extends Controller
     public function request(Request $request): JsonResponse
     {
         $request->validate([
-            'phone' => ['required', 'string', 'max:30'],
+            // `identifier` accepte un NUMÉRO OU UNE ADRESSE. `phone` reste
+            // accepté : les applications déjà installées l'envoient, et une
+            // route qui cesserait de les comprendre les casserait toutes d'un
+            // coup — sur un parc qui ne se met pas à jour.
+            'identifier' => ['sometimes', 'string', 'max:150'],
+            'phone' => ['sometimes', 'string', 'max:150'],
             'purpose' => ['required', Rule::enum(OtpPurpose::class)],
-            // Requise à la création du compte tant que le canal est le
-            // courriel : c'est elle qui recevra le code.
+            // Requise à la création d'un compte PAR NUMÉRO tant que le canal
+            // est le courriel : c'est elle qui recevra le code. Inutile quand
+            // l'identifiant EST une adresse.
             'email' => ['sometimes', 'nullable', 'email', 'max:150'],
         ]);
 
-        $telephone = $this->otp->normalizeDestination($request->string('phone')->toString());
+        $destination = $this->otp->normalizeDestination($this->identifiantSoumis($request));
         $motif = OtpPurpose::from($request->string('purpose')->toString());
 
-        $livraison = $this->deliveryTarget($telephone, $request->string('email')->toString() ?: null);
+        $livraison = $this->deliveryTarget($destination, $request->string('email')->toString() ?: null);
 
         // Réponse INVARIABLE, y compris quand rien n'a été envoyé : toute
         // différence observable — message, délai, code HTTP — ferait de cette
         // route un service d'énumération d'abonnés.
         $reponse = [
-            'message' => 'Si ce numéro est joignable, un code vient de lui être envoyé.',
+            'message' => 'Si cette destination est joignable, un code vient de lui être envoyé.',
             'expires_in' => $this->otp->ttlSeconds(),
         ];
 
@@ -69,9 +75,29 @@ final class OtpAuthController extends Controller
             return response()->json($reponse);
         }
 
-        $this->otp->request($telephone, $motif, $livraison['channel'], $livraison['address']);
+        $this->otp->request($destination, $motif, $livraison['channel'], $livraison['address']);
 
         return response()->json($reponse);
+    }
+
+    /**
+     * L'identifiant soumis, quel qu'en soit le champ.
+     *
+     * DEUX NOMS POUR LA MÊME CHOSE, le temps que le parc se renouvelle : les
+     * applications déjà installées envoient `phone`, les suivantes enverront
+     * `identifier`. Refuser l'ancien nom casserait tous les téléphones déjà
+     * équipés, d'un seul déploiement.
+     */
+    private function identifiantSoumis(Request $request): string
+    {
+        $soumis = $request->string('identifier')->toString()
+            ?: $request->string('phone')->toString();
+
+        if ($soumis === '') {
+            abort(422, 'Indiquez un numéro de téléphone ou une adresse électronique.');
+        }
+
+        return $soumis;
     }
 
     /**
@@ -105,8 +131,17 @@ final class OtpAuthController extends Controller
      *
      * @return array{channel: OtpChannel, address: string|null}|null
      */
-    private function deliveryTarget(string $telephone, ?string $emailSoumis): ?array
+    private function deliveryTarget(string $destination, ?string $emailSoumis): ?array
     {
+        // UNE ADRESSE S'AUTO-LIVRE, et c'est SÛR : ici l'adresse n'est pas un
+        // canal choisi par le demandeur pour recevoir le code d'un compte
+        // identifié autrement — elle EST l'identité. Prouver qu'on lit cette
+        // boîte, c'est prouver qu'on est le titulaire. Le détournement que la
+        // règle ci-dessus interdit n'existe pas dans ce sens.
+        if ($this->otp->isEmail($destination)) {
+            return ['channel' => OtpChannel::Email, 'address' => $destination];
+        }
+
         // Le canal actif est celui réglé dans l'espace administrateur.
         $fournisseur = $this->settings->get(ConfigurableOtpSender::PROVIDER_KEY);
 
@@ -114,7 +149,7 @@ final class OtpAuthController extends Controller
             return ['channel' => OtpChannel::Sms, 'address' => null];
         }
 
-        $compte = User::where('phone', $telephone)->first();
+        $compte = User::where('phone', $destination)->first();
 
         if ($compte instanceof User) {
             // Compte existant : uniquement l'adresse au dossier. Un compte sans
@@ -143,7 +178,8 @@ final class OtpAuthController extends Controller
     public function verify(Request $request): JsonResponse
     {
         $request->validate([
-            'phone' => ['required', 'string', 'max:30'],
+            'identifier' => ['sometimes', 'string', 'max:150'],
+            'phone' => ['sometimes', 'string', 'max:150'],
             'purpose' => ['required', Rule::enum(OtpPurpose::class)],
             'code' => ['required', 'string'],
             'email' => ['sometimes', 'nullable', 'email', 'max:150'],
@@ -157,8 +193,10 @@ final class OtpAuthController extends Controller
 
         $motif = OtpPurpose::from($request->string('purpose')->toString());
 
+        $soumis = $this->identifiantSoumis($request);
+
         $defi = $this->otp->verify(
-            $request->string('phone')->toString(),
+            $soumis,
             $request->string('code')->toString(),
             $motif,
         );
@@ -170,8 +208,16 @@ final class OtpAuthController extends Controller
         // qu'elle a eu lieu.
         $parSms = $defi->channel === OtpChannel::Sms;
 
-        $telephone = $this->otp->normalizeDestination($request->string('phone')->toString());
-        $existant = User::where('phone', $telephone)->first();
+        $destination = $this->otp->normalizeDestination($soumis);
+        $parAdresse = $this->otp->isEmail($destination);
+
+        // ON CHERCHE SUR LA COLONNE QUI PORTE L'IDENTIFIANT, et sur elle seule.
+        // Chercher sur les deux permettrait à qui connaît l'adresse d'un compte
+        // ouvert par numéro d'ouvrir une session en prouvant seulement qu'il lit
+        // cette boîte — alors que le titulaire, lui, a prouvé son numéro.
+        $existant = $parAdresse
+            ? User::where('email', $destination)->first()
+            : User::where('phone', $destination)->first();
 
         // La chaîne d'audit englobe la création du compte : sans transaction
         // commune, un compte pourrait exister sans trace d'audit, ou l'inverse.
@@ -184,7 +230,13 @@ final class OtpAuthController extends Controller
             abort(403, 'Ce compte est suspendu.');
         }
 
-        $adresseVerifiee = $parSms ? null : $this->pendingEmail($request);
+        // Quand l'identifiant EST l'adresse, elle est vérifiée par
+        // construction : le code vient d'y être lu.
+        $adresseVerifiee = match (true) {
+            $parAdresse => $destination,
+            $parSms => null,
+            default => $this->pendingEmail($request),
+        };
 
         // À LA CRÉATION SEULEMENT, et jamais en écrasement : accepter un nom à
         // chaque connexion permettrait de renommer un compte à volonté depuis
@@ -194,9 +246,14 @@ final class OtpAuthController extends Controller
         $nom = $nom === '' ? null : $nom;
 
         $utilisateur = $existant ?? $this->auditChain->transaction(
-            function () use ($telephone, $parSms, $adresseVerifiee, $nom): array {
+            function () use ($destination, $parAdresse, $parSms, $adresseVerifiee, $nom): array {
                 $nouveau = User::create(array_filter([
-                    'phone' => $telephone,
+                    // UN COMPTE OUVERT PAR ADRESSE N'A PAS DE NUMÉRO, et la
+                    // colonne l'accepte désormais. Lui en inventer un —
+                    // l'adresse recopiée, une valeur de remplissage — casserait
+                    // l'unicité au deuxième compte, ou pire, la ferait tenir
+                    // sur une valeur qui ne désigne personne.
+                    'phone' => $parAdresse ? null : $destination,
                     'email' => $adresseVerifiee,
                     'full_name' => $nom,
                 ]));
@@ -254,7 +311,12 @@ final class OtpAuthController extends Controller
             'token' => $jeton,
             'user' => [
                 'id' => $utilisateur->id,
+                // LES DEUX SONT RENDUS, ET L'UN DES DEUX PEUT ÊTRE NUL : un
+                // compte ouvert par adresse n'a pas de numéro. Ne rendre que
+                // `phone` laisserait un tel compte sans identité à afficher, et
+                // son titulaire ne saurait pas sous quoi il s'est inscrit.
                 'phone' => $utilisateur->phone,
+                'email' => $utilisateur->email,
                 'full_name' => $utilisateur->full_name,
                 'kyc_status' => $utilisateur->kyc_status,
             ],
@@ -269,6 +331,7 @@ final class OtpAuthController extends Controller
         return response()->json([
             'id' => $utilisateur?->getAuthIdentifier(),
             'phone' => $utilisateur instanceof User ? $utilisateur->phone : null,
+            'email' => $utilisateur instanceof User ? $utilisateur->email : null,
             'full_name' => $utilisateur instanceof User ? $utilisateur->full_name : null,
             'kyc_status' => $utilisateur instanceof User ? $utilisateur->kyc_status : null,
             // LES SOCIÉTÉS DONT LE COMPTE EST MEMBRE. Sans elles, aucun client

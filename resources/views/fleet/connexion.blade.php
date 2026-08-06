@@ -47,11 +47,20 @@
     @else
         <form method="POST" action="{{ route('fleet.login.request') }}" style="margin-top:24px">
             @csrf
+            {{-- LES DEUX SONT ACCEPTÉS, ET LE CHAMP LE DIT. Tant qu'aucune
+                 passerelle SMS n'est branchée, le code part par courriel : ne
+                 proposer que le numéro fermerait la porte à qui n'a pas déjà
+                 un compte. --}}
             <label for="phone" style="display:block;font-weight:700;margin-bottom:8px">
-                Ton numéro de téléphone
+                Ton numéro de téléphone ou ton adresse e-mail
             </label>
-            <input id="phone" name="phone" class="champ" required autocomplete="tel"
-                   inputmode="tel" autofocus placeholder="+225 01 02 03 04 05">
+            <input id="phone" name="phone" class="champ" required
+                   autocomplete="username" autofocus
+                   placeholder="+225 01 02 03 04 05  ·  ou  awa@exemple.ci">
+            <p style="margin-top:8px;font-size:15px;color:#7A6A55;line-height:1.5">
+                Le code part par e-mail pour le moment. Si tu donnes un numéro, il faut
+                qu'une adresse soit déjà associée à ton compte.
+            </p>
             <button type="submit" class="bouton" style="margin-top:14px">Recevoir un code</button>
         </form>
     @endif

@@ -25,6 +25,8 @@ class MemoryStore implements TokenStore {
 }
 
 void main() {
+  _identiteParNumeroOuAdresse();
+
   group('connexion', () {
     test('ouvre la session et range le jeton', () async {
       final transport = FakeTransport()
@@ -230,4 +232,81 @@ void main() {
       );
     });
   });
+}
+
+/*
+|--------------------------------------------------------------------------
+| Ouvrir un compte par NUMÉRO OU PAR ADRESSE (06/08/2026)
+|--------------------------------------------------------------------------
+|
+| Aucune passerelle SMS n'est branchée : n'accepter qu'un numéro fermait le
+| produit à quiconque n'avait pas déjà un compte.
+*/
+
+void _identiteParNumeroOuAdresse() {
+  group('identifiant', () {
+    test('ENVOIE LES DEUX NOMS DE CHAMP, le temps que le parc se renouvelle', () async {
+      // `identifier` pour les serveurs à jour, `phone` pour les autres :
+      // n'envoyer que le nouveau casserait cette application face à un serveur
+      // qui n'a pas encore été déployé.
+      final transport = FakeTransport()..enfile(<String, Object?>{'expires_in': 300});
+
+      await AuthService(transport, FauxCoffre()).requestCode('awa@example.ci', OtpPurpose.login);
+
+      expect(transport.dernierCorps['identifier'], equals('awa@example.ci'));
+      expect(transport.dernierCorps['phone'], equals('awa@example.ci'));
+    });
+
+    test('LIT UN COMPTE SANS NUMÉRO sans rien inventer', () async {
+      final transport = FakeTransport()
+        ..enfile(<String, Object?>{
+          'token': 'jeton',
+          'user': <String, Object?>{
+            'id': 7,
+            'phone': null,
+            'email': 'awa@example.ci',
+            'full_name': 'Awa',
+            'kyc_status': 'none',
+          },
+        });
+
+      final Account compte =
+          await AuthService(transport, FauxCoffre()).verify('awa@example.ci', '123456', OtpPurpose.login);
+
+      expect(compte.phone, isEmpty);
+      expect(compte.email, equals('awa@example.ci'));
+      // L'écran doit montrer ce qui existe, jamais un champ vide.
+      expect(compte.identifiant, equals('awa@example.ci'));
+    });
+
+    test('préfère le numéro quand les deux existent', () async {
+      final transport = FakeTransport()
+        ..enfile(<String, Object?>{
+          'token': 'jeton',
+          'user': <String, Object?>{
+            'id': 8,
+            'phone': '+2250700111222',
+            'email': 'awa@example.ci',
+          },
+        });
+
+      final Account compte =
+          await AuthService(transport, FauxCoffre()).verify('0700111222', '123456', OtpPurpose.login);
+
+      expect(compte.identifiant, equals('+2250700111222'));
+    });
+  });
+}
+
+class FauxCoffre implements TokenStore {
+  String? _jeton;
+
+  @override
+  Future<String?> read() async => _jeton;
+
+  @override
+  Future<void> write(String token) async => _jeton = token;
+
+  @override
+  Future<void> clear() async => _jeton = null;
 }

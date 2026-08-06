@@ -113,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 8),
               Text(
                 _codeDemande
-                    ? 'Code envoyé au ${_telephone.text.trim()}. Il est valable '
+                    ? 'Code envoyé à ${_telephone.text.trim()}. Il est valable '
                         '${_validite.inMinutes} minutes.'
                     : 'Pas de mot de passe : nous t\'envoyons un code à usage unique.',
                 style: const TextStyle(
@@ -125,13 +125,29 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 22),
               if (!_codeDemande) ...<Widget>[
+                // LES DEUX SONT ACCEPTÉS, ET LE CHAMP LE DIT. Aucune
+                // passerelle SMS n'est branchée : le code part par courriel, et
+                // n'accepter qu'un numéro fermerait le produit à qui n'a pas
+                // déjà un compte. Le clavier reste ordinaire — un clavier
+                // numérique empêcherait de taper une adresse.
                 ChampRelief(
                   controller: _telephone,
-                  indication: 'Numéro de téléphone',
-                  clavier: TextInputType.phone,
+                  indication: 'Téléphone ou e-mail',
+                  clavier: TextInputType.emailAddress,
                   autofocus: true,
                   tailleTexte: 17,
                   erreur: _erreur,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Le code part par e-mail pour le moment. Avec un numéro, il faut '
+                  'qu\'une adresse soit déjà associée à ton compte.',
+                  style: TextStyle(
+                    fontFamily: Djassa.texte,
+                    fontSize: 14,
+                    height: 1.45,
+                    color: Djassa.etiquette,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 BoutonRelief(

@@ -48,7 +48,28 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
+  /// Ce sous quoi le compte s'ouvre.
+  ///
+  /// LE NUMÉRO S'IL EST DONNÉ, L'ADRESSE SINON. Le numéro reste préférable —
+  /// c'est lui qui permettra de RECEVOIR un bien lors d'un transfert — mais
+  /// l'exiger fermerait le produit tant qu'aucune passerelle SMS n'est
+  /// branchée, puisque le code part de toute façon par courriel.
+  String get _identifiant {
+    final String numero = _telephone.text.trim();
+
+    return numero.isEmpty ? _courriel.text.trim() : numero;
+  }
+
   Future<void> _demanderCode() async {
+    if (_courriel.text.trim().isEmpty) {
+      // L'ADRESSE EST INDISPENSABLE, quoi qu'il arrive : c'est elle qui reçoit
+      // le code tant qu'aucune passerelle SMS n'est branchée. Le dire ici évite
+      // un aller-retour pour apprendre ce qu'on savait déjà.
+      setState(() => _erreur = 'Ton adresse e-mail est nécessaire : c\'est elle qui reçoit le code.');
+
+      return;
+    }
+
     setState(() {
       _erreur = null;
       _enCours = true;
@@ -56,7 +77,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
     try {
       await widget.session.auth.requestCode(
-        _telephone.text.trim(),
+        _identifiant,
         OtpPurpose.register,
         email: _courriel.text.trim(),
       );
@@ -83,7 +104,10 @@ class _SignupScreenState extends State<SignupScreen> {
 
     try {
       final compte = await widget.session.auth.verify(
-        _telephone.text.trim(),
+        // LE MÊME IDENTIFIANT QU'À LA DEMANDE : le code est haché avec la
+        // destination, et vérifier sous une autre échouerait sans raison
+        // visible pour l'utilisateur.
+        _identifiant,
         _code.text.trim(),
         OtpPurpose.register,
         email: _courriel.text.trim(),
@@ -144,11 +168,23 @@ class _SignupScreenState extends State<SignupScreen> {
                 const SizedBox(height: 14),
                 ChampRelief(
                   controller: _telephone,
-                  libelle: 'NUMÉRO DE TÉLÉPHONE',
+                  libelle: 'NUMÉRO DE TÉLÉPHONE — FACULTATIF',
                   indication: '+225 07 00 00 00 00',
                   clavier: TextInputType.phone,
                   tailleTexte: 17,
                   erreur: _erreur,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Tu peux t\'inscrire avec la seule adresse e-mail. Le numéro devient '
+                  'nécessaire le jour où quelqu\'un veut te CÉDER un bien : c\'est à lui '
+                  'que le transfert s\'adresse.',
+                  style: TextStyle(
+                    fontFamily: Djassa.texte,
+                    fontSize: 14,
+                    height: 1.45,
+                    color: Djassa.etiquette,
+                  ),
                 ),
                 const SizedBox(height: 18),
                 BoutonRelief(
@@ -158,7 +194,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
               ] else ...<Widget>[
                 Text(
-                  'Entre le code reçu au ${_telephone.text.trim()}.',
+                  'Entre le code reçu à ${_courriel.text.trim()}.',
                   style: const TextStyle(
                     fontFamily: Djassa.texte,
                     fontSize: 16,

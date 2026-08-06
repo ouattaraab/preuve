@@ -1189,6 +1189,56 @@ not exist ».
 
 **Couverture** : 920 Pest, 118 `preuve_core`, 31 `preuve_app`.
 
+## S'inscrire et se connecter PAR NUMÉRO OU PAR ADRESSE (06/08/2026)
+
+**Le produit était fermé.** Aucune passerelle SMS n'est branchée : le code
+partait par courriel, mais **seulement à l'adresse d'un compte déjà identifié
+par un numéro**. La seule voie d'entrée exigeait donc un canal qui n'existe pas,
+et personne ne pouvait ouvrir de compte.
+
+**Ce qui a changé, sans rien perdre des garanties existantes.**
+`normalizeDestination` accepte les deux — l'arbitre est l'arrobase, et rien
+d'autre. Les adresses sont mises en minuscules **en entier**, partie locale
+comprise : la norme autorise une casse significative, mais aucun fournisseur
+grand public ne l'exploite, et la respecter ferait de « Awa@… » et « awa@… »
+deux comptes, donc deux plafonds de tentatives.
+
+**`users.phone` devient facultatif.** En MySQL un index unique tolère plusieurs
+NULL : deux comptes sans numéro coexistent, deux comptes de même numéro restent
+impossibles.
+
+**LE POINT DE SÉCURITÉ, et il tient.** La règle en place — pour un compte
+existant, l'adresse de livraison vient de la BASE et jamais de la requête —
+reste intacte, et un test le verrouille : soumettre `email=attaquant@…` avec le
+numéro d'autrui envoie le code à l'adresse **au dossier**. Quand l'identifiant
+EST une adresse, elle s'auto-livre, et c'est sûr : elle n'est pas un canal
+choisi pour recevoir le code d'un compte identifié autrement, elle est
+l'identité.
+
+**Un test que j'avais écrit à l'envers** : j'affirmais qu'on ne devait pas
+entrer dans le compte d'un titulaire en connaissant son adresse. C'est faux —
+c'est la fonction demandée, et elle est sûre puisque le code part dans SA boîte.
+Le test verrouille désormais le bon comportement : on entre dans **le même**
+compte, pas dans un doublon.
+
+**Compatibilité** : `phone` reste accepté partout à côté de `identifier`, et
+l'application envoie les deux. Refuser l'ancien nom casserait tous les
+téléphones déjà équipés, d'un seul déploiement, sur un parc qui ne se met pas à
+jour.
+
+**Limite assumée** : un transfert de propriété s'adresse à un NUMÉRO
+(`transfers.to_phone`), l'invitation de flotte aussi. Un compte ouvert par
+adresse consulte, enregistre, déclare un vol et réclame — mais devra renseigner
+un numéro pour **recevoir** un bien. L'écran d'inscription le dit.
+
+**Back-office** : `POST /admin/users/{user}/contact` corrige une coordonnée mal
+saisie — sans quoi une adresse fautive enferme son titulaire dehors, puisqu'il
+ne peut pas se corriger sans se connecter. Modifier n'est pas vérifier : les
+marques `*_verified_at` tombent. Et l'un des deux au moins doit subsister : un
+compte sans numéro ni adresse ne serait pas corrigé mais supprimé.
+
+**Couverture** : 933 Pest, 124 `preuve_core`, 36 `preuve_app`.
+
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)

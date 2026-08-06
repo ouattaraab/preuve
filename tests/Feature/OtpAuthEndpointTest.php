@@ -8,7 +8,9 @@ use App\Models\AuditLog;
 use App\Models\Company;
 use App\Models\CompanyMember;
 use App\Models\User;
+use App\Services\Otp\ConfigurableOtpSender;
 use App\Services\Otp\OtpSender;
+use App\Services\Settings\SettingsRepository;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -35,7 +37,11 @@ function nettoyerAuth(): void
 {
     DB::statement('SET FOREIGN_KEY_CHECKS = 0');
 
-    foreach (['audit_log', 'company_members', 'companies', 'personal_access_tokens', 'otp_codes', 'users'] as $table) {
+    // `app_settings` EN FAIT PARTIE : un test qui bascule le canal sur le
+    // courriel le laisserait basculé pour tous les suivants, et l'on
+    // passerait des heures à chercher pourquoi un test isolé réussit là où la
+    // suite échoue.
+    foreach (['audit_log', 'company_members', 'companies', 'personal_access_tokens', 'otp_codes', 'app_settings', 'users'] as $table) {
         DB::statement("TRUNCATE TABLE {$table}");
     }
 
@@ -304,6 +310,18 @@ class CaptureOtpSender implements OtpSender
     {
         return $this->envois[count($this->envois) - 1]['code'];
     }
+
+    /**
+     * OÙ le dernier code est parti.
+     *
+     * ENREGISTRÉ, PAS SUPPOSÉ : sans cela, un harnais ne peut pas constater
+     * qu'un code destiné à un compte est parti chez quelqu'un d'autre — la
+     * prise de compte la plus directe que ce canal rendrait possible.
+     */
+    public function derniereDestination(): string
+    {
+        return $this->envois[count($this->envois) - 1]['destination'];
+    }
 }
 
 it('dit à quelles sociétés le compte appartient', function (): void {
@@ -346,4 +364,144 @@ it('ne rattache aucune société à un compte ordinaire', function (): void {
     Sanctum::actingAs(User::create(['phone' => '+2250701020305']));
 
     expect($this->getJson('/api/v1/auth/me')->assertOk()->json('companies'))->toBe([]);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Ouvrir un compte AVEC UNE ADRESSE (06/08/2026)
+|--------------------------------------------------------------------------
+|
+| Aucune passerelle SMS n'est branchée : le code partait par courriel, mais
+| seulement à l'adresse d'un compte DÉJÀ identifié par un numéro. La seule voie
+| d'entrée exigeait donc un canal qui n'existe pas, et le produit était fermé à
+| quiconque n'avait pas déjà un compte.
+*/
+
+it('OUVRE UN COMPTE AVEC UNE SEULE ADRESSE', function (): void {
+    test()->postJson('/api/v1/auth/otp/request', [
+        'identifier' => 'awa@example.ci',
+        'purpose' => 'login',
+    ])->assertOk();
+
+    $reponse = test()->postJson('/api/v1/auth/otp/verify', [
+        'identifier' => 'awa@example.ci',
+        'purpose' => 'login',
+        'code' => test()->sender->dernierCode(),
+    ])->assertOk();
+
+    // LE COMPTE N'A PAS DE NUMÉRO, et c'est bien ainsi : lui en inventer un
+    // casserait l'unicité au deuxième compte.
+    expect($reponse->json('user.email'))->toBe('awa@example.ci')
+        ->and($reponse->json('user.phone'))->toBeNull();
+
+    $compte = User::where('email', 'awa@example.ci')->sole();
+
+    expect($compte->phone)->toBeNull()
+        ->and($compte->email_verified_at)->not->toBeNull()
+        // Le code a été lu dans la boîte, pas reçu par SMS : marquer le
+        // numéro comme vérifié inscrirait une vérification qui n'a pas eu lieu.
+        ->and($compte->phone_verified_at)->toBeNull();
+});
+
+it('LAISSE SE CONNECTER PAR L\'ADRESSE un compte ouvert par numéro', function (): void {
+    // C'EST LA FONCTION DEMANDÉE, et elle est sûre : le code part à l'adresse
+    // INSCRITE AU DOSSIER, donc dans la boîte du titulaire. Prouver qu'on la lit
+    // prouve qu'on est lui. On entre dans SON compte, et non dans un doublon.
+    $titulaire = User::create(['phone' => '+2250700111222', 'email' => 'titulaire@example.ci']);
+
+    test()->postJson('/api/v1/auth/otp/request', [
+        'identifier' => 'titulaire@example.ci',
+        'purpose' => 'login',
+    ])->assertOk();
+
+    $reponse = test()->postJson('/api/v1/auth/otp/verify', [
+        'identifier' => 'titulaire@example.ci',
+        'purpose' => 'login',
+        'code' => test()->sender->dernierCode(),
+    ])->assertOk();
+
+    expect($reponse->json('user.id'))->toBe($titulaire->id)
+        ->and($reponse->json('user.phone'))->toBe('+2250700111222')
+        // Aucun doublon : c'est le même compte, joint par l'autre porte.
+        ->and(User::count())->toBe(1);
+});
+
+it('NE PEUT PAS FAIRE ENVOYER LE CODE AILLEURS', function (): void {
+    // LE vrai risque de ce chantier. Si une adresse SOUMISE pouvait recevoir le
+    // code d'un compte identifié autrement, quiconque connaît un numéro
+    // prendrait n'importe quel compte sans rien savoir d'autre.
+    // SUR LE CANAL COURRIEL, celui de la production tant qu'aucune passerelle
+    // SMS n'est branchée : c'est là que la question de l'adresse se pose.
+    app(SettingsRepository::class)->set(ConfigurableOtpSender::PROVIDER_KEY, 'mail');
+
+    User::create(['phone' => '+2250700333444', 'email' => 'vraie@example.ci']);
+
+    test()->postJson('/api/v1/auth/otp/request', [
+        'identifier' => '0700333444',
+        'email' => 'attaquant@example.ci',
+        'purpose' => 'login',
+    ])->assertOk();
+
+    // Le code est parti à l'adresse AU DOSSIER, pas à celle qu'on a soumise.
+    expect(test()->sender->derniereDestination())->toBe('vraie@example.ci');
+});
+
+it('RECONNAÎT UN COMPTE EXISTANT par son adresse', function (): void {
+    test()->postJson('/api/v1/auth/otp/request', ['identifier' => 'yao@example.ci', 'purpose' => 'login']);
+    $a = test()->postJson('/api/v1/auth/otp/verify', [
+        'identifier' => 'yao@example.ci', 'purpose' => 'login', 'code' => test()->sender->dernierCode(),
+    ])->assertOk()->json('user.id');
+
+    // UN DÉLAI SÉPARE DEUX ENVOIS, et c'est voulu : sans lui, on ferait
+    // pleuvoir les codes sur une boîte. On avance donc l'horloge plutôt que de
+    // désarmer la protection pour la commodité du test.
+    test()->travel(10)->minutes();
+
+    test()->postJson('/api/v1/auth/otp/request', ['identifier' => 'yao@example.ci', 'purpose' => 'login']);
+    $b = test()->postJson('/api/v1/auth/otp/verify', [
+        'identifier' => 'yao@example.ci', 'purpose' => 'login', 'code' => test()->sender->dernierCode(),
+    ])->assertOk()->json('user.id');
+
+    expect($b)->toBe($a)
+        ->and(User::where('email', 'yao@example.ci')->count())->toBe(1);
+});
+
+it('TRAITE LA CASSE ET LES ESPACES comme une seule adresse', function (): void {
+    // Sans cela, « Awa@Example.CI » et « awa@example.ci » seraient deux
+    // comptes — et deux plafonds de tentatives distincts.
+    test()->postJson('/api/v1/auth/otp/request', [
+        'identifier' => '  Awa@Example.CI  ',
+        'purpose' => 'login',
+    ])->assertOk();
+
+    expect(DB::table('otp_codes')->where('destination', 'awa@example.ci')->exists())->toBeTrue();
+});
+
+it('CONTINUE D\'ACCEPTER `phone`, pour les applications déjà installées', function (): void {
+    // Refuser l'ancien nom de champ casserait tous les téléphones déjà
+    // équipés, d'un seul déploiement, sur un parc qui ne se met pas à jour.
+    test()->postJson('/api/v1/auth/otp/request', [
+        'phone' => '0700000009',
+        'purpose' => 'login',
+    ])->assertOk();
+
+    expect(DB::table('otp_codes')->where('destination', '+2250700000009')->exists())->toBeTrue();
+});
+
+it('REFUSE une saisie qui n\'est ni un numéro ni une adresse', function (): void {
+    test()->postJson('/api/v1/auth/otp/request', [
+        'identifier' => 'bonjour',
+        'purpose' => 'login',
+    ])->assertStatus(422);
+});
+
+it('NE DIT PAS si la destination est connue', function (): void {
+    // Toute différence observable ferait de cette route un annuaire.
+    User::create(['email' => 'connu@example.ci']);
+
+    $connu = test()->postJson('/api/v1/auth/otp/request', ['identifier' => 'connu@example.ci', 'purpose' => 'login']);
+    $inconnu = test()->postJson('/api/v1/auth/otp/request', ['identifier' => 'inconnu@example.ci', 'purpose' => 'login']);
+
+    expect($connu->status())->toBe($inconnu->status())
+        ->and($connu->json('message'))->toBe($inconnu->json('message'));
 });

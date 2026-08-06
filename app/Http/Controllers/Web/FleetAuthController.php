@@ -49,20 +49,29 @@ final class FleetAuthController extends Controller
 
     public function requestCode(Request $request): RedirectResponse
     {
-        $request->validate(['phone' => ['required', 'string', 'max:30']]);
+        $request->validate(['phone' => ['required', 'string', 'max:150']]);
 
-        $telephone = $this->otp->normalizeDestination($request->string('phone')->toString());
-        $compte = User::where('phone', $telephone)->first();
+        // NUMÉRO OU ADRESSE. Le champ garde le nom `phone` — le renommer
+        // casserait les formulaires en cache des navigateurs et les liens
+        // enregistrés — mais il accepte les deux, et le libellé le dit.
+        $destination = $this->otp->normalizeDestination($request->string('phone')->toString());
+        $compte = $this->otp->isEmail($destination)
+            ? User::where('email', $destination)->first()
+            : User::where('phone', $destination)->first();
 
         // L'ADRESSE AU DOSSIER, jamais une adresse soumise : accepter une
         // adresse fournie permettrait de détourner le code de quelqu'un.
         if ($compte instanceof User) {
             $adresse = $compte->email;
 
-            if ($this->canalCourriel() && is_string($adresse) && $adresse !== '') {
-                $this->otp->request($telephone, OtpPurpose::Login, OtpChannel::Email, $adresse);
+            // Une ADRESSE s'auto-livre : elle est l'identité, et prouver
+            // qu'on la lit prouve qu'on est le titulaire.
+            if ($this->otp->isEmail($destination)) {
+                $this->otp->request($destination, OtpPurpose::Login, OtpChannel::Email, $destination);
+            } elseif ($this->canalCourriel() && is_string($adresse) && $adresse !== '') {
+                $this->otp->request($destination, OtpPurpose::Login, OtpChannel::Email, $adresse);
             } else {
-                $this->otp->request($telephone, OtpPurpose::Login);
+                $this->otp->request($destination, OtpPurpose::Login);
             }
         }
 
@@ -70,21 +79,21 @@ final class FleetAuthController extends Controller
         // différence observable ferait de cette page un annuaire des loueurs.
         return redirect()->route('fleet.login')
             ->with('etape', 'code')
-            ->with('phone', $telephone)
+            ->with('phone', $destination)
             ->with('message', 'Si ce compte peut recevoir un code, il vient de lui être envoyé.');
     }
 
     public function verify(Request $request): RedirectResponse
     {
         $request->validate([
-            'phone' => ['required', 'string', 'max:30'],
+            'phone' => ['required', 'string', 'max:150'],
             'code' => ['required', 'string', 'max:10'],
         ]);
 
-        $telephone = $this->otp->normalizeDestination($request->string('phone')->toString());
+        $destination = $this->otp->normalizeDestination($request->string('phone')->toString());
 
         try {
-            $this->otp->verify($telephone, $request->string('code')->toString(), OtpPurpose::Login);
+            $this->otp->verify($destination, $request->string('code')->toString(), OtpPurpose::Login);
         } catch (OtpRefuseException $e) {
             // Rendu ICI et non par le gestionnaire global, qui répond en JSON :
             // un formulaire HTML ne sait pas l'afficher, et le refus
@@ -92,11 +101,13 @@ final class FleetAuthController extends Controller
             // de « réessayez plus tard » pour ne pas s'acharner.
             return redirect()->route('fleet.login')
                 ->with('etape', 'code')
-                ->with('phone', $telephone)
+                ->with('phone', $destination)
                 ->withErrors(['code' => $e->getMessage()]);
         }
 
-        $compte = User::where('phone', $telephone)->first();
+        $compte = $this->otp->isEmail($destination)
+            ? User::where('email', $destination)->first()
+            : User::where('phone', $destination)->first();
 
         if (! $compte instanceof User || EnsureUserLeadsAFleet::societesDe($this->membres, $compte) === []) {
             return redirect()->route('fleet.login')
