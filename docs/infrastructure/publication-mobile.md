@@ -49,13 +49,16 @@ décide de l'installation ou de son abandon.
 
 | Artefact | Poids | Usage |
 |---|---|---|
-| `app-release.aab` | 80 Mo | dépôt Google Play |
-| `app-arm64-v8a-release.apk` | 44 Mo | téléphones récents |
-| `app-armeabi-v7a-release.apk` | 34 Mo | entrée de gamme, encore majoritaires |
-| `app-x86_64-release.apk` | 47 Mo | **émulateurs seulement** — ne pas distribuer |
+| `app-release.aab` | 76 Mo | dépôt Google Play |
+| `app-arm64-v8a-release.apk` | 42 Mo | téléphones récents |
+| `app-armeabi-v7a-release.apk` | 32 Mo | entrée de gamme, encore majoritaires |
+| `app-x86_64-release.apk` | 45 Mo | **émulateurs seulement** — ne pas distribuer |
 | `app-release.apk` | 106 Mo | universel — à éviter |
 
-Poids relevés sur la version 1.2.0+3.
+Poids inchangés en 1.2.0+3, relevés sur le disque. **Flutter annonce autre
+chose** — « 44.1MB » pour l'arm64 : il compte en méga**octets décimaux**, le
+Finder et ce tableau en mébioctets. Recopier le chiffre de la console ferait
+croire à une inflation à chaque version.
 
 Sur les 42 Mo d'`arm64`, **19 Mo sont les modèles ML Kit** embarqués : lecture de
 texte (10,6 Mo) et détection de visage (8,1 Mo). C'est le prix de la lecture de
