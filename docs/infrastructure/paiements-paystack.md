@@ -82,10 +82,16 @@ n'échangent aucune transaction.
 
 ## Ce qui reste ouvert
 
-- **PawaPay (Wave, Orange Money, MTN MoMo) n'est pas branché.** `PaymentProvider`
-  les connaît, l'endpoint générique les attend, mais aucune passerelle
-  n'implémente l'ouverture de transaction : un paiement mobile rend
-  `checkout_url: null`, et le client affiche « à régler auprès de l'opérateur »
-  sans adresse. C'est le prochain chantier de paiement, et il compte davantage
-  que la carte sur ce marché.
+- **PawaPay est écarté** (décision de l'éditeur, 06/08/2026). `PaymentProvider`
+  connaît encore ses valeurs — elles existent dans l'ENUM SQL de `payments` et
+  les retirer casserait des lignes historiques — mais aucune passerelle ne les
+  implémente, et l'application ne les propose nulle part : elle ouvre toujours
+  Paystack. Le format maison du webhook reste en place pour un éventuel autre
+  opérateur.
+- **À VÉRIFIER : les moyens de paiement réellement offerts en XOF.** Sur ce
+  marché, le mobile money pèse davantage que la carte. Regarder, dans le
+  tableau de bord Paystack, quels canaux le compte expose pour la Côte d'Ivoire
+  — si le mobile money y figure, il n'y a rien de plus à brancher ; sinon,
+  c'est le prochain chantier de paiement, avant toute autre fonctionnalité
+  payante.
 - **CinetPay est interdit** (CLAUDE.md).

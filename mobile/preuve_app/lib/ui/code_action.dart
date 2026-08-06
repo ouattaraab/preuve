@@ -15,6 +15,14 @@ import 'theme.dart';
 /// pour se connecter ne doit pas pouvoir autoriser un transfert. Le serveur le
 /// vérifie ; encore faut-il le lui dire.
 ///
+/// [dejaEnvoye] SAUTE LA DEMANDE, parce qu'un code est déjà parti.
+///
+/// C'est le cas après un règlement : le serveur émet le code au moment où
+/// l'opérateur confirme, et en redemander un aussitôt se heurte au délai de
+/// soixante secondes entre deux envois. L'utilisateur qui vient de payer
+/// recevait alors « trop de demandes » au lieu du champ de saisie — un refus
+/// juste après un paiement, ce qui se lit comme une escroquerie.
+///
 /// Rend `null` si la personne renonce — un abandon n'est pas une erreur, et ne
 /// doit rien afficher.
 Future<String?> demanderCodeAction(
@@ -23,6 +31,7 @@ Future<String?> demanderCodeAction(
   required OtpPurpose motif,
   required String titre,
   required String consequence,
+  bool dejaEnvoye = false,
 }) async {
   final compte = session.compte;
 
@@ -30,14 +39,30 @@ Future<String?> demanderCodeAction(
     return null;
   }
 
+  // `identifiant` ET NON `phone` : un compte ouvert par adresse n'a pas de
+  // numéro, et demander un code pour une chaîne vide fermait tous les gestes
+  // engageants à son titulaire — jusqu'à la déclaration de vol de son bien.
+  final String destination = compte.identifiant;
+
   final messager = ScaffoldMessenger.of(context);
 
-  try {
-    await session.auth.requestCode(compte.phone, motif);
-  } on PreuveException catch (e) {
-    messager.showSnackBar(SnackBar(content: Text(e.message)));
+  if (destination.isEmpty) {
+    messager.showSnackBar(const SnackBar(
+      content: Text('Ce compte n\'a ni numéro ni adresse : aucun code ne peut lui être '
+          'envoyé. Ajoute une coordonnée depuis ton profil.'),
+    ));
 
     return null;
+  }
+
+  if (!dejaEnvoye) {
+    try {
+      await session.auth.requestCode(destination, motif);
+    } on PreuveException catch (e) {
+      messager.showSnackBar(SnackBar(content: Text(e.message)));
+
+      return null;
+    }
   }
 
   if (!context.mounted) {
@@ -51,7 +76,8 @@ Future<String?> demanderCodeAction(
     builder: (BuildContext feuille) => _FeuilleCode(
       titre: titre,
       consequence: consequence,
-      telephone: compte.phone,
+      destination: destination,
+      dejaEnvoye: dejaEnvoye,
     ),
   );
 }
@@ -60,12 +86,18 @@ class _FeuilleCode extends StatefulWidget {
   const _FeuilleCode({
     required this.titre,
     required this.consequence,
-    required this.telephone,
+    required this.destination,
+    this.dejaEnvoye = false,
   });
 
   final String titre;
   final String consequence;
-  final String telephone;
+
+  /// Numéro OU adresse : c'est là que le code est parti, et le dire permet de
+  /// savoir OÙ le chercher.
+  final String destination;
+
+  final bool dejaEnvoye;
 
   @override
   State<_FeuilleCode> createState() => _FeuilleCodeState();
@@ -108,7 +140,10 @@ class _FeuilleCodeState extends State<_FeuilleCode> {
           ),
           const SizedBox(height: 16),
           Text(
-            'Un code vient d\'être envoyé au ${widget.telephone}.',
+            widget.dejaEnvoye
+                ? 'Ton code a été envoyé à ${widget.destination} dès la confirmation '
+                    'du paiement.'
+                : 'Un code vient d\'être envoyé à ${widget.destination}.',
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 12),

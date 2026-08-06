@@ -80,6 +80,7 @@ class _AssetScreenState extends State<AssetScreen> {
     required String consequence,
     required Future<PublicAsset> Function(String code) action,
     required String succes,
+    bool codeDejaEnvoye = false,
   }) async {
     final code = await demanderCodeAction(
       context,
@@ -87,6 +88,7 @@ class _AssetScreenState extends State<AssetScreen> {
       motif: motif,
       titre: titre,
       consequence: consequence,
+      dejaEnvoye: codeDejaEnvoye,
     );
 
     if (code == null || code.isEmpty || !mounted) {
@@ -171,12 +173,20 @@ class _AssetScreenState extends State<AssetScreen> {
       if (!regle || !mounted) {
         return;
       }
+
+      // LE CODE EST DÉJÀ PARTI, au moment où l'opérateur a confirmé. En
+      // redemander un se heurterait au délai de soixante secondes entre deux
+      // envois : l'utilisateur qui vient de payer verrait « trop de demandes ».
+      await _gesteVol(codeDejaEnvoye: true);
+
+      return;
     }
 
     await _gesteVol();
   }
 
-  Future<void> _gesteVol() => _geste(
+  Future<void> _gesteVol({bool codeDejaEnvoye = false}) => _geste(
+        codeDejaEnvoye: codeDejaEnvoye,
         motif: OtpPurpose.sensitiveAction,
         titre: 'Déclarer ce bien volé',
         consequence:

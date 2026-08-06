@@ -79,11 +79,19 @@ class Account {
 
   bool get isFleetOperator => companies.isNotEmpty;
 
-  /// Ce sous quoi le titulaire s'est inscrit, à afficher tel quel.
+  /// Ce sous quoi le titulaire s'est inscrit — à afficher tel quel, et à
+  /// utiliser comme DESTINATION DE SES CODES.
   ///
   /// L'UN DES DEUX PEUT MANQUER, jamais les deux : un compte se joint par un
   /// numéro ou par une adresse, et l'écran doit montrer celle qui existe plutôt
   /// qu'un champ vide.
+  ///
+  /// LES DEUX USAGES SONT LE MÊME, et il ne faut pas en faire deux propriétés.
+  /// `demanderCodeAction` lisait `phone` en dur : un compte ouvert par adresse
+  /// demandait donc un code pour une chaîne vide, le serveur refusait, et son
+  /// titulaire ne pouvait accomplir AUCUN geste engageant — pas même déclarer
+  /// le vol de son bien. Le miroir exact du défaut trouvé côté serveur, où neuf
+  /// endroits interrogeaient `->phone` avant `User::otpDestination()`.
   String get identifiant => phone.isNotEmpty ? phone : (email ?? '');
 }
 
