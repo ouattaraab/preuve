@@ -98,9 +98,20 @@ class TransferService {
   /// vendeur confirmera ensuite de son côté par [confirm]. Réclamer un code
   /// avant même d'avoir engagé le transfert obligerait le vendeur à en demander
   /// un pour rien si l'acheteur refuse.
-  Future<PendingTransfer> propose(int assetId, {required String buyerPhone}) async {
+  ///
+  /// [buyerEmail] EST CE QUI FAIT ARRIVER L'INVITATION. Tant qu'aucune
+  /// passerelle SMS n'est branchée, un code adressé à un numéro ne part nulle
+  /// part : le vendeur voit son transfert « en cours », l'acheteur n'est jamais
+  /// prévenu, et la cession expire au bout de sept jours. L'adresse reste
+  /// facultative — le numéro seul demeure accepté, comme avant.
+  Future<PendingTransfer> propose(
+    int assetId, {
+    required String buyerPhone,
+    String? buyerEmail,
+  }) async {
     final body = await _api.post('/assets/$assetId/transfer', body: <String, Object?>{
       'buyer_phone': buyerPhone,
+      if (buyerEmail != null && buyerEmail.isNotEmpty) 'buyer_email': buyerEmail,
     });
 
     final transfert = body['transfer'];

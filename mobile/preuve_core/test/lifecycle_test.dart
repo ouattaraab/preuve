@@ -85,6 +85,37 @@ void main() {
       }));
     });
 
+    test('porte l\'adresse de l\'acheteur quand elle est donnée', () async {
+      // C'EST ELLE QUI FAIT ARRIVER L'INVITATION. Tant qu'aucune passerelle SMS
+      // n'est branchée, un code adressé à un numéro ne part nulle part :
+      // l'acheteur n'est jamais prévenu, et la cession expire au bout de sept
+      // jours pendant que le vendeur croit sa vente enregistrée.
+      final transport = FakeTransport()
+        ..enfile(<String, Object?>{'transfer': <String, Object?>{'id': 5}});
+
+      await TransferService(transport).propose(
+        12,
+        buyerPhone: '+2250101181686',
+        buyerEmail: 'acheteur@exemple.ci',
+      );
+
+      expect(transport.dernierCorps, equals(<String, Object?>{
+        'buyer_phone': '+2250101181686',
+        'buyer_email': 'acheteur@exemple.ci',
+      }));
+    });
+
+    test('n\'envoie pas de clé vide quand aucune adresse n\'est saisie', () async {
+      // Le serveur valide `buyer_email` en `email` : une chaîne vide le ferait
+      // refuser en 422, et le numéro seul doit rester accepté comme avant.
+      final transport = FakeTransport()
+        ..enfile(<String, Object?>{'transfer': <String, Object?>{'id': 5}});
+
+      await TransferService(transport).propose(12, buyerPhone: '+2250101181686', buyerEmail: '');
+
+      expect(transport.dernierCorps.containsKey('buyer_email'), isFalse);
+    });
+
     test('annonce toujours son camp au serveur', () async {
       // Le serveur refuse une confirmation sans `role`, et pour cause : une
       // erreur de camp ferait confirmer une vente à qui croyait accepter.

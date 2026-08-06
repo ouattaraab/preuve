@@ -9,6 +9,7 @@ use App\Http\Controllers\Web\FleetImportController;
 use App\Http\Controllers\Web\PublicLookupController;
 use App\Http\Controllers\Web\PublicReportController;
 use App\Http\Controllers\Web\StolenListPageController;
+use App\Http\Controllers\Web\TransferInvitationController;
 use App\Http\Middleware\EnsureUserHasBackOfficeAccess;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\EnsureUserLeadsAFleet;
@@ -86,6 +87,31 @@ Route::withoutMiddleware([
         // et payée par un mutualisé.
         ->middleware('throttle:30,1')
         ->name('public.report');
+
+    /*
+     * ACCEPTER UNE CESSION SANS AVOIR L'APPLICATION (ST-0601).
+     *
+     * Au marché, le vendeur a l'application et l'acheteur non. Sans ce chemin,
+     * l'acheteur reçoit un courriel qui lui demande d'installer une application
+     * pour valider une vente déjà conclue — et sept jours plus tard la cession
+     * expire, le bien reste au vendeur, et l'acheteur détient un bien qui n'est
+     * pas à son nom.
+     *
+     * DEUX FACTEURS : le jeton prouve qu'on a reçu le courriel, le code qu'on
+     * lit cette boîte à l'instant. Jamais indexée — la page décrit un bien
+     * identifiable et une transaction en cours.
+     */
+    Route::get('cession/{token}', [TransferInvitationController::class, 'show'])
+        ->where('token', '[a-f0-9]{64}')
+        ->middleware('throttle:60,1')
+        ->name('public.transfer.invite');
+    Route::post('cession/{token}', [TransferInvitationController::class, 'confirm'])
+        ->where('token', '[a-f0-9]{64}')
+        // Plus serré que la lecture : c'est ici qu'on présente un code à six
+        // chiffres, et le plafond de l'OTP ne protège que la destination — pas
+        // le nombre de jetons qu'un attaquant essaierait en parallèle.
+        ->middleware('throttle:12,1')
+        ->name('public.transfer.confirm');
 
     // Page indexable, adressée par la référence publique OPAQUE. Le motif borne
     // la route à cette forme : elle ne doit jamais servir d'identifiant réel.

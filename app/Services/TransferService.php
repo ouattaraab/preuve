@@ -7,16 +7,21 @@ namespace App\Services;
 use App\Enums\ActorType;
 use App\Enums\LifeStatus;
 use App\Enums\NotificationType;
+use App\Enums\OtpChannel;
 use App\Enums\OtpPurpose;
 use App\Enums\TransferStatus;
 use App\Enums\TriggerType;
 use App\Enums\TrustLevel;
+use App\Mail\TransferInvitationMail;
 use App\Models\Asset;
 use App\Models\AssetStatusHistory;
 use App\Models\Transfer;
 use App\Models\User;
 use DomainException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Throwable;
 
 /**
  * Transfert de propriété à double validation (ST-0601 à ST-0603).
@@ -118,6 +123,10 @@ final class TransferService
                     'from_user_id' => $vendeur->id,
                     'to_phone' => $destinataire,
                     'to_email' => $adresse,
+                    // 32 octets tirés au hasard : une adresse en
+                    // `/cession/42` s'énumérerait, et livrerait la liste des
+                    // biens qui changent de mains cette semaine.
+                    'invite_token' => bin2hex(random_bytes(32)),
                     'status' => TransferStatus::Initiated,
                     'previous_life_status' => $statutAnterieur,
                     'expires_at' => now()->addDays(self::EXPIRY_DAYS),
@@ -148,12 +157,86 @@ final class TransferService
             'Transfert initié vers un acheteur',
         );
 
-        // L'acheteur reçoit son code : c'est l'invitation elle-même. Un SMS
-        // séparé « quelqu'un veut vous céder un bien » n'apporterait rien de
-        // plus et doublerait le coût.
-        $this->otp->request($destinataire, OtpPurpose::Transfer);
+        // LE CODE PART LÀ OÙ L'ACHETEUR PEUT LE LIRE. Tant qu'aucune
+        // passerelle SMS n'est branchée, un code adressé à un numéro ne part
+        // nulle part : le transfert suivait alors tout son cours côté vendeur
+        // pendant que l'acheteur n'était jamais prévenu, et la cession
+        // expirait au bout de sept jours sans que personne comprenne.
+        $this->otp->request(
+            $this->destinationDuTransfert($transfert),
+            OtpPurpose::Transfer,
+            $adresse !== null ? OtpChannel::Email : OtpChannel::Sms,
+            $adresse,
+        );
+
+        // L'INVITATION EST UN SECOND MESSAGE, et ce n'est pas un doublon : le
+        // code seul arrive sans contexte chez quelqu'un qui n'a peut-être
+        // jamais entendu parler de PREUVE, et se lit alors comme une
+        // escroquerie. Elle dit quel bien, et ce qu'il y a à faire ; le code,
+        // lui, autorise. Deux chemins distincts pour deux rôles distincts.
+        if ($adresse !== null) {
+            $this->inviter($transfert, $bien, $adresse);
+        }
 
         return $transfert;
+    }
+
+    /**
+     * Envoie l'invitation à confirmer.
+     *
+     * ELLE NE NOMME PAS LE VENDEUR (règle métier absolue n° 4). Le bien suffit
+     * à reconnaître la transaction : celui qui vient d'acheter une moto sait
+     * laquelle. Nommer le cédant permettrait d'apprendre le nom de n'importe
+     * quel propriétaire en ouvrant une cession vers une adresse quelconque.
+     *
+     * UN ÉCHEC D'ENVOI NE DÉFAIT PAS LE TRANSFERT. Il est déjà écrit, le bien
+     * est déjà basculé, et le lever ici laisserait un bien en « transfert en
+     * cours » sans transfert. On journalise : le vendeur voit sa cession en
+     * attente et peut la relancer ou l'annuler.
+     */
+    private function inviter(Transfer $transfert, Asset $bien, string $adresse): void
+    {
+        $jeton = $transfert->invite_token;
+
+        if ($jeton === null) {
+            return;
+        }
+
+        try {
+            Mail::to($adresse)->send(new TransferInvitationMail(
+                lien: url('/cession/'.$jeton),
+                bien: $this->libelleDuBien($bien),
+                numero: (string) $bien->identifier_raw,
+                joursRestants: self::EXPIRY_DAYS,
+            ));
+        } catch (Throwable $e) {
+            Log::warning('Invitation de cession non délivrée', [
+                'transfer_id' => $transfert->id,
+                'exception' => $e::class,
+                // JAMAIS L'ADRESSE : les journaux sortent de la plateforme
+                // (supervision, sauvegardes) et une adresse y est une donnée
+                // personnelle au sens de la loi 2013-450.
+            ]);
+        }
+    }
+
+    /**
+     * Ce qu'on montre du bien : sa catégorie et sa marque, rien de plus.
+     *
+     * Le contenu des `attributes` est saisi par le vendeur ; le passer entier
+     * dans un courriel lui donnerait un canal de texte libre vers une adresse
+     * qu'il choisit. Deux champs connus, et c'est tout.
+     */
+    private function libelleDuBien(Asset $bien): string
+    {
+        $attributs = $bien->getAttribute('attributes');
+        $marque = is_array($attributs) && is_string($attributs['brand_model'] ?? null)
+            ? trim($attributs['brand_model'])
+            : '';
+
+        $categorie = ucfirst((string) $bien->asset_category_key);
+
+        return $marque === '' ? $categorie : $categorie.' — '.mb_substr($marque, 0, 80);
     }
 
     /** @throws DomainException */
@@ -195,7 +278,16 @@ final class TransferService
             throw new DomainException('Ce transfert ne vous est pas destiné.');
         }
 
-        $this->otp->verify($this->destinationDe($acheteur), $code, OtpPurpose::Transfer);
+        // LE CODE SE VÉRIFIE LÀ OÙ IL A ÉTÉ ÉMIS, c'est-à-dire sur la
+        // coordonnée du TRANSFERT — pas sur celle du compte qui se présente.
+        //
+        // Le défi était indexé sur le numéro et livré à l'adresse : un acheteur
+        // ouvert par adresse recevait bien son code et ne pouvait JAMAIS le
+        // valider, parce que la vérification cherchait un défi à son adresse
+        // quand la base en portait un au numéro. Il ne restait qu'à en demander
+        // un second — ce qu'aucun acheteur ne devine, et ce qu'aucun écran ne
+        // proposait depuis le lien d'invitation.
+        $this->otp->verify($this->destinationDuTransfert($transfert), $code, OtpPurpose::Transfer);
 
         $transfert->forceFill([
             'to_user_id' => $acheteur->id,
@@ -457,6 +549,18 @@ final class TransferService
      * destination invalide, sans que rien n'explique pourquoi le titulaire ne
      * peut pas déclarer le vol de son propre bien.
      */
+    /**
+     * La coordonnée sur laquelle le défi de CE transfert est indexé.
+     *
+     * L'ADRESSE PRIME QUAND ELLE EXISTE, parce que c'est là que le code part :
+     * tant qu'aucune passerelle SMS n'est branchée, un défi indexé sur un
+     * numéro serait un défi que personne ne peut résoudre.
+     */
+    private function destinationDuTransfert(Transfer $transfert): string
+    {
+        return $transfert->to_email ?? $transfert->to_phone;
+    }
+
     private function destinationDe(User $compte): string
     {
         $destination = $compte->otpDestination();
