@@ -9,7 +9,11 @@ publish_to: none
 # livraisons, pas rester à 1.0.0.
 # PREMIÈRE VERSION PUBLIABLE. Le `+1` est le `versionCode` Android : il doit
 # croître à CHAQUE dépôt sur Google Play, qui refuse deux fois le même.
-version: 1.0.0+1
+# 1.1.0 : l'inscription et la connexion acceptent désormais une ADRESSE autant
+# qu'un numéro. C'est une fonction nouvelle, pas un correctif — d'où le second
+# nombre. Le `+2` est le `versionCode` Android, que Google Play refuse de voir
+# deux fois : il croît à chaque dépôt, sans exception.
+version: 1.1.0+2
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

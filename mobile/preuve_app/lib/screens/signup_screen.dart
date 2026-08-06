@@ -141,7 +141,7 @@ class _SignupScreenState extends State<SignupScreen> {
               Text('Inscription', style: Djassa.affiche(34)),
               const SizedBox(height: 8),
               const Text(
-                '3 infos, pas plus. Pas de pièce d\'identité pour commencer.',
+                'Deux infos suffisent. Pas de pièce d\'identité pour commencer.',
                 style: TextStyle(
                   fontFamily: Djassa.texte,
                   fontSize: 16,
