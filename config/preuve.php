@@ -126,6 +126,21 @@ return [
         'captcha_grant' => (int) env('PREUVE_SCAN_CAPTCHA_GRANT', 5),
     ],
 
+    /*
+    | Seuil d'alerte sur le stockage, en mégaoctets.
+    |
+    | AUCUNE VALEUR PAR DÉFAUT UTILE : le quota dépend du contrat d'hébergement,
+    | et `disk_free_space` ment sur un mutualisé — elle rend le volume entier de
+    | l'hébergeur, partagé entre des milliers de comptes. Non renseigné, seule
+    | l'écriture est surveillée, sans alerte avancée.
+    |
+    | À régler à environ 70 % du quota du plan : ce qui compte est d'avoir le
+    | temps d'agir, pas d'être prévenu au dernier octet.
+    */
+    'storage' => [
+        'alert_mb' => (int) env('PREUVE_STORAGE_ALERT_MB', 0),
+    ],
+
     // Conservation des consultations : politique déclarée à l'ARTCI
     'lookup_retention_months' => 12,
 

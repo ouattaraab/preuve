@@ -7,8 +7,10 @@ use App\Enums\LifeStatus;
 use App\Enums\NotificationType;
 use App\Enums\PaymentProvider;
 use App\Enums\PaymentStatus;
+use App\Enums\TriggerType;
 use App\Enums\TrustLevel;
 use App\Models\Asset;
+use App\Models\AssetStatusHistory;
 use App\Models\AuditLog;
 use App\Models\Notification;
 use App\Models\Payment;
@@ -17,6 +19,7 @@ use App\Models\User;
 use App\Services\PaymentService;
 use App\Services\ReportAccessService;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -404,7 +407,7 @@ it('PARLE FRANÇAIS, dates comprises', function (): void {
     // défaut : la page de consultation — la promesse n° 1 du produit, lue debout
     // sur un parking à Abidjan — affichait « 6 December 2025 ».
     $bien = bienRapportable(proprietaireDuBien());
-    $bien->forceFill(['registered_at' => \Illuminate\Support\Carbon::parse('2025-12-06')])->save();
+    $bien->forceFill(['registered_at' => Carbon::parse('2025-12-06')])->save();
     $acces = app(ReportAccessService::class)->grant(paiementAbouti($bien), $bien);
 
     test()->get('/rapport/'.$acces->access_token)
@@ -419,11 +422,11 @@ it('DIT L\'ORIGINE EN LANGAGE COURANT, jamais son code (CT-04)', function (): vo
     // dénonce (règle métier absolue n° 4).
     $bien = bienRapportable(proprietaireDuBien());
 
-    \App\Models\AssetStatusHistory::create([
+    AssetStatusHistory::create([
         'asset_id' => $bien->id,
         'from_status' => 'V-ACT',
         'to_status' => 'V-VOL',
-        'trigger_type' => \App\Enums\TriggerType::Owner,
+        'trigger_type' => TriggerType::Owner,
     ]);
 
     $acces = app(ReportAccessService::class)->grant(paiementAbouti($bien), $bien);

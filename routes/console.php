@@ -144,6 +144,34 @@ Schedule::command('preuve:reconcile-documents')
 
 // Politique ARTCI : aucune consultation conservée au-delà de 12 mois
 // (ST-0304). Aux heures creuses, la table pouvant être volumineuse.
+/*
+ * LA PLACE QUI RESTE, tous les jours.
+ *
+ * `disk_free_space` ment sur un mutualisé — elle rend le volume entier de
+ * l'hébergeur. Cette tâche éprouve donc l'ÉCRITURE elle-même, ce qui constate
+ * le vrai mode de panne au lieu de l'estimer. Un quota atteint n'arrête pas
+ * seulement les envois de pièces : il arrête l'écriture du registre, de la
+ * chaîne d'audit, et des journaux — donc de la trace qui aurait permis de
+ * comprendre.
+ *
+ * Tôt le matin, avant les sauvegardes : savoir que le disque est plein AVANT
+ * de tenter d'y écrire une sauvegarde vaut mieux que de l'apprendre par son
+ * échec.
+ */
+Schedule::command('preuve:check-storage')->dailyAt('01:10')->onOneServer();
+
+/*
+ * LE POINT HEBDOMADAIRE.
+ *
+ * Les alertes disent qu'une chose a cassé ; elles ne disent jamais ce qui se
+ * dégrade lentement — une file de modération qui s'allonge, un ancrage qui ne
+ * tourne plus, des travaux en échec qui s'accumulent. Ces états ne produisent
+ * aucun événement : ils s'installent.
+ *
+ * Lundi matin, avant la semaine de travail, et pas vendredi soir.
+ */
+Schedule::command('preuve:weekly-digest')->weeklyOn(1, '07:00')->onOneServer();
+
 Schedule::command('preuve:purge-lookups')->dailyAt('03:20')->onOneServer();
 
 // Envois différés abandonnés (ST-0206). Plus fréquent que les autres purges :
