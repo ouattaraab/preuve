@@ -1323,6 +1323,47 @@ notions concurrentes pour la même question divergent au premier correctif.
 
 **Couverture** : 993 Pest, 126 `preuve_core`, 54 `preuve_app`. APK 1.2.2+5.
 
+## Les cinq trous de parcours, comblés (06/08/2026)
+
+Balayage des 124 routes API contre leurs appelants. Cinq capacités serveur
+complètes sans point d'entrée — le défaut récurrent de ce projet.
+
+**1. LE RAPPORT NE SE VENDAIT PAS SUR LE WEB.** La page de verdict se terminait
+par « Vérifier un autre bien », au moment de plus forte intention du produit.
+Achat invité, code avant paiement, jeton d'accès, page de lecture : tout
+existait, le mobile le proposait, le navigateur ne vendait rien. `/rapport/
+commander/{ref}` en deux étapes, prix rendu par le serveur.
+
+**LA FRONTIÈRE DU COOKIE A BOUGÉ.** Le front public est sans session par choix
+(anonymat, cacheabilité). Les deux pages où le visiteur se nomme délibérément —
+acheter un rapport, accepter une cession — sont sorties du groupe sans cookie
+et ont rejoint la pile web ordinaire : elles y gagnent un vrai jeton CSRF, que
+la cession n'avait pas.
+
+**2. HUIT GROUPES D'API ADMIN SANS ÉCRAN.** Le plus coûteux : la validation des
+sociétés — un loueur restait « en attente » pour toujours, et la verticale de
+lancement était bloquée par une porte manquante. Le plus dangereux : le mode
+lecture seule, dont on a besoin PENDANT un incident. Les cinq autres réglages
+tiennent sur `/admin/reglages`.
+
+**3. LA VEILLE (ST-0403) n'avait aucun appelant** — service, détection de pics
+et notifications compris. Écran mobile depuis « Mes biens ».
+
+**4. LE NIVEAU DE FIABILITÉ NE DISAIT PAS COMMENT MONTER.** `/assets/{id}/trust`
+rendait le manque ET le bénéfice ; personne ne le demandait. C'est le levier qui
+transforme un bien déclaré en bien vérifié — donc ce qui donne sa valeur au
+rapport vendu.
+
+**5. LE PUSH N'EXISTE PAS CÔTÉ CLIENT, et c'est désormais une décision écrite**
+(`docs/infrastructure/publication-mobile.md`) : projet Firebase, APNs, deux
+dépendances, déclaration de collecte. En attendant, la cloche de l'accueil porte
+enfin son point rouge — elle ne demandait jamais le décompte de non-lus.
+
+**`smsAbsent()` énumère ce qui N'ENVOIE PAS de SMS** (`mail`, `log`) : ne tester
+que `mail` laissait le défaut `log` passer pour une passerelle.
+
+**Couverture** : 1009 Pest, 126 `preuve_core`, 65 `preuve_app`. APK 1.3.0+6.
+
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)
