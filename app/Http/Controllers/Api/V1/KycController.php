@@ -63,6 +63,13 @@ final class KycController extends Controller
             // Le selfie ne peut pas être un PDF : c'est une prise de vue, et
             // accepter un document permettrait de soumettre une photo de photo.
             'selfie' => ['required', 'file', 'max:'.$tailleMax, 'mimes:jpg,jpeg,png,heic'],
+            // PRISES DE VIVACITÉ, FACULTATIVES. Le dossier reste recevable sans
+            // elles : une application plus ancienne, ou un appareil qui ne sait
+            // pas les produire, ne doit pas se voir refuser une vérification
+            // d'identité. Leur absence se voit dans la file de revue, et
+            // l'agent en tient compte comme il le faisait déjà.
+            'liveness' => ['sometimes', 'array', 'max:4'],
+            'liveness.*' => ['file', 'max:'.$tailleMax, 'mimes:jpg,jpeg,png,heic'],
         ]);
 
         $utilisateur = $this->utilisateur($request);
@@ -73,6 +80,7 @@ final class KycController extends Controller
                 $this->fichier($request, 'id_front'),
                 $this->fichier($request, 'id_back'),
                 $this->fichier($request, 'selfie'),
+                $this->prisesDeVivacite($request),
             );
         } catch (DomainException $e) {
             throw ValidationException::withMessages(['id_front' => $e->getMessage()]);
@@ -94,6 +102,31 @@ final class KycController extends Controller
         }
 
         return $fichier;
+    }
+
+    /**
+     * Les prises de vivacité, indexées par la consigne qu'elles illustrent.
+     *
+     * LES CONSIGNES SONT CELLES DU SERVEUR, PAS CELLES DU CLIENT : accepter une
+     * étiquette libre laisserait une application envoyer quatre fois la même
+     * photo sous quatre noms inventés, et l'agent croirait voir une séquence.
+     * Seules « left » et « right » sont reconnues ; le reste est ignoré.
+     *
+     * @return array<string, UploadedFile>
+     */
+    private function prisesDeVivacite(Request $request): array
+    {
+        $retenues = [];
+
+        foreach (['left', 'right'] as $consigne) {
+            $image = $request->file('liveness.'.$consigne);
+
+            if ($image instanceof UploadedFile) {
+                $retenues[$consigne] = $image;
+            }
+        }
+
+        return $retenues;
     }
 
     private function utilisateur(Request $request): User

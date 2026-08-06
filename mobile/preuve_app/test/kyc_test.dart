@@ -39,6 +39,36 @@ void main() {
     expect(find.textContaining('Recto de la pièce'), findsWidgets);
   });
 
+  testWidgets('DEMANDE LA SÉQUENCE, en la disant facultative', (WidgetTester tester) async {
+    // Une photo imprimée brandie devant l'objectif ne tourne pas la tête. Mais
+    // un appareil qui ne sait pas produire ces prises ne doit pas priver
+    // quelqu'un de sa vérification d'identité.
+    await afficher(tester, <String, Object?>{'status': 'none', 'can_submit': true});
+
+    await tester.scrollUntilVisible(find.text('Deux prises de plus'), 250);
+    expect(find.textContaining('Facultatives'), findsOneWidget);
+    expect(find.textContaining('Tourne la tête à GAUCHE'), findsOneWidget);
+
+    // La liste construit à la demande : la seconde consigne est plus bas.
+    await tester.scrollUntilVisible(find.textContaining('Tourne la tête à DROITE'), 250);
+    expect(find.textContaining('Tourne la tête à DROITE'), findsOneWidget);
+  });
+
+  testWidgets('NE PROMET PAS UNE VÉRIFICATION AUTOMATIQUE', (WidgetTester tester) async {
+    // L'écran dit ce que la séquence FAIT — montrer à un agent — et jamais
+    // qu'elle vérifie quoi que ce soit. Le promettre ferait croire à une
+    // sécurité que le client ne peut pas offrir.
+    await afficher(tester, <String, Object?>{'status': 'none', 'can_submit': true});
+
+    await tester.scrollUntilVisible(find.text('Deux prises de plus'), 250);
+
+    expect(find.textContaining('montrent à l\'agent'), findsOneWidget);
+    for (final Text t in tester.widgetList<Text>(find.byType(Text))) {
+      expect(t.data ?? '', isNot(contains('vérifié automatiquement')));
+      expect(t.data ?? '', isNot(contains('score')));
+    }
+  });
+
   testWidgets('un dossier en cours ne se redépose pas', (WidgetTester tester) async {
     // Deux dossiers concurrents feraient trancher un agent sur une pièce que
     // l'autre a déjà écartée.

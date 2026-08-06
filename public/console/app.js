@@ -226,6 +226,29 @@ const Moderation = {
   },
 
   /**
+   * Une image du dossier, ou la place qu'elle occuperait.
+   *
+   * L'ABSENCE EST MONTRÉE, pas passée sous silence : un dossier auquel il
+   * manque une face se refuse, encore faut-il le voir.
+   */
+  vignette(url, libelle) {
+    if (!url) {
+      return `<figure style="margin:0;flex:1;min-width:0">
+           <div style="width:100%;height:150px;border:2px dashed #B9A98E;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#B9A98E">Absente</div>
+           <figcaption style="font-size:12px;font-weight:700;color:#7A6A55;margin-top:4px">${txt(libelle)}</figcaption>
+         </figure>`;
+    }
+
+    return `<figure style="margin:0;flex:1;min-width:0">
+           <a href="${txt(url)}" target="_blank" rel="noopener">
+             <img src="${txt(url)}" alt="${txt(libelle)}" loading="lazy"
+                  style="width:100%;height:150px;object-fit:cover;border:2px solid #2B1D12;border-radius:10px;background:#FFF">
+           </a>
+           <figcaption style="font-size:12px;font-weight:700;color:#7A6A55;margin-top:4px">${txt(libelle)}</figcaption>
+         </figure>`;
+  },
+
+  /**
    * Le dossier d'identité : recto, verso, selfie, et ce que l'extraction a lu.
    *
    * LES IMAGES SONT SERVIES PAR UNE ROUTE AUTHENTIFIÉE, jamais par un lien
@@ -238,19 +261,6 @@ const Moderation = {
    * que l'agent apprécie, pas un numéro qu'il recopierait.
    */
   dossierIdentite(e) {
-    const vignette = (url, libelle) => url
-      ? `<figure style="margin:0;flex:1;min-width:0">
-           <a href="${txt(url)}" target="_blank" rel="noopener">
-             <img src="${txt(url)}" alt="${txt(libelle)}" loading="lazy"
-                  style="width:100%;height:150px;object-fit:cover;border:2px solid #2B1D12;border-radius:10px;background:#FFF">
-           </a>
-           <figcaption style="font-size:12px;font-weight:700;color:#7A6A55;margin-top:4px">${txt(libelle)}</figcaption>
-         </figure>`
-      : `<figure style="margin:0;flex:1;min-width:0">
-           <div style="width:100%;height:150px;border:2px dashed #B9A98E;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#B9A98E">Absente</div>
-           <figcaption style="font-size:12px;font-weight:700;color:#7A6A55;margin-top:4px">${txt(libelle)}</figcaption>
-         </figure>`;
-
     const extraits = e.extraction && typeof e.extraction === 'object'
       ? Object.entries(e.extraction).map(([c, v]) => `${txt(c)} : <strong>${txt(v)}</strong>`).join(' · ')
       : null;
@@ -271,18 +281,56 @@ const Moderation = {
         </div>
       </div>
       <div style="display:flex;gap:10px">
-        ${vignette(e.images.id_front, 'Pièce — recto')}
-        ${vignette(e.images.id_back, 'Pièce — verso')}
-        ${vignette(e.images.selfie, 'Selfie')}
+        ${Moderation.vignette(e.images.id_front, 'Pièce — recto')}
+        ${Moderation.vignette(e.images.id_back, 'Pièce — verso')}
+        ${Moderation.vignette(e.images.selfie, 'Selfie')}
       </div>
+      ${Moderation.sequence(e.liveness)}
       <p style="margin:0;font-size:13px;color:#5C4A33;line-height:1.6">
         ${extraits ? extraits : 'Aucune extraction automatique : apprécie la concordance à l\'œil.'}
       </p>
       <p style="margin:0;font-size:12px;color:#7A6A55;line-height:1.5">
-        ⚠️ Aucune détection de vivacité n'est en place : une photo de photo peut passer.
-        Regarde la cohérence entre le visage, le document et l'éclairage.
         Le numéro de la pièce n'est pas conservé en clair, il ne peut pas t'être montré.
       </p>`;
+  },
+
+  /**
+   * La séquence de vivacité — et ce qu'elle vaut, dit sans détour.
+   *
+   * CE N'EST PAS UNE VÉRIFICATION AUTOMATIQUE, et l'écran doit le marteler.
+   * Le téléphone a guidé la prise de vue ; il n'a rien certifié, et une
+   * application modifiée enverrait ce qu'elle veut. Ces images servent à ce que
+   * l'agent VOIE le visage tourner — une photo imprimée ne tourne pas la tête.
+   * Un agent qui croirait à un contrôle automatique cesserait de regarder, et
+   * ce serait pire que de ne rien afficher du tout.
+   */
+  sequence(liveness) {
+    const consignes = { left: 'Tête tournée à gauche', right: 'Tête tournée à droite' };
+    const prises = (liveness && liveness.frames) || [];
+
+    if (!prises.length) {
+      return `
+        <p style="margin:0;font-size:12px;color:#A33;line-height:1.5;font-weight:700">
+          ⚠️ Aucune séquence de vivacité : ce dossier ne porte qu'un selfie, et une photo
+          de photo peut passer. Regarde la cohérence entre le visage, le document et
+          l'éclairage.
+        </p>`;
+    }
+
+    return `
+      <div>
+        <div style="font-size:12px;font-weight:700;color:#7A6A55;letter-spacing:.4px;margin-bottom:6px">
+          SÉQUENCE DE VIVACITÉ
+        </div>
+        <div style="display:flex;gap:10px">
+          ${prises.map((p) => Moderation.vignette(p.url, consignes[p.label] || p.label)).join('')}
+        </div>
+        <p style="margin:8px 0 0;font-size:12px;color:#7A6A55;line-height:1.5">
+          ⚠️ ${txt((liveness && liveness.notice) || '')}
+          <br>Ce que tu cherches : le MÊME visage, sous des angles réellement différents,
+          avec un éclairage cohérent. Une photo imprimée ne tourne pas la tête.
+        </p>
+      </div>`;
   },
 
   /**

@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
  * @property string $selfie_ref
  * @property array<string, mixed>|null $ocr_payload
  * @property int|null $liveness_score
+ * @property list<array{label: string, ref: string, sha256: string}>|null $liveness_frames
  * @property int|null $reviewed_by
  * @property Carbon|null $reviewed_at
  * @property string|null $review_reason
@@ -29,7 +30,7 @@ class KycSubmission extends Model
     protected $fillable = [
         'user_id', 'status', 'id_front_ref', 'id_back_ref', 'selfie_ref',
         'id_front_sha256', 'id_back_sha256', 'selfie_sha256',
-        'ocr_payload', 'liveness_score', 'reviewed_by', 'reviewed_at', 'review_reason',
+        'ocr_payload', 'liveness_score', 'liveness_frames', 'reviewed_by', 'reviewed_at', 'review_reason',
     ];
 
     /**
@@ -44,6 +45,7 @@ class KycSubmission extends Model
     {
         return [
             'ocr_payload' => 'array',
+            'liveness_frames' => 'array',
             'reviewed_at' => 'datetime',
         ];
     }

@@ -63,6 +63,20 @@ dependencies:
   # une dépendance à un service absent de certains appareils. Greffon officiel
   # de Google, maintenu avec ML Kit.
   google_mlkit_text_recognition: ^0.15.0
+  # Détection de visage SUR L'APPAREIL, pour guider la prise de vivacité.
+  #
+  # CINQUIÈME DÉPENDANCE, et son coût marginal est faible : elle partage
+  # `google_mlkit_commons` avec la lecture de texte, déjà présente, et la cible
+  # iOS a déjà été relevée pour elle.
+  #
+  # ELLE NE CERTIFIE RIEN, ET NE DOIT PAS PRÉTENDRE LE CONTRAIRE. Ce qu'elle
+  # apporte : guider la personne pendant les trois prises — un visage présent,
+  # un seul, réellement tourné — et refuser d'envoyer une séquence où rien n'a
+  # bougé. Le score qu'elle permettrait de calculer n'est PAS envoyé : une
+  # application modifiée enverrait ce qu'elle veut, et un chiffre invérifiable
+  # affiché à l'agent lui ferait cesser de regarder. Ce sont les IMAGES qui
+  # partent, et c'est un humain qui tranche.
+  google_mlkit_face_detection: ^0.13.1
 
 dev_dependencies:
   flutter_test:

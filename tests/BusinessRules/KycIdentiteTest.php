@@ -288,3 +288,117 @@ class LecteurIdentiteFactice implements IdentityReader
         );
     }
 }
+
+/*
+|--------------------------------------------------------------------------
+| Vivacité : des IMAGES, pas un score (ST-0103)
+|--------------------------------------------------------------------------
+|
+| `liveness_score` vaut nul depuis l'origine, faute de fournisseur. La
+| tentation était de le remplir avec ce que le téléphone calcule lui-même — et
+| ç'aurait été PIRE QUE VIDE : une application modifiée enverrait 100, et
+| l'agent, voyant un chiffre, cesserait de regarder.
+|
+| Ce qui se vérifie, c'est une suite d'images. Une photo imprimée brandie
+| devant l'objectif ne tourne pas la tête.
+*/
+
+it('CONSERVE LA SÉQUENCE pour que l\'agent voie le visage tourner', function (): void {
+    $utilisateur = compte();
+
+    $dossier = test()->kyc->submit($utilisateur, piece(), piece(), piece(), [
+        'left' => piece(),
+        'right' => piece(),
+    ]);
+
+    expect($dossier->liveness_frames)->toHaveCount(2)
+        ->and(array_column($dossier->liveness_frames ?? [], 'label'))->toBe(['left', 'right']);
+
+    // Chiffrées au repos, comme les pièces : ce sont des photos de visage.
+    foreach ($dossier->liveness_frames ?? [] as $prise) {
+        Storage::disk('s3')->assertExists($prise['ref']);
+        expect($prise['sha256'])->toHaveLength(64);
+    }
+});
+
+it('NE REMPLIT JAMAIS `liveness_score` avec ce que dit l\'appareil', function (): void {
+    // Un score que personne ne peut vérifier n'est pas une mesure, c'est une
+    // fausse assurance. Nul est la réponse honnête tant qu'aucun fournisseur
+    // ne le calcule ailleurs que sur le téléphone du déposant.
+    $dossier = test()->kyc->submit(compte(), piece(), piece(), piece(), [
+        'left' => piece(),
+        'right' => piece(),
+    ]);
+
+    expect($dossier->liveness_score)->toBeNull();
+});
+
+it('RESTE RECEVABLE SANS SÉQUENCE', function (): void {
+    // Une application plus ancienne, ou un appareil qui ne sait pas les
+    // produire, ne doit pas se voir refuser une vérification d'identité.
+    $dossier = deposerKyc(compte());
+
+    expect($dossier->liveness_frames)->toBeNull()
+        ->and($dossier->status)->toBe('pending');
+});
+
+it('MONTRE LA SÉQUENCE À L\'AGENT, et lui dit ce qu\'elle vaut', function (): void {
+    $dossier = test()->kyc->submit(compte(), piece(), piece(), piece(), [
+        'left' => piece(),
+        'right' => piece(),
+    ]);
+
+    $vu = test()->actingAs(agentKyc())
+        ->getJson('/api/v1/admin/kyc')
+        ->assertOk()
+        ->json('submissions.0.liveness');
+
+    expect($vu['frames'])->toHaveCount(2)
+        ->and($vu['method'])->toBe('device_challenge')
+        ->and($vu['frames'][0]['url'])->toContain('/file/liveness-left')
+        // L'ÉCRAN DOIT DIRE QUE CE N'EST PAS UNE PREUVE. Un agent qui croirait
+        // à une vérification automatique cesserait de regarder.
+        ->and($vu['notice'])->toContain('ne prouvent rien');
+});
+
+it('dit à l\'agent quand il n\'y a PAS de séquence', function (): void {
+    // Le silence ferait croire à un dossier complet.
+    $dossier = deposerKyc(compte());
+
+    test()->actingAs(agentKyc())
+        ->getJson('/api/v1/admin/kyc')
+        ->assertOk()
+        ->assertJsonPath('submissions.0.liveness.frames', [])
+        ->assertJsonPath('submissions.0.liveness.method', null)
+        ->assertJsonPath(
+            'submissions.0.liveness.notice',
+            fn (?string $m): bool => str_contains((string) $m, 'Aucune séquence'),
+        );
+});
+
+it('SERT LA PRISE, et rien qui vienne de l\'URL', function (): void {
+    $dossier = test()->kyc->submit(compte(), piece(), piece(), piece(), ['left' => piece()]);
+
+    test()->actingAs(agentKyc())
+        ->get('/api/v1/admin/kyc/'.$dossier->id.'/file/liveness-left')
+        ->assertOk()
+        ->assertHeader('Cache-Control', 'no-store, private');
+
+    // Une consigne que le dossier ne porte pas n'ouvre rien — et surtout, elle
+    // n'est jamais interprétée comme un chemin dans le coffre.
+    test()->actingAs(agentKyc())
+        ->get('/api/v1/admin/kyc/'.$dossier->id.'/file/liveness-../../etc/passwd')
+        ->assertNotFound();
+
+    test()->actingAs(agentKyc())
+        ->get('/api/v1/admin/kyc/'.$dossier->id.'/file/liveness-right')
+        ->assertNotFound();
+});
+
+it('N\'OUVRE PAS LA SÉQUENCE À UN COMPTE ORDINAIRE', function (): void {
+    $dossier = test()->kyc->submit(compte(), piece(), piece(), piece(), ['left' => piece()]);
+
+    test()->actingAs(compte())
+        ->get('/api/v1/admin/kyc/'.$dossier->id.'/file/liveness-left')
+        ->assertForbidden();
+});

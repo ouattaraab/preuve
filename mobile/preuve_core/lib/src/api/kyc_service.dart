@@ -30,10 +30,24 @@ class KycService {
   ///
   /// Le selfie ne peut pas être un document : c'est une prise de vue, et
   /// accepter un PDF permettrait de soumettre une photo de photo.
+  /// [livenessLeft] et [livenessRight] : le visage tourné, pour que l'agent
+  /// VOIE qu'il a tourné. Une photo imprimée brandie devant l'objectif ne le
+  /// fait pas.
+  ///
+  /// FACULTATIVES, ET LE SERVEUR L'ACCEPTE : un appareil qui ne sait pas les
+  /// produire ne doit pas se voir refuser une vérification d'identité. Leur
+  /// absence se voit dans la file de revue, et l'agent en tient compte.
+  ///
+  /// AUCUN SCORE N'EST ENVOYÉ AVEC. Ce que l'appareil calcule sur lui-même
+  /// n'est pas vérifiable — une application modifiée enverrait cent — et un
+  /// chiffre affiché à un agent lui ferait cesser de regarder. Seules les
+  /// images partent.
   Future<KycStatus> submit({
     required MultipartFile idFront,
     required MultipartFile idBack,
     required MultipartFile selfie,
+    MultipartFile? livenessLeft,
+    MultipartFile? livenessRight,
   }) async {
     return KycStatus.fromJson(
       await _api.postMultipart(
@@ -58,6 +72,22 @@ class KycService {
             bytes: selfie.bytes,
             contentType: selfie.contentType,
           ),
+          // Les NOMS DE CHAMP sont ceux que le serveur reconnaît, et lui seul
+          // en accepte la liste : il ignore toute autre consigne.
+          if (livenessLeft != null)
+            MultipartFile(
+              field: 'liveness[left]',
+              filename: livenessLeft.filename,
+              bytes: livenessLeft.bytes,
+              contentType: livenessLeft.contentType,
+            ),
+          if (livenessRight != null)
+            MultipartFile(
+              field: 'liveness[right]',
+              filename: livenessRight.filename,
+              bytes: livenessRight.bytes,
+              contentType: livenessRight.contentType,
+            ),
         ],
       ),
     );

@@ -142,6 +142,32 @@ final class KycReviewController extends Controller
                 'id_back' => $this->lien($dossier->id_back_ref, $dossier->id, 'back'),
                 'selfie' => $this->lien($dossier->selfie_ref, $dossier->id, 'selfie'),
             ],
+            // LA SÉQUENCE, POUR QUE L'AGENT VOIE LE VISAGE TOURNER. Une photo
+            // imprimée brandie devant l'objectif ne tourne pas la tête.
+            //
+            // Ce ne sont PAS des preuves et l'écran doit le dire : le téléphone
+            // a guidé la prise, il n'a rien certifié. Elles servent à ce que
+            // l'agent en juge — c'est lui qui tranche, comme avant, mais sur
+            // trois prises au lieu d'une.
+            'liveness' => [
+                'method' => $dossier->liveness_frames === null ? null : 'device_challenge',
+                'frames' => array_map(
+                    fn (array $prise): array => [
+                        'label' => $prise['label'],
+                        'url' => $this->lien(
+                            $prise['ref'],
+                            $dossier->id,
+                            'liveness-'.$prise['label'],
+                        ),
+                    ],
+                    $dossier->liveness_frames ?? [],
+                ),
+                'notice' => $dossier->liveness_frames === null
+                    ? 'Aucune séquence : dossier déposé sans prises de vivacité. '.
+                        'Apprécie la concordance sur le seul selfie, comme avant.'
+                    : 'Prises guidées par l\'appareil du déposant. Elles ne prouvent rien '.
+                        'par elles-mêmes — c\'est à toi de voir si le visage a réellement tourné.',
+            ],
             'review_reason' => $dossier->review_reason,
             'submitted_at' => $dossier->created_at?->toIso8601String(),
             'reviewed_at' => $dossier->reviewed_at?->toIso8601String(),
@@ -167,7 +193,10 @@ final class KycReviewController extends Controller
             'front' => $dossier->id_front_ref,
             'back' => $dossier->id_back_ref,
             'selfie' => $dossier->selfie_ref,
-            default => null,
+            // Prises de vivacité. La consigne est comparée à celle ENREGISTRÉE,
+            // jamais interprétée comme un chemin : le coffre reçoit une clé
+            // qu'il a lui-même écrite, et rien qui vienne de l'URL.
+            default => $this->prise($dossier, $part),
         };
 
         if (! is_string($reference) || $reference === '') {
@@ -181,6 +210,24 @@ final class KycReviewController extends Controller
             'Content-Disposition' => 'inline',
             'Cache-Control' => 'no-store, private',
         ]);
+    }
+
+    /** Référence d'une prise de vivacité, ou nul si la consigne est inconnue. */
+    private function prise(KycSubmission $dossier, string $part): ?string
+    {
+        if (! str_starts_with($part, 'liveness-')) {
+            return null;
+        }
+
+        $consigne = substr($part, strlen('liveness-'));
+
+        foreach ($dossier->liveness_frames ?? [] as $prise) {
+            if ($prise['label'] === $consigne) {
+                return $prise['ref'];
+            }
+        }
+
+        return null;
     }
 
     /** Téléchargement authentifié, jamais une URL signée : voir file(). */

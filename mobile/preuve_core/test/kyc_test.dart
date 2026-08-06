@@ -70,6 +70,76 @@ void main() {
     expect(etat.rejectionReason, isNull);
   });
 
+  test('ENVOIE LA SÉQUENCE sous les noms que le serveur reconnaît', () async {
+    // Le serveur n'accepte que `left` et `right`. Une étiquette libre le
+    // laisserait recevoir quatre fois la même photo sous quatre noms inventés,
+    // et l'agent croirait voir une séquence.
+    const MultipartFile image = MultipartFile(
+      field: 'x',
+      filename: 'v.jpg',
+      bytes: <int>[1],
+      contentType: 'image/jpeg',
+    );
+
+    final transport = FakeTransport()..enfile(<String, Object?>{'status': 'pending'});
+
+    await KycService(transport).submit(
+      idFront: image,
+      idBack: image,
+      selfie: image,
+      livenessLeft: image,
+      livenessRight: image,
+    );
+
+    expect(
+      transport.fichiersEnvoyes.map((MultipartFile f) => f.field),
+      equals(<String>['id_front', 'id_back', 'selfie', 'liveness[left]', 'liveness[right]']),
+    );
+  });
+
+  test('N\'ENVOIE AUCUN SCORE avec la séquence', () async {
+    // Ce que l'appareil calcule sur lui-même n'est pas vérifiable : une
+    // application modifiée enverrait cent, et l'agent cesserait de regarder.
+    const MultipartFile image = MultipartFile(
+      field: 'x',
+      filename: 'v.jpg',
+      bytes: <int>[1],
+      contentType: 'image/jpeg',
+    );
+
+    final transport = FakeTransport()..enfile(<String, Object?>{'status': 'pending'});
+
+    await KycService(transport).submit(
+      idFront: image,
+      idBack: image,
+      selfie: image,
+      livenessLeft: image,
+      livenessRight: image,
+    );
+
+    final String envoye = transport.dernierCorps.keys.join(' ');
+
+    expect(envoye, isNot(contains('score')));
+    expect(envoye, isNot(contains('liveness_score')));
+  });
+
+  test('un dossier SANS séquence part quand même', () async {
+    // Un appareil qui ne sait pas les produire ne doit pas se voir refuser une
+    // vérification d'identité.
+    const MultipartFile image = MultipartFile(
+      field: 'x',
+      filename: 'v.jpg',
+      bytes: <int>[1],
+      contentType: 'image/jpeg',
+    );
+
+    final transport = FakeTransport()..enfile(<String, Object?>{'status': 'pending'});
+
+    await KycService(transport).submit(idFront: image, idBack: image, selfie: image);
+
+    expect(transport.fichiersEnvoyes, hasLength(3));
+  });
+
   test('sans dossier, rien n\'est inventé', () async {
     final transport = FakeTransport()..enfile(<String, Object?>{'status': 'none'});
 

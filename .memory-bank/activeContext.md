@@ -938,6 +938,43 @@ qui permettra de comparer les deux taux de pré-remplissage sur données réelle
 **Couverture** : 861 Pest, 118 `preuve_core`, 29 `preuve_app`. Compilation iOS
 vérifiée, application lancée sur simulateur.
 
+## Vivacité : des images, jamais un score (06/08/2026)
+
+`liveness_score` existait depuis l'origine, était affiché à l'agent, et valait
+**toujours nul** — la console disait elle-même « une photo de photo peut
+passer ». C'était le trou le plus sérieux depuis que la validation d'identité
+est opérationnelle.
+
+**LE PIÈGE ÉVITÉ, ET C'EST LE CŒUR DE LA DÉCISION.** La solution évidente était
+de remplir cette colonne avec ce que le téléphone calcule sur lui-même. Ç'aurait
+été **pire que de la laisser vide** : une application modifiée enverrait 100, et
+un agent voyant un chiffre cesserait de regarder. Un score qu'on ne peut pas
+vérifier n'est pas une mesure, c'est une fausse assurance. **`liveness_score`
+reste nul, et un test l'y oblige.**
+
+**Ce qui a été fait à la place** : la personne prend deux clichés de plus — tête
+tournée à gauche, tête tournée à droite. `google_mlkit_face_detection` **guide**
+la prise sur l'appareil (visage présent, un seul, angle ≥ 20°) et refuse
+d'envoyer une séquence où rien n'a bougé — le refus arrive AVANT l'envoi, quand
+il est encore gratuit, et non après une semaine d'attente. Les trois images
+partent, chiffrées au coffre comme les pièces, et **l'agent les voit côte à
+côte**. Une photo imprimée brandie devant l'objectif ne tourne pas la tête.
+
+**Ce que cela n'arrête pas, et la console le dit** : une vidéo rejouée, un
+masque, une application modifiée. C'est un cran, pas un mur — et l'écrire dans
+la file de revue est ce qui empêche l'agent de s'en contenter.
+
+**Facultatif de bout en bout** : un appareil qui ne sait pas produire ces prises
+ne prive personne de sa vérification. Leur absence est signalée à l'agent en
+rouge, plutôt que passée sous silence.
+
+**Coût** : cinquième dépendance, mais coût marginal faible — elle partage
+`google_mlkit_commons` avec la lecture de texte, et la cible iOS avait déjà été
+relevée pour elle.
+
+**Couverture** : 868 Pest, 121 `preuve_core`, 31 `preuve_app`. Compilation iOS
+vérifiée.
+
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)

@@ -51,11 +51,18 @@ final class KycService
      * @throws DomainException si un dossier est déjà en cours, ou si la pièce
      *                         est déjà rattachée à un autre compte
      */
+    /**
+     * @param  array<string, UploadedFile>  $vivacite  prises supplémentaires,
+     *                                                 indexées par la consigne
+     *                                                 qu'elles illustrent
+     *                                                 (« left », « right »)
+     */
     public function submit(
         User $utilisateur,
         UploadedFile $recto,
         UploadedFile $verso,
         UploadedFile $selfie,
+        array $vivacite = [],
     ): KycSubmission {
         if (! $utilisateur->kycStatus()->allowsNewSubmission()) {
             throw new DomainException(
@@ -94,6 +101,11 @@ final class KycService
             // Charge minimisée : le numéro de pièce en est absent par
             // construction (voir IdentityExtraction::toMinimizedPayload).
             'ocr_payload' => $extraction->toMinimizedPayload(),
+            // DES IMAGES, PAS UN SCORE. Le téléphone guide la prise de vue ;
+            // il ne certifie rien, et ce qu'il calculerait lui-même serait
+            // invérifiable. Ces prises sont là pour qu'un agent VOIE que le
+            // visage a tourné — ce qu'une photo imprimée ne fait pas.
+            'liveness_frames' => $this->deposerLesPrises($utilisateur, $vivacite),
         ]);
 
         $utilisateur->forceFill([
@@ -226,6 +238,36 @@ final class KycService
         $normalise = mb_strtoupper(preg_replace('/[^A-Z0-9]/i', '', $numero) ?? '');
 
         return hash_hmac('sha256', $normalise, is_string($cle) ? $cle : '');
+    }
+
+    /**
+     * Dépose les prises de vivacité dans le coffre et rend leurs références.
+     *
+     * MÊME COFFRE QUE LES PIÈCES, donc chiffrées au repos : ce sont des photos
+     * de visage, aussi sensibles que le selfie qu'elles accompagnent.
+     *
+     * @param  array<string, UploadedFile>  $prises
+     * @return list<array{label: string, ref: string, sha256: string}>|null
+     */
+    private function deposerLesPrises(User $utilisateur, array $prises): ?array
+    {
+        if ($prises === []) {
+            return null;
+        }
+
+        $deposees = [];
+
+        foreach ($prises as $consigne => $image) {
+            $deposees[] = [
+                'label' => $consigne,
+                'ref' => $this->vault->put('kyc/'.$utilisateur->id, $image),
+                // La même empreinte que pour les pièces : elle seule permet de
+                // constater après coup qu'un fichier du coffre a été substitué.
+                'sha256' => $this->fileHash($image),
+            ];
+        }
+
+        return $deposees;
     }
 
     private function belongsToAnotherAccount(string $empreinte, User $utilisateur): bool
