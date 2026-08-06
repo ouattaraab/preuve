@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Logging\OpsAlertHandler;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -67,8 +68,30 @@ return [
              * Le défaut compte plus que la variable : une installation neuve
              * doit être bornée sans que personne ait à y penser.
              */
-            'channels' => explode(',', env('LOG_STACK', 'daily')),
+            /*
+             * `alerte-ops` EST DANS LA PILE PAR DÉFAUT, et c'est délibéré.
+             *
+             * La sauvegarde des pièces a échoué chaque nuit du 4 au 6 août sans
+             * que personne l'apprenne : la ligne partait dans un fichier, sur un
+             * mutualisé à quota, que personne ne lit. Une surveillance qu'il
+             * faut penser à activer n'est pas une surveillance.
+             *
+             * Le canal se tait de lui-même si aucun destinataire d'exploitation
+             * n'est configuré : rien à désactiver sur un poste de développement.
+             */
+            'channels' => explode(',', env('LOG_STACK', 'daily,alerte-ops')),
             'ignore_exceptions' => false,
+        ],
+
+        /*
+         * Prévient l'exploitant par courriel. Débit borné, contexte non
+         * recopié, échec avalé : voir OpsAlertHandler, où chacune de ces trois
+         * précautions est expliquée.
+         */
+        'alerte-ops' => [
+            'driver' => 'monolog',
+            'handler' => OpsAlertHandler::class,
+            'level' => env('LOG_ALERT_LEVEL', 'error'),
         ],
 
         'single' => [

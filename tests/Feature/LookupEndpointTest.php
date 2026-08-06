@@ -118,10 +118,18 @@ it('journalise la consultation sans écrire l\'adresse en clair', function (): v
 });
 
 it('plafonne le visiteur anonyme et réclame un CAPTCHA', function (): void {
+    // DES NUMÉROS DISTINCTS : le plafond compte désormais ce qu'on ÉNUMÈRE, et
+    // non ce qu'on demande. Rejouer le même numéro dix fois ne consomme plus
+    // rien — revérifier la moto qu'on négocie est le geste le plus honnête du
+    // parcours, et il ne doit rien coûter.
     bienPublie();
 
-    foreach (range(1, 10) as $consultation) {
-        $this->getJson('/api/v1/lookup/1M8GDM9AXKP042788')->assertOk();
+    // Le refus sec n'intervient qu'au plafond dur faute de défi : on l'abaisse
+    // ici plutôt que de lancer trois cents requêtes.
+    config()->set('preuve.lookup_rate_limit.anonymous_ceiling', 10);
+
+    foreach (range(1, 10) as $n) {
+        $this->getJson('/api/v1/lookup/ENUMERE'.$n.'0000000')->assertOk();
     }
 
     $this->getJson('/api/v1/lookup/1M8GDM9AXKP042788')

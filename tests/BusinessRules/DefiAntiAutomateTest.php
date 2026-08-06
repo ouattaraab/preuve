@@ -57,12 +57,24 @@ function nettoyerDefi(): void
  * consulté une fois atteindrait sinon le plafond avant la fin de la boucle, et
  * échouerait pour une raison sans rapport avec son objet.
  */
+/**
+ * Consomme le quota en BALAYANT, comme un automate.
+ *
+ * DES IDENTIFIANTS DISTINCTS, et c'est tout le sujet : le plafond compte
+ * désormais les numéros différents et non les requêtes, parce que revérifier
+ * la même moto pendant qu'on négocie est le geste le plus honnête du parcours.
+ * Ce harnais rejouait dix fois les dix mêmes numéros — il ne consommait donc
+ * plus rien, et n'éprouvait plus le plafond qu'il était censé atteindre.
+ */
 function epuiserLePlafond(): void
 {
     sansJeton();
 
-    foreach (range(1, (int) config('preuve.lookup_rate_limit.anonymous_per_hour') + 1) as $i) {
-        if (test()->getJson('/api/v1/lookup/1M8GDM9AXKP04278'.($i % 10))->status() === 429) {
+    $plafond = (int) config('preuve.lookup_rate_limit.anonymous_ceiling');
+    $seuil = (int) config('preuve.lookup_rate_limit.anonymous_per_hour');
+
+    foreach (range(1, max($plafond, $seuil) + 1) as $i) {
+        if (test()->getJson('/api/v1/lookup/BALAYAGE'.$i.'000000')->status() === 429) {
             return;
         }
     }
@@ -125,16 +137,17 @@ it('ne fait PAS du défi un laissez-passer', function (): void {
 
     $octroi = (int) config('preuve.captcha.grant_lookups');
 
-    // Le défi rend exactement ce qui est annoncé.
+    // Le défi rend exactement ce qui est annoncé — et il faut CONTINUER À
+    // BALAYER pour le consommer, puisque seuls les numéros distincts comptent.
     foreach (range(1, $octroi) as $i) {
         test()->withHeader('X-Captcha-Token', 'jeton-'.$i)
-            ->getJson('/api/v1/lookup/1M8GDM9AXKP04278'.($i % 10))
+            ->getJson('/api/v1/lookup/APRESDEFI'.$i.'00000')
             ->assertOk();
     }
 
     // Puis le plafond reprend, et un NOUVEAU défi est exigé.
     sansJeton();
-    test()->getJson('/api/v1/lookup/1M8GDM9AXKP042788')->assertStatus(429);
+    test()->getJson('/api/v1/lookup/APRESDEFI99000000')->assertStatus(429);
 });
 
 it('refuse un jeton que Cloudflare rejette', function (): void {
@@ -165,6 +178,11 @@ it('ne promet aucun défi quand rien n\'est configuré', function (): void {
     app(SettingsRepository::class)->forget(TurnstileVerifier::SITE_KEY_SETTING);
     app(SettingsRepository::class)->forget(TurnstileVerifier::SECRET_SETTING);
     app(SettingsRepository::class)->fresh();
+
+    // SANS DÉFI, le refus n'intervient qu'au plafond dur — un mur bas fermerait
+    // le produit à tout un quartier derrière une même adresse. On l'abaisse ici
+    // pour éprouver le refus sans lancer trois cents requêtes.
+    config()->set('preuve.lookup_rate_limit.anonymous_ceiling', 10);
 
     epuiserLePlafond();
 

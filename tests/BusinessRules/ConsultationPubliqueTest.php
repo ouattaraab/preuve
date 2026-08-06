@@ -12,8 +12,23 @@ use App\Services\LookupService;
 use App\Services\Settings\SettingsRepository;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 uses(RefreshDatabase::class);
+
+/**
+ * Un défi anti-automate configuré.
+ *
+ * Il CHANGE LA RÈGLE, et pas seulement le message : quand une porte de sortie
+ * existe, le seuil arrête pour la proposer ; quand il n'y en a pas, refuser
+ * dès le seuil fermerait le produit à toute une population derrière une même
+ * adresse.
+ */
+function defiConfigure(): void
+{
+    app(SettingsRepository::class)->set(TurnstileVerifier::SITE_KEY_SETTING, '0x4AAA');
+    app(SettingsRepository::class)->set(TurnstileVerifier::SECRET_SETTING, '0x2BBB');
+}
 
 /**
  * Règle métier absolue n° 1 : la consultation de statut est gratuite, anonyme
@@ -142,20 +157,78 @@ it('garde la même empreinte au sein d\'une même journée', function (): void {
     expect($empreintes[0])->toBe($empreintes[1]);
 });
 
-it('plafonne les consultations anonymes à dix par heure', function (): void {
-    // §8 anti-profilage : sans plafond, un concessionnaire peut cartographier
-    // le parc entier en balayant les identifiants.
+it('DEMANDE UN DÉFI au-delà de dix identifiants DISTINCTS', function (): void {
+    // §8 anti-profilage : sans plafond, un concessionnaire cartographie le parc
+    // entier en balayant les identifiants. C'est le BALAYAGE qu'on arrête.
+    defiConfigure();
     bienConsultable();
     $service = app(LookupService::class);
 
-    foreach (range(1, 10) as $consultation) {
-        expect($service->lookup('1M8GDM9AXKP042788', '41.66.0.1')->rateLimited)->toBeFalse();
+    foreach (range(1, 10) as $n) {
+        expect($service->lookup('BALAYAGE'.$n.'000000', '41.66.0.1')->rateLimited)->toBeFalse();
     }
 
-    $onzieme = $service->lookup('1M8GDM9AXKP042788', '41.66.0.1');
+    $onzieme = $service->lookup('BALAYAGE11000000', '41.66.0.1');
 
     expect($onzieme->rateLimited)->toBeTrue()
         ->and($onzieme->asset)->toBeNull();
+});
+
+it('NE FAIT PAS PAYER LA RELECTURE du même bien', function (): void {
+    // Revérifier la même moto pendant qu'on négocie est le geste le plus
+    // honnête du parcours. Compter les requêtes brutes le faisait payer, et un
+    // automate, lui, ne repasse jamais deux fois sur le même numéro.
+    defiConfigure();
+    bienConsultable();
+    $service = app(LookupService::class);
+
+    foreach (range(1, 40) as $relecture) {
+        expect($service->lookup('1M8GDM9AXKP042788', '41.66.0.7')->rateLimited)->toBeFalse();
+    }
+});
+
+it('NE FERME PAS LE PRODUIT À TOUT UN QUARTIER quand aucun défi n\'existe', function (): void {
+    // Chez Orange, MTN et Moov, des milliers d'abonnés partagent quelques
+    // adresses publiques. À dix par heure et par empreinte, la onzième personne
+    // d'un même opérateur se voyait refuser la promesse n° 1 — sans avoir rien
+    // fait, et sans porte de sortie puisque aucun défi n'est configuré.
+    bienConsultable();
+    $service = app(LookupService::class);
+
+    foreach (range(1, 50) as $n) {
+        expect($service->lookup('QUARTIER'.$n.'000000', '41.66.0.2')->rateLimited)
+            ->toBeFalse("Le visiteur n° {$n} derrière cette adresse a été refusé.");
+    }
+});
+
+it('ARRÊTE QUAND MÊME UN BALAYAGE, faute de défi', function (): void {
+    // Le mur est haut, il n'a pas disparu : trois cents identifiants distincts
+    // en une heure, ce n'est plus quelqu'un qui compare des motos.
+    config()->set('preuve.lookup_rate_limit.anonymous_ceiling', 25);
+    bienConsultable();
+    $service = app(LookupService::class);
+
+    foreach (range(1, 25) as $n) {
+        $service->lookup('AUTOMATE'.$n.'000000', '41.66.0.3');
+    }
+
+    expect($service->lookup('AUTOMATE99000000', '41.66.0.3')->rateLimited)->toBeTrue();
+});
+
+it('SIGNALE LA PRESSION plutôt que de la subir en silence', function (): void {
+    // C'est le seul moyen pour l'exploitant d'apprendre que le CGNAT mord —
+    // les utilisateurs bloqués, eux, n'écrivent jamais.
+    Log::spy();
+    config()->set('preuve.lookup_rate_limit.anonymous_ceiling', 12);
+    bienConsultable();
+    $service = app(LookupService::class);
+
+    foreach (range(1, 13) as $n) {
+        $service->lookup('PRESSION'.$n.'000000', '41.66.0.4');
+    }
+
+    Log::shouldHaveReceived('warning')
+        ->withArgs(fn (string $message): bool => str_contains($message, 'Plafond de consultation'));
 });
 
 it('N\'ANNONCE PAS UNE ATTENTE quand un défi permet de passer tout de suite', function (): void {
@@ -163,17 +236,15 @@ it('N\'ANNONCE PAS UNE ATTENTE quand un défi permet de passer tout de suite', f
     // au-dessus d'un défi qui rouvre le passage immédiatement ferait renoncer
     // quelqu'un qui pouvait continuer — sur le seul parcours que le produit
     // promet gratuit et sans compte.
-    app(SettingsRepository::class)->set(TurnstileVerifier::SITE_KEY_SETTING, '0x4AAA');
-    app(SettingsRepository::class)->set(TurnstileVerifier::SECRET_SETTING, '0x2BBB');
-
+    defiConfigure();
     bienConsultable();
     $service = app(LookupService::class);
 
-    foreach (range(1, 10) as $consultation) {
-        $service->lookup('1M8GDM9AXKP042788', '41.66.0.9');
+    foreach (range(1, 10) as $n) {
+        $service->lookup('MESSAGE'.$n.'0000000', '41.66.0.9');
     }
 
-    $refus = $service->lookup('1M8GDM9AXKP042788', '41.66.0.9');
+    $refus = $service->lookup('MESSAGE110000000', '41.66.0.9');
 
     expect($refus->rateLimited)->toBeTrue()
         ->and($refus->message)->not->toContain('Réessayez dans un moment')
@@ -182,14 +253,15 @@ it('N\'ANNONCE PAS UNE ATTENTE quand un défi permet de passer tout de suite', f
 
 it('annonce bien une attente quand AUCUN défi n\'est configuré', function (): void {
     // Là, l'attente est réellement la seule issue : la dire est honnête.
+    config()->set('preuve.lookup_rate_limit.anonymous_ceiling', 10);
     bienConsultable();
     $service = app(LookupService::class);
 
-    foreach (range(1, 10) as $consultation) {
-        $service->lookup('1M8GDM9AXKP042788', '41.66.0.8');
+    foreach (range(1, 10) as $n) {
+        $service->lookup('ATTENTE'.$n.'0000000', '41.66.0.8');
     }
 
-    $refus = $service->lookup('1M8GDM9AXKP042788', '41.66.0.8');
+    $refus = $service->lookup('ATTENTE110000000', '41.66.0.8');
 
     expect($refus->message)->toContain('Réessayez dans un moment');
 });

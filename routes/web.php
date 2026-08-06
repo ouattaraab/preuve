@@ -47,6 +47,7 @@ Route::withoutMiddleware([
     // Confidentialité et mentions légales : indexable, et sans session comme le
     // reste du front — la lire ne doit rien coûter en traces.
     Route::get('confidentialite', [PublicLookupController::class, 'privacy'])->name('public.privacy');
+    Route::get('conditions', [PublicLookupController::class, 'terms'])->name('public.terms');
 
     // LE RAPPORT PAYÉ, LISIBLE PARTOUT (ST-0802, règle métier n° 7).
     //

@@ -9,6 +9,7 @@ use App\Models\Lookup;
 use App\Models\User;
 use App\Services\Captcha\CaptchaVerifier;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Consultation publique du statut d'un bien (EP-03).
@@ -59,6 +60,18 @@ final class LookupService
      * l'attaquant, c'est de devoir en résoudre un tous les dix.
      */
     private const CAPTCHA_GRANT_FALLBACK = 10;
+
+    /**
+     * Combien de fois le seuil de défi avant le refus sec, faute de défi.
+     *
+     * Trente fois : à dix identifiants distincts par heure, cela porte le mur à
+     * trois cents. Un acheteur qui compare des motos sur un parking en vérifie
+     * cinq ; un automate qui balaie le registre en passe trois cents en
+     * quelques minutes. L'écart entre les deux usages est de deux ordres de
+     * grandeur, et c'est cet écart qu'on exploite plutôt qu'un seuil serré qui
+     * frapperait les deux.
+     */
+    private const CEILING_FACTOR = 30;
 
     public function __construct(
         private readonly IdentifierNormalizer $normalizer,
@@ -146,14 +159,96 @@ final class LookupService
      * l'octroi ne les efface pas, il déplace la barre. Un visiteur qui a
      * résolu un défi voit donc son quota reprendre normalement ensuite.
      */
+    /**
+     * Ce plafond arrête un BALAYAGE, pas un quartier.
+     *
+     * DEUX CORRECTIONS, TOUTES DEUX DICTÉES PAR LA CÔTE D'IVOIRE.
+     *
+     * 1. ON COMPTE LES IDENTIFIANTS DISTINCTS, pas les consultations. Ce que le
+     *    plafond protège, c'est le registre contre son énumération : un
+     *    automate demande mille numéros différents, un humain revérifie deux
+     *    fois la même moto pendant qu'il négocie. Compter les requêtes brutes
+     *    faisait payer la relecture — le geste le plus honnête du parcours.
+     *
+     * 2. LE MUR N'EST PLUS À DIX. Chez Orange, MTN et Moov, des milliers
+     *    d'abonnés partagent quelques adresses publiques (CGNAT) : à dix par
+     *    heure et par empreinte, la onzième personne d'un même opérateur se
+     *    voyait refuser la promesse n° 1 du produit — sans avoir rien fait, et
+     *    sans porte de sortie tant qu'aucun défi n'est configuré. Le seuil
+     *    devient donc celui du DÉFI ; le refus sec n'intervient qu'à un
+     *    plafond bien plus haut, qu'un humain n'atteint pas et qu'un automate
+     *    franchit en quelques minutes.
+     */
     private function hasExceededAllowance(string $empreinte): bool
     {
-        $consultations = Lookup::query()
+        $distincts = $this->distinctLookups($empreinte);
+        $seuil = $this->anonymousHourlyLimit() + $this->granted($empreinte);
+
+        if ($distincts < $seuil) {
+            return false;
+        }
+
+        // Un défi est offert : on s'arrête ici, et le visiteur passe en le
+        // résolvant. C'est le fonctionnement voulu.
+        if ($this->captcha->isConfigured()) {
+            return true;
+        }
+
+        // AUCUN DÉFI CONFIGURÉ. Refuser dès le seuil ferme le produit à toute
+        // une population derrière une même adresse. On laisse passer jusqu'au
+        // plafond dur, et on SIGNALE la pression : c'est le seul moyen pour
+        // l'exploitant d'apprendre que le CGNAT mord, plutôt que de le
+        // découvrir par des utilisateurs qui n'écrivent jamais.
+        if ($distincts < $this->hardCeiling()) {
+            return false;
+        }
+
+        Log::warning('Plafond de consultation atteint sans défi configuré', [
+            // L'empreinte est déjà salée du jour : elle ne désigne personne, et
+            // ne permet pas de suivre un visiteur d'un jour sur l'autre.
+            'ip_hash' => $empreinte,
+            'distinct_identifiers' => $distincts,
+            'hint' => 'Renseigner les clés Turnstile, ou relever PREUVE_LOOKUP_CEILING.',
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Identifiants DISTINCTS consultés depuis cette empreinte dans l'heure.
+     *
+     * `count(distinct)` sur un index `(ip_hash, created_at)` reste une lecture
+     * d'index : la mesure à volume — 300 000 consultations journalisées — donne
+     * 2 ms au 95e centile, et cette requête ne change pas d'ordre de grandeur.
+     */
+    private function distinctLookups(string $empreinte): int
+    {
+        return Lookup::query()
             ->where('ip_hash', $empreinte)
             ->where('created_at', '>', now()->subHour())
-            ->count();
+            ->distinct()
+            ->count('identifier_normalized');
+    }
 
-        return $consultations >= $this->anonymousHourlyLimit() + $this->granted($empreinte);
+    /**
+     * Le refus sec, quand aucun défi ne peut être proposé.
+     *
+     * Volontairement large : il ne vise pas à doser l'usage mais à arrêter
+     * l'énumération. Quelqu'un qui vérifie trois cents biens différents en une
+     * heure ne compare pas des motos sur un parking.
+     */
+    private function hardCeiling(): int
+    {
+        $plafond = config('preuve.lookup_rate_limit.anonymous_ceiling');
+        $seuil = $this->anonymousHourlyLimit();
+
+        // Jamais EN DESSOUS du seuil de défi — un refus plus strict que ce que
+        // le seuil annonce serait incohérent. Mais ÉGAL est permis, et c'est un
+        // réglage utile : il rétablit le refus sec dès le seuil, pour un
+        // exploitant qui préfère la stricte ancienne règle.
+        return is_numeric($plafond) && (int) $plafond >= $seuil
+            ? (int) $plafond
+            : $seuil * self::CEILING_FACTOR;
     }
 
     /**

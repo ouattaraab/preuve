@@ -213,3 +213,40 @@ it('compose un titre et une description propres pour les moteurs', function (): 
         ->and($titre[1] ?? '')->toStartWith('Volé déclaré')
         ->and($corps)->toContain('content="Statut déclaré du bien '.$bien->public_ref);
 });
+
+it('PUBLIE DES CONDITIONS D\'UTILISATION, indexables', function (): void {
+    // Un magasin d'applications les exige, et un utilisateur doit pouvoir les
+    // citer. Elles disent d'abord ce que PREUVE N'EST PAS : la méprise la plus
+    // coûteuse serait qu'un acheteur croie avoir acquis une garantie.
+    test()->get('/conditions')
+        ->assertOk()
+        ->assertSee('Conditions d\'utilisation')
+        ->assertSee('registre déclaratif')
+        ->assertSee('BookMi')
+        ->assertHeader('X-Robots-Tag', 'index, follow');
+});
+
+it('DIT QU\'UN BIEN NON ENREGISTRÉ N\'EST PAS UN BIEN SAIN', function (): void {
+    // L'absence d'information n'est pas une information rassurante, et c'est le
+    // contresens qui ferait acheter un bien volé que personne n'a déclaré.
+    test()->get('/conditions')
+        ->assertOk()
+        ->assertSee('n\'est pas un bien sain', false)
+        ->assertSee('ne prouve pas qu\'une personne est propriétaire', false);
+});
+
+it('RAPPELLE LES DEUX ANONYMATS dans les conditions', function (): void {
+    // Règle métier absolue n° 4, dans les deux sens. Un utilisateur doit
+    // pouvoir opposer ce texte à la plateforme.
+    $page = test()->get('/conditions')->assertOk();
+
+    $page->assertSee('n\'est jamais divulguée', false)
+        ->assertSee('y compris lorsqu\'un rapport est acheté', false);
+});
+
+it('OUVRE LES CONDITIONS DEPUIS N\'IMPORTE QUELLE PAGE', function (): void {
+    // Une page qu'on ne peut atteindre depuis nulle part n'existe pas.
+    foreach (['/', '/confidentialite'] as $depuis) {
+        test()->get($depuis)->assertOk()->assertSee('href="/conditions"', false);
+    }
+});

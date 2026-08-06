@@ -14,7 +14,16 @@ return [
 
     'lookup_rate_limit' => [
         // Règle métier absolue : 10 consultations par heure et par IP anonyme
+        // SEUIL DU DÉFI, et non mur : au-delà, on demande de prouver qu'on
+        // n'est pas un automate. Compté en identifiants DISTINCTS — revérifier
+        // la même moto ne coûte rien.
         'anonymous_per_hour' => (int) env('PREUVE_LOOKUP_LIMIT', 10),
+        // LE REFUS SEC, quand aucun défi n'est configuré. Il ne dose pas
+        // l'usage, il arrête l'énumération. Chez les opérateurs ivoiriens,
+        // des milliers d'abonnés partagent une même adresse publique : un mur
+        // bas y fermerait le produit à tout un quartier. Nul ou absent : trente
+        // fois le seuil.
+        'anonymous_ceiling' => (int) env('PREUVE_LOOKUP_CEILING', 300),
         // Les comptes authentifiés ne sont pas limités
         'authenticated_per_hour' => null,
     ],

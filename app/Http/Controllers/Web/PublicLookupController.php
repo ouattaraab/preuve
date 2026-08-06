@@ -14,6 +14,7 @@ use App\Services\LookupService;
 use App\Services\Settings\SettingsRepository;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Carbon;
 
 /**
  * Front public de consultation (ST-0306).
@@ -64,6 +65,31 @@ final class PublicLookupController extends Controller
                 'vos droits (Loi ivoirienne n° 2013-450).',
             // Jamais d'adresse par défaut : une adresse qui ne répondrait pas
             // ferait passer le silence pour un refus.
+            'contact' => is_string($contact) && $contact !== '' ? $contact : null,
+        ])->header('X-Robots-Tag', 'index, follow');
+    }
+
+    /**
+     * Conditions d'utilisation.
+     *
+     * INDEXABLE, comme la confidentialité : c'est une page qu'on doit pouvoir
+     * trouver et citer, et qu'un magasin d'applications exigera.
+     */
+    public function terms(): Response
+    {
+        $contact = $this->settings->get(LegalContactController::SETTING);
+
+        return response()->view('public.conditions', [
+            'indexable' => true,
+            'titre' => 'Conditions d\'utilisation · Preuve',
+            'description' => 'Ce que PREUVE garantit, ce qu\'il ne garantit pas, '.
+                'et ce que vos déclarations engagent.',
+            // LA DATE VIENT DU FICHIER, pas d'une constante à mettre à jour à
+            // la main : une date figée à la première rédaction ferait croire
+            // que le texte n'a jamais changé.
+            'miseAJour' => Carbon::createFromTimestamp(
+                filemtime(resource_path('views/public/conditions.blade.php')) ?: time()
+            )->translatedFormat('j F Y'),
             'contact' => is_string($contact) && $contact !== '' ? $contact : null,
         ])->header('X-Robots-Tag', 'index, follow');
     }

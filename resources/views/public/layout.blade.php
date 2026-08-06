@@ -127,7 +127,8 @@
              d'entrée n'existe pas. --}}
         <a href="/verifier">Vérifier un bien</a> ·
         <a href="/flotte/connexion">Espace loueur</a> ·
-        <a href="/confidentialite">Confidentialité et mentions légales</a>
+        <a href="/conditions">Conditions</a> ·
+        <a href="/confidentialite">Confidentialité</a>
         <br>Édité par BookMi · Côte d'Ivoire.
     </div>
 </footer>
