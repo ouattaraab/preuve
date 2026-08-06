@@ -29,6 +29,8 @@ class PreuveSession {
     required this.voles,
     required this.miseEnAvant,
     required this.peageVol,
+    required this.fiabilite,
+    required this.veilles,
     required this.kyc,
     required this.envois,
   });
@@ -49,6 +51,8 @@ class PreuveSession {
       voles: StolenService(api),
       miseEnAvant: StolenListingService(api),
       peageVol: TheftFeeService(api),
+      fiabilite: TrustService(api),
+      veilles: WatchService(api),
       kyc: KycService(api),
       envois: UploadManager(
         // La lecture du fichier est INJECTÉE : c'est ce qui permet d'éprouver
@@ -82,6 +86,14 @@ class PreuveSession {
   /// Le péage de déclaration de vol. À ZÉRO par défaut : ce service répond
   /// alors « déjà réglé » et l'écran enchaîne sans jamais parler d'argent.
   final TheftFeeService peageVol;
+
+  /// Ce qu'il manque à un bien pour monter d'un cran de fiabilité. C'est le
+  /// levier qui transforme un bien déclaré en bien vérifié — donc ce qui donne
+  /// sa valeur au rapport vendu aux acheteurs.
+  final TrustService fiabilite;
+
+  /// Les veilles posées sur ses propres biens (ST-0403).
+  final WatchService veilles;
   final KycService kyc;
 
   /// File d'envoi différée, avec reprise (ST-0206, CT-05).

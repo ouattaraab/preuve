@@ -134,6 +134,8 @@ PreuveSession fauxSession(FauxTransport transport) {
     voles: StolenService(transport),
     miseEnAvant: StolenListingService(transport),
     peageVol: TheftFeeService(transport),
+    fiabilite: TrustService(transport),
+    veilles: WatchService(transport),
     kyc: KycService(transport),
     envois: UploadManager(
       queue: UploadQueue(

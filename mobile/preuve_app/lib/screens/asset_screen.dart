@@ -9,6 +9,7 @@ import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'stolen_listing_screen.dart';
 import 'theft_fee_screen.dart';
+import 'trust_screen.dart';
 import 'transfer_propose_screen.dart';
 import 'uploads_screen.dart';
 
@@ -342,7 +343,29 @@ class _AssetScreenState extends State<AssetScreen> {
                   PastilleStatut(_bien.trustLevel),
                 ],
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 10),
+              // LA PASTILLE SEULE N'EST PAS UN LEVIER. « Déclaré » s'affichait
+              // sans que rien ne dise comment la faire monter ni pourquoi cela
+              // vaudrait la peine — et c'est le niveau de fiabilité qui donne
+              // sa valeur au rapport vendu aux acheteurs.
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    minimumSize: const Size(0, 44),
+                    foregroundColor: Djassa.encre,
+                  ),
+                  onPressed: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(
+                    builder: (_) => TrustScreen(session: widget.session, bien: _bien),
+                  )),
+                  child: const Text(
+                    'Comment monter d\'un niveau ? →',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
               if (_confirmation != null) ...<Widget>[
                 _Confirmation(_confirmation!),
                 const SizedBox(height: 14),

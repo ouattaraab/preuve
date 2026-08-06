@@ -12,6 +12,7 @@ import 'notifications_screen.dart';
 import 'register_screen.dart';
 import 'transfers_screen.dart';
 import 'uploads_screen.dart';
+import 'watch_screen.dart';
 
 /// Mes biens — le point d'entrée de tout ce qui n'est pas la consultation.
 ///
@@ -288,6 +289,13 @@ class _MyAssetsScreenState extends State<MyAssetsScreen> {
               TextButton(
                 onPressed: () => _ouvrir(KycScreen(session: widget.session)),
                 child: const Text('Vérifier mon identité'),
+              ),
+              // LA VEILLE N'AVAIT AUCUNE PORTE. Le service, la détection de
+              // pics et les notifications existaient depuis EP-04 ; personne
+              // ne pouvait poser une veille depuis l'application.
+              TextButton(
+                onPressed: () => _ouvrir(WatchScreen(session: widget.session)),
+                child: const Text('Être prévenu si un bien est consulté'),
               ),
               const SizedBox(height: 8),
               const Text(
