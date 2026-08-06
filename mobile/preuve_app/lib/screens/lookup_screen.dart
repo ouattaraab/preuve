@@ -37,7 +37,7 @@ class LookupScreen extends StatefulWidget {
   State<LookupScreen> createState() => _LookupScreenState();
 }
 
-class _LookupScreenState extends State<LookupScreen> {
+class _LookupScreenState extends State<LookupScreen> with WidgetsBindingObserver {
   final TextEditingController _controller = TextEditingController();
   bool _enCours = false;
   bool _scanEnCours = false;
@@ -46,6 +46,16 @@ class _LookupScreenState extends State<LookupScreen> {
   /// Le moteur de lecture, gardé le temps de l'écran : le charger à chaque
   /// scan coûterait plusieurs centaines de millisecondes à chaque fois.
   final LecteurEmbarque _lecteur = LecteurEmbarque();
+
+  /// Nombre de notifications non lues, pour allumer la cloche.
+  ///
+  /// TANT QU'AUCUN PUSH N'EST BRANCHÉ, C'EST LE SEUL SIGNAL. Le centre de
+  /// notifications existait, la cloche aussi, mais l'accueil ne demandait
+  /// jamais le décompte : le point rouge ne s'allumait donc jamais ici, et
+  /// l'utilisateur devait OUVRIR la cloche pour découvrir qu'on avait consulté
+  /// son bien ou qu'une cession l'attendait. Un signal qu'il faut aller
+  /// chercher n'est pas un signal.
+  int _alertes = 0;
 
   /// Ce que la lecture a donné, dit à l'utilisateur.
   ///
@@ -56,7 +66,43 @@ class _LookupScreenState extends State<LookupScreen> {
   String? _messageScan;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _compterLesAlertes();
+  }
+
+  /// Relit le décompte au retour en avant-plan : c'est le moment où une
+  /// notification a pu arriver pendant que l'application était fermée.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState etat) {
+    if (etat == AppLifecycleState.resumed) {
+      _compterLesAlertes();
+    }
+  }
+
+  /// SILENCIEUX PAR CONSTRUCTION. Un compteur est un ornement : son échec ne
+  /// doit jamais faire apparaître une erreur sur l'écran de consultation, qui
+  /// est la promesse du produit et doit fonctionner même déconnecté.
+  Future<void> _compterLesAlertes() async {
+    if (!widget.session.estConnecte) {
+      return;
+    }
+
+    try {
+      final int nonLues = (await widget.session.notifications.feed()).unreadCount;
+
+      if (mounted) {
+        setState(() => _alertes = nonLues);
+      }
+    } on PreuveException {
+      // Rien : la cloche reste éteinte.
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     // Le modèle occupe plusieurs mégaoctets de mémoire vive : le laisser
     // ouvert derrière soi sur un téléphone d'entrée de gamme se paie.
@@ -250,6 +296,11 @@ class _LookupScreenState extends State<LookupScreen> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(builder: (_) => NotificationsScreen(session: session)),
     );
+
+    // Au retour, le décompte a pu changer — l'écran des notifications marque
+    // comme lu. Laisser le point rouge allumé ferait croire qu'il reste
+    // quelque chose.
+    await _compterLesAlertes();
   }
 
   @override
@@ -264,6 +315,7 @@ class _LookupScreenState extends State<LookupScreen> {
               EnteteMarque(
                 pastille: 'Gratuit · Sans compte',
                 onCloche: _ouvrirAlertes,
+                alerte: _alertes > 0,
               ),
               const SizedBox(height: 34),
               // TROIS LIGNES, ET LE VERBE EN ACCENT. La coupure est voulue : à

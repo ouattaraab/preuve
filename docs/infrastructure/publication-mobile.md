@@ -106,6 +106,39 @@ Avec `--split-per-abi`, Flutter y ajoute un préfixe par architecture — `2001`
 pour `arm64-v8a`, `1001` pour `armeabi-v7a`. C'est voulu : les deux APK d'une
 même version doivent porter des `versionCode` distincts et ordonnés.
 
+## Le push n'existe pas côté client, et c'est une décision à prendre
+
+Tout le nécessaire est en place **côté serveur** : transport FCM, table
+`device_tokens`, `POST /api/v1/devices`, coût des SMS critiques tracé par type.
+Rien ne l'appelle. L'application n'embarque ni `firebase_core` ni
+`firebase_messaging`, ne s'annonce jamais, et **aucune notification ne part donc
+vers un téléphone fermé**.
+
+Ce n'est pas un oubli sans conséquence, mais ce n'est pas non plus un blocage :
+le centre de notifications in-app fonctionne, et depuis le 06/08/2026 la cloche
+de l'accueil porte enfin son point rouge, rafraîchi au retour en avant-plan.
+Un utilisateur qui ouvre l'application apprend donc ce qui s'est passé.
+
+**Ce que coûterait le vrai push, pour décider en connaissance de cause :**
+
+- un **projet Firebase** et un `google-services.json` (Android) — sans ce
+  fichier, la compilation échoue ;
+- un certificat **APNs** côté Apple pour iOS ;
+- deux dépendances de plus dans un binaire qui en compte cinq, chacune
+  justifiée une à une dans `pubspec.yaml` — et Firebase pèse ;
+- une déclaration de collecte de données à mettre à jour dans les fiches
+  boutique : un jeton d'appareil est une donnée personnelle.
+
+**Ce que cela apporterait :** une alerte de vol ou une cession en attente qui
+atteint son destinataire dans la minute, sans qu'il ouvre l'application. Sur
+une cession qui expire en sept jours, c'est le facteur qui décide entre une
+vente enregistrée et une vente perdue.
+
+**Tant que la décision n'est pas prise**, le code serveur reste en place : il
+ne coûte rien à l'exécution, et le jour où un `google-services.json` existe,
+seul le client est à écrire. L'écran `/admin/reglages` affiche le nombre
+d'appareils enregistrés — zéro aujourd'hui, ce qui dit la vérité.
+
 ## Ce qui reste à faire avant le premier dépôt
 
 - **Trancher le domaine définitif.** L'identifiant `ci.bookmi.preuve` a été

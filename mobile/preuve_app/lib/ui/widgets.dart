@@ -329,6 +329,9 @@ class _Cloche extends StatelessWidget {
               top: 2,
               right: 2,
               child: Container(
+                // Nommé pour être éprouvable : un point de 11 pixels ne se
+                // distingue pas autrement dans un arbre de widgets.
+                key: const Key('cloche-alerte'),
                 width: 11,
                 height: 11,
                 decoration: BoxDecoration(
