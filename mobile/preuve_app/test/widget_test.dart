@@ -99,6 +99,8 @@ PreuveSession _session() {
     reports: ReportService(transport),
     fleet: FleetService(transport),
     scans: ScanService(transport),
+    voles: StolenService(transport),
+    miseEnAvant: StolenListingService(transport),
     kyc: KycService(transport),
     envois: UploadManager(
       queue: UploadQueue(

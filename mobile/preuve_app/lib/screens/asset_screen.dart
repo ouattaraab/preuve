@@ -7,6 +7,7 @@ import '../ui/code_action.dart';
 import '../ui/photo_choice.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import 'stolen_listing_screen.dart';
 import 'transfer_propose_screen.dart';
 import 'uploads_screen.dart';
 
@@ -358,6 +359,33 @@ class _AssetScreenState extends State<AssetScreen> {
 
     if (_bien.isStolen) {
       return <Widget>[
+        // LA MISE EN AVANT ARRIVE ICI, APRÈS LA DÉCLARATION, JAMAIS PENDANT.
+        // Proposer de payer au moment où quelqu'un signale un vol reviendrait à
+        // monnayer sa détresse. On protège d'abord ; on propose ensuite, sur la
+        // fiche, quand la sidération est retombée.
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Djassa.accent,
+            foregroundColor: Djassa.creme,
+            minimumSize: const Size.fromHeight(Djassa.cible),
+            textStyle: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+            shape: const RoundedRectangleBorder(
+              side: BorderSide(color: Djassa.encre, width: 3),
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+            ),
+          ),
+          onPressed: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(
+            builder: (_) => StolenListingScreen(session: widget.session, bien: _bien),
+          )),
+          child: const Text('Le faire connaître'),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'Ton bien est déjà invendable pour qui vérifie son numéro. La mise en avant '
+          'le fait paraître sur la liste que tout le monde parcourt.',
+          style: TextStyle(color: Djassa.sourdine, height: 1.5, fontSize: 15),
+        ),
+        const SizedBox(height: 16),
         FilledButton(
           onPressed: _leverVol,
           child: const Text('J\'ai retrouvé ce bien'),

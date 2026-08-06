@@ -42,6 +42,8 @@ use App\Http\Controllers\Api\V1\OtpAuthController;
 use App\Http\Controllers\Api\V1\PaymentWebhookController;
 use App\Http\Controllers\Api\V1\QuotaController;
 use App\Http\Controllers\Api\V1\ReportController;
+use App\Http\Controllers\Api\V1\StolenListController;
+use App\Http\Controllers\Api\V1\StolenListingController;
 use App\Http\Controllers\Api\V1\TransferController;
 use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\WatchAlertController;
@@ -101,6 +103,22 @@ Route::prefix('v1')->group(function (): void {
     // Double garde : le plafond de dépense (AnonymousScanAllowance, avec sortie
     // par défi) borne le coût chez le fournisseur d'extraction ; le `throttle`
     // borne le débit avant même qu'on lise un octet du fichier.
+    /*
+     * LA LISTE PUBLIQUE DES BIENS VOLÉS (ST-0805).
+     *
+     * Publique et sans compte, comme la consultation, et pour la même raison :
+     * elle ne sert que si on la parcourt. Un garagiste à qui l'on apporte une
+     * moto n'ouvrira pas un compte pour vérifier une intuition.
+     *
+     * Elle ne montre que ce que des détenteurs ont DEMANDÉ à publier — jamais
+     * tous les biens volés. La déclaration protège ; la publication expose, et
+     * cela ne se fait pas sans le geste de l'intéressé.
+     */
+    Route::get('stolen', [StolenListController::class, 'index'])
+        ->middleware('throttle:120,1');
+    Route::get('stolen/preview', [StolenListController::class, 'preview'])
+        ->middleware('throttle:120,1');
+
     Route::post('lookup/scan', [LookupScanController::class, 'store'])
         ->middleware('throttle:10,10');
 
@@ -158,6 +176,20 @@ Route::prefix('v1')->group(function (): void {
 
         // Renforcement de la fiabilité APRÈS l'enregistrement (ST-0207) : c'est
         // ce qui permet au parcours initial de tenir en 90 secondes sans KYC.
+        /*
+         * METTRE SON BIEN VOLÉ EN AVANT (ST-0805).
+         *
+         * On ne vend pas la protection — déclarer un vol rend le bien
+         * invendable pour qui vérifie son numéro, et cela reste gratuit. On
+         * vend la VISIBILITÉ : figurer sur la liste que tout le monde parcourt.
+         * Le retrait, lui, est toujours gratuit : une publication qui survit à
+         * son motif expose un identifiant pour rien.
+         */
+        Route::get('assets/{asset}/stolen-listing', [StolenListingController::class, 'show']);
+        Route::post('assets/{asset}/stolen-listing', [StolenListingController::class, 'store'])
+            ->middleware('throttle:20,10');
+        Route::delete('assets/{asset}/stolen-listing', [StolenListingController::class, 'destroy']);
+
         Route::post('assets/{asset}/documents', [AssetDocumentController::class, 'store']);
         // Revoir ce qu'on a déposé, et la pièce elle-même : sans cela, personne
         // ne sait si sa carte grise est arrivée ni si un agent l'a acceptée.

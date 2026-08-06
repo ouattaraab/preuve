@@ -48,6 +48,29 @@
               partout en Côte d'Ivoire.</span>
     </div>
 
+    {{-- LES BIENS VOLÉS, JUSTE APRÈS LA VÉRIFICATION. C'est le second geste
+         utile : celui qui n'a pas de numéro sous les yeux peut quand même
+         reconnaître un bien. Trois seulement, avec le total : une liste sans
+         fin sur un accueil se fait ignorer. --}}
+    @if (! empty($volesRecents ?? []))
+        <div style="margin-top:30px;border-top:3px solid #2B1D12;padding-top:20px">
+            <p class="surtitre">Déclarés volés récemment</p>
+            <h2 style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:22px;margin-top:6px">
+                {{ $volesTotal }} bien(s) signalé(s)
+            </h2>
+            <div style="margin-top:12px">
+                @foreach ($volesRecents as $vole)
+                    <a href="/voles" style="display:block;text-decoration:none;border:2px solid #2B1D12;border-radius:12px;padding:12px 14px;margin-bottom:8px;background:#FFF">
+                        <span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:18px">{{ $vole['identifier'] }}</span>
+                        <span style="color:#C62F21;font-weight:700;font-size:13px;float:right">VOLÉ</span>
+                        <br><span style="font-size:15px;color:#5C4A33">{{ $vole['brand_model'] ?? ucfirst($vole['category']) }}</span>
+                    </a>
+                @endforeach
+            </div>
+            <a href="/voles" class="bouton secondaire" style="margin-top:6px">Voir tous les biens volés</a>
+        </div>
+    @endif
+
     <div style="margin-top:30px;border-top:3px solid #2B1D12;padding-top:20px">
         <p class="surtitre">Où trouver le numéro</p>
         <h2 style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:22px;margin-top:6px">

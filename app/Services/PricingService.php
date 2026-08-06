@@ -50,6 +50,24 @@ final class PricingService
             'help' => 'Au-delà des places gratuites, ce que coûte l\'enregistrement d\'un bien de plus. '.
                 'À zéro, les enregistrements deviennent illimités et gratuits.',
         ],
+        'theft_declaration' => [
+            'setting' => 'pricing.theft_declaration_fcfa',
+            'config' => 'preuve.theft_declaration_price_fcfa',
+            'label' => 'Déclaration de vol',
+            'help' => 'Ce que coûte de signaler qu\'un bien a été volé. À ZÉRO PAR DÉFAUT, et '.
+                'réfléchissez avant d\'y toucher : celui qui déclare vient de se faire '.
+                'dépouiller, et chaque obstacle est une déclaration qui n\'aura pas lieu. '.
+                'La valeur du registre vient de sa couverture.',
+        ],
+        'theft_listing' => [
+            'setting' => 'pricing.theft_listing_fcfa',
+            'config' => 'preuve.theft_listing_price_fcfa',
+            'label' => 'Mise en avant sur la liste des biens volés',
+            'help' => 'Déclarer rend déjà le bien invendable pour qui vérifie son numéro : '.
+                'c\'est la protection, et elle reste gratuite. Ceci paie la VISIBILITÉ — '.
+                'la publication sur la liste que tout le monde parcourt. À zéro, tout '.
+                'bien déclaré volé y paraît sans paiement.',
+        ],
         'claim_fee' => [
             'setting' => ClaimArbitrationService::FEE_SETTING,
             'config' => 'preuve.claim_fee_fcfa',

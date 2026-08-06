@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\ActorType;
+use App\Enums\LifeStatus;
 use App\Enums\OtpPurpose;
 use App\Enums\PaymentProvider;
 use App\Enums\PaymentPurpose;
@@ -42,6 +43,7 @@ final class PaymentService
         private readonly AuditChain $auditChain,
         private readonly ReportAccessService $reports,
         private readonly PricingService $tarifs,
+        private readonly StolenListingService $listings,
     ) {}
 
     /**
@@ -54,6 +56,41 @@ final class PaymentService
         return $this->createIntent($operateur, $bien, [
             'user_id' => $acheteur->id,
         ]);
+    }
+
+    /**
+     * Prépare un paiement pour un motif AUTRE que le rapport détaillé.
+     *
+     * TOUJOURS RATTACHÉ À UN COMPTE. Déclarer un vol ou publier un bien volé
+     * suppose d'en être le détenteur : contrairement au rapport, ces gestes
+     * n'ont aucun sens pour un invité, et le paiement doit pouvoir être
+     * rapproché de la personne qui en tirera l'effet.
+     */
+    public function intendFor(
+        User $payeur,
+        Asset $bien,
+        PaymentProvider $operateur,
+        PaymentPurpose $motif,
+        int $montant,
+    ): Payment {
+        return $this->createIntent($operateur, $bien, ['user_id' => $payeur->id], $motif, $montant);
+    }
+
+    /**
+     * Vrai si ce compte a déjà payé ce motif pour ce bien.
+     *
+     * ON REGARDE UN PAIEMENT ABOUTI, jamais une intention : une intention se
+     * crée d'un clic, et s'en contenter reviendrait à offrir le service à qui
+     * ouvre la page de paiement sans jamais y régler quoi que ce soit.
+     */
+    public function hasPaidFor(User $payeur, Asset $bien, PaymentPurpose $motif): bool
+    {
+        return Payment::query()
+            ->where('user_id', $payeur->id)
+            ->where('related_id', $bien->id)
+            ->where('purpose', $motif->value)
+            ->where('status', PaymentStatus::Succeeded->value)
+            ->exists();
     }
 
     /**
@@ -163,27 +200,69 @@ final class PaymentService
             return;
         }
 
-        if ($paiement->purpose !== PaymentPurpose::DetailedReport) {
+        $bien = Asset::query()->whereKey($paiement->related_id)->first();
+
+        if (! $bien instanceof Asset) {
             return;
         }
 
-        $bien = Asset::query()->whereKey($paiement->related_id)->first();
+        // CHAQUE MOTIF A SA CONTREPARTIE, ET ELLE EST HONORÉE ICI. C'est le
+        // seul endroit où un paiement abouti se transforme en service rendu :
+        // un motif oublié dans ce `match` produirait un encaissement sans
+        // contrepartie — de l'argent pris pour rien, et personne pour s'en
+        // apercevoir avant une réclamation.
+        match ($paiement->purpose) {
+            PaymentPurpose::DetailedReport => $this->reports->grant($paiement, $bien),
+            PaymentPurpose::TheftListing => $this->publierLeBienVole($paiement, $bien),
+            // Les autres motifs se règlent ailleurs : la place
+            // d'enregistrement au moment de l'enregistrement, les frais de
+            // dossier au dépôt, l'abonnement flotte au décompte mensuel.
+            default => null,
+        };
+    }
 
-        if ($bien instanceof Asset) {
-            $this->reports->grant($paiement, $bien);
+    /**
+     * Publie un bien volé dont la mise en avant vient d'être réglée.
+     *
+     * ON REVÉRIFIE QUE LE BIEN EST VOLÉ. Entre l'ouverture du paiement et sa
+     * confirmation, le détenteur a pu retrouver son bien et lever la
+     * déclaration : le publier alors mettrait sur la liste des biens volés un
+     * bien qui ne l'est plus, et la liste perdrait ce qui fait sa valeur.
+     */
+    private function publierLeBienVole(Payment $paiement, Asset $bien): void
+    {
+        if ($bien->life_status !== LifeStatus::Stolen || $paiement->user_id === null) {
+            return;
+        }
+
+        $detenteur = User::query()->whereKey($paiement->user_id)->first();
+
+        if ($detenteur instanceof User) {
+            $this->listings->publish($bien, $detenteur);
         }
     }
 
     /**
      * @param  array<string, mixed>  $acheteur
      */
-    private function createIntent(PaymentProvider $operateur, Asset $bien, array $acheteur): Payment
-    {
+    private function createIntent(
+        PaymentProvider $operateur,
+        Asset $bien,
+        array $acheteur,
+        ?PaymentPurpose $motif = null,
+        ?int $montant = null,
+    ): Payment {
+        // LE RAPPORT RESTE LE DÉFAUT, et c'est ce qui rend ce changement sans
+        // conséquence pour l'existant : les appels d'origine ne passent ni
+        // motif ni montant et obtiennent exactement ce qu'ils obtenaient.
+        $motif ??= PaymentPurpose::DetailedReport;
+        $montant ??= $this->reportPrice();
+
         $paiement = Payment::create([
             ...$acheteur,
-            'purpose' => PaymentPurpose::DetailedReport,
+            'purpose' => $motif,
             'related_id' => $bien->id,
-            'amount_fcfa' => $this->reportPrice(),
+            'amount_fcfa' => $montant,
             'provider' => $operateur,
             'status' => PaymentStatus::Pending,
         ]);
@@ -195,7 +274,7 @@ final class PaymentService
             'payment',
             $paiement->id,
             [
-                'purpose' => PaymentPurpose::DetailedReport->value,
+                'purpose' => $motif->value,
                 'provider' => $operateur->value,
                 'amount_fcfa' => $paiement->amount_fcfa,
                 'asset_id' => $bien->id,

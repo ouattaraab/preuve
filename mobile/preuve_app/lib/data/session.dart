@@ -26,6 +26,8 @@ class PreuveSession {
     required this.reports,
     required this.fleet,
     required this.scans,
+    required this.voles,
+    required this.miseEnAvant,
     required this.kyc,
     required this.envois,
   });
@@ -43,6 +45,8 @@ class PreuveSession {
       reports: ReportService(api),
       fleet: FleetService(api),
       scans: ScanService(api),
+      voles: StolenService(api),
+      miseEnAvant: StolenListingService(api),
       kyc: KycService(api),
       envois: UploadManager(
         // La lecture du fichier est INJECTÉE : c'est ce qui permet d'éprouver
@@ -64,6 +68,14 @@ class PreuveSession {
   final ReportService reports;
   final FleetService fleet;
   final ScanService scans;
+
+  /// La liste publique des biens volés. SANS JETON : elle se parcourt comme la
+  /// consultation, et l'accompagner du jeton associerait au compte chaque bien
+  /// que l'utilisateur regarde.
+  final StolenService voles;
+
+  /// La mise en avant de SES biens volés sur cette liste.
+  final StolenListingService miseEnAvant;
   final KycService kyc;
 
   /// File d'envoi différée, avec reprise (ST-0206, CT-05).

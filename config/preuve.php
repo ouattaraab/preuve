@@ -141,6 +141,26 @@ return [
         'alert_mb' => (int) env('PREUVE_STORAGE_ALERT_MB', 0),
     ],
 
+    /*
+    | Déclarer un vol : ZÉRO PAR DÉFAUT.
+    |
+    | Ce n'est pas un oubli. Celui qui déclare vient de se faire dépouiller, et
+    | la valeur du registre vient de sa couverture : un vol non déclaré est un
+    | bien volé que personne ne peut reconnaître. Le péage est réglable depuis
+    | l'espace administrateur, et reste fermé tant qu'on ne l'ouvre pas.
+    */
+    'theft_declaration_price_fcfa' => (int) env('PREUVE_THEFT_DECLARATION_FCFA', 0),
+
+    /*
+    | Mise en avant sur la liste publique des biens volés.
+    |
+    | Déclarer rend le bien invendable pour qui VÉRIFIE son numéro. Ceci paie la
+    | VISIBILITÉ : la publication sur la liste que tout le monde parcourt. C'est
+    | un service en plus, pas un droit — et c'est ce qui permet à la protection
+    | de rester gratuite.
+    */
+    'theft_listing_price_fcfa' => (int) env('PREUVE_THEFT_LISTING_FCFA', 0),
+
     // Conservation des consultations : politique déclarée à l'ARTCI
     'lookup_retention_months' => 12,
 

@@ -14,6 +14,7 @@ import '../ui/widgets.dart';
 import 'login_screen.dart';
 import 'my_assets_screen.dart';
 import 'notifications_screen.dart';
+import 'stolen_screen.dart';
 import 'verdict_screen.dart';
 
 /// Écran d'accueil : un champ, un bouton.
@@ -333,6 +334,18 @@ class _LookupScreenState extends State<LookupScreen> {
                 const SizedBox(height: 12),
                 EncadreConfirmation(_messageScan!),
               ],
+              const SizedBox(height: 12),
+              // LA LISTE DES BIENS VOLÉS, DEPUIS L'ACCUEIL. C'est le second
+              // geste utile du produit : celui qui n'a pas de numéro sous les
+              // yeux peut quand même reconnaître un bien.
+              BoutonRelief(
+                libelle: 'Voir les biens volés',
+                icone: '⚠️',
+                principal: false,
+                onPressed: () => Navigator.of(context).push<void>(MaterialPageRoute<void>(
+                  builder: (_) => StolenScreen(session: widget.session),
+                )),
+              ),
               const SizedBox(height: 18),
               const _BandeauCompteur(),
               const SizedBox(height: 22),

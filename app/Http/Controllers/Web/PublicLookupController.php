@@ -7,11 +7,13 @@ namespace App\Http\Controllers\Web;
 use App\Http\Controllers\Api\V1\Admin\LegalContactController;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\SecurityHeaders;
+use App\Models\Asset;
 use App\Models\User;
 use App\Services\Captcha\CaptchaVerifier;
 use App\Services\LookupResult;
 use App\Services\LookupService;
 use App\Services\Settings\SettingsRepository;
+use App\Services\StolenListingService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
@@ -46,6 +48,7 @@ final class PublicLookupController extends Controller
         private readonly LookupService $lookups,
         private readonly CaptchaVerifier $captcha,
         private readonly SettingsRepository $settings,
+        private readonly StolenListingService $voles,
     ) {}
 
     /**
@@ -97,7 +100,18 @@ final class PublicLookupController extends Controller
     /** Page d'accueil : un champ, un bouton (CT-01, deux interactions). */
     public function home(): Response
     {
-        return response()->view('public.home');
+        // UN APERÇU, PAS LA LISTE. L'accueil promet deux interactions : le
+        // noyer sous quarante biens volés le trahirait. Trois suffisent à
+        // montrer que la liste existe et vaut le détour.
+        $recents = $this->voles->browse(null, 3);
+
+        return response()->view('public.home', [
+            'volesRecents' => array_map(
+                fn (Asset $bien): array => $this->voles->present($bien),
+                $recents->items(),
+            ),
+            'volesTotal' => $recents->total(),
+        ]);
     }
 
     /**

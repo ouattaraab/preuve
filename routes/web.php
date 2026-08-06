@@ -8,6 +8,7 @@ use App\Http\Controllers\Web\FleetAuthController;
 use App\Http\Controllers\Web\FleetImportController;
 use App\Http\Controllers\Web\PublicLookupController;
 use App\Http\Controllers\Web\PublicReportController;
+use App\Http\Controllers\Web\StolenListPageController;
 use App\Http\Middleware\EnsureUserHasBackOfficeAccess;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\EnsureUserLeadsAFleet;
@@ -54,6 +55,17 @@ Route::withoutMiddleware([
     // reste du front — la lire ne doit rien coûter en traces.
     Route::get('confidentialite', [PublicLookupController::class, 'privacy'])->name('public.privacy');
     Route::get('conditions', [PublicLookupController::class, 'terms'])->name('public.terms');
+
+    /*
+     * LA LISTE PUBLIQUE DES BIENS VOLÉS (ST-0805).
+     *
+     * INDEXABLE, contrairement à la page de résultat d'une consultation : elle
+     * ne contient que ce que des détenteurs ont DEMANDÉ à rendre public, et la
+     * faire trouver par un moteur est exactement le service qu'ils ont payé.
+     */
+    Route::get('voles', [StolenListPageController::class, 'index'])
+        ->middleware('throttle:120,1')
+        ->name('public.stolen');
 
     // LE RAPPORT PAYÉ, LISIBLE PARTOUT (ST-0802, règle métier n° 7).
     //

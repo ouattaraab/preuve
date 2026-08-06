@@ -29,6 +29,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $trust_verified_at
  * @property int|null $trust_verified_by
  * @property bool $stolen_consolidated
+ * @property Carbon|null $stolen_listed_at Consentement daté à figurer sur la
+ *                                         liste publique des biens volés.
  * @property Carbon|null $spike_alerted_at
  * @property Carbon $registered_at
  */
@@ -38,7 +40,7 @@ class Asset extends Model
         'public_ref', 'owner_user_id', 'company_id', 'previous_asset_id', 'asset_category_key',
         'identifier_type', 'identifier_raw', 'identifier_normalized', 'active_flag',
         'attributes', 'trust_level', 'life_status', 'provisional_until',
-        'stolen_declared_at', 'stolen_consolidated', 'spike_alerted_at', 'registered_at',
+        'stolen_declared_at', 'stolen_consolidated', 'stolen_listed_at', 'spike_alerted_at', 'registered_at',
     ];
 
     /**
@@ -68,6 +70,7 @@ class Asset extends Model
             'life_status' => LifeStatus::class,
             'provisional_until' => 'datetime',
             'stolen_declared_at' => 'datetime',
+            'stolen_listed_at' => 'datetime',
             'stolen_consolidated' => 'boolean',
             'spike_alerted_at' => 'datetime',
             'registered_at' => 'datetime',

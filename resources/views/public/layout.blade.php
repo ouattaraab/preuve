@@ -126,6 +126,7 @@
              personne ne pouvait les atteindre. Une capacité sans porte
              d'entrée n'existe pas. --}}
         <a href="/verifier">Vérifier un bien</a> ·
+        <a href="/voles">Biens volés</a> ·
         <a href="/flotte/connexion">Espace loueur</a> ·
         <a href="/conditions">Conditions</a> ·
         <a href="/confidentialite">Confidentialité</a>
