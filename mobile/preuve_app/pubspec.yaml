@@ -13,7 +13,7 @@ publish_to: none
 # qu'un numéro. C'est une fonction nouvelle, pas un correctif — d'où le second
 # nombre. Le `+2` est le `versionCode` Android, que Google Play refuse de voir
 # deux fois : il croît à chaque dépôt, sans exception.
-version: 1.2.0+3
+version: 1.2.1+4
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -93,6 +93,13 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  # DÉJÀ EMBARQUÉS PAR `url_launcher` : déclarés ici uniquement pour pouvoir
+  # les importer dans un test. Ils permettent de remplacer le lanceur par un
+  # faux, et donc d'éprouver le retour de la page de paiement — le seul moment
+  # du parcours qui sort de l'application, et celui où un défaut fait payer
+  # deux fois. Aucun octet de plus dans le binaire livré.
+  url_launcher_platform_interface: ^2.3.2
+  plugin_platform_interface: ^2.1.8
 
 flutter:
   uses-material-design: true

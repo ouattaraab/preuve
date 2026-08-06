@@ -36,7 +36,7 @@ class TheftFeeScreen extends StatefulWidget {
   State<TheftFeeScreen> createState() => _TheftFeeScreenState();
 }
 
-class _TheftFeeScreenState extends State<TheftFeeScreen> {
+class _TheftFeeScreenState extends State<TheftFeeScreen> with WidgetsBindingObserver {
   TheftFee? _etat;
   bool _enCours = true;
   bool _paiementOuvert = false;
@@ -46,7 +46,28 @@ class _TheftFeeScreenState extends State<TheftFeeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _charger();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// L'utilisateur revient — probablement de la page de l'opérateur.
+  ///
+  /// LE RÈGLEMENT SE FAIT HORS DE L'APPLICATION : sans cette relecture, il
+  /// revient sur un écran inchangé et la seule conduite évidente est de payer
+  /// une seconde fois. On ne relit que si une caisse a été ouverte — rappeler
+  /// le serveur à chaque passage en avant-plan coûterait de la donnée en 3G
+  /// pour rien (CT-05).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState etat) {
+    if (etat == AppLifecycleState.resumed && _paiementOuvert && !_enCours) {
+      _verifier();
+    }
   }
 
   Future<void> _charger() async {

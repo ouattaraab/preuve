@@ -18,6 +18,13 @@ import '../ui/widgets.dart';
 /// IL N'ARRIVE JAMAIS PENDANT LA DÉCLARATION. Proposer de payer au moment où
 /// quelqu'un signale un vol reviendrait à monnayer sa détresse. On protège
 /// d'abord, on propose après.
+///
+/// IL RELIT L'ÉTAT AU RETOUR DU NAVIGATEUR. Le règlement se fait hors de
+/// l'application ; sans cette relecture, l'utilisateur revenait sur un écran
+/// inchangé, bouton « Payer et publier » toujours en place — et la seule
+/// conduite évidente était de payer une seconde fois. C'est la faute la plus
+/// coûteuse qu'un écran de paiement puisse commettre, et elle ne se voit sur
+/// aucun test qui ne quitte pas l'application.
 class StolenListingScreen extends StatefulWidget {
   const StolenListingScreen({required this.session, required this.bien, super.key});
 
@@ -28,33 +35,74 @@ class StolenListingScreen extends StatefulWidget {
   State<StolenListingScreen> createState() => _StolenListingScreenState();
 }
 
-class _StolenListingScreenState extends State<StolenListingScreen> {
+class _StolenListingScreenState extends State<StolenListingScreen>
+    with WidgetsBindingObserver {
   ListingState? _etat;
   bool _enCours = true;
   String? _erreur;
   String? _confirmation;
 
+  /// Vrai dès qu'une page de paiement a été ouverte : c'est ce qui distingue
+  /// un retour d'application ordinaire d'un retour DE LA CAISSE.
+  bool _paiementOuvert = false;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _charger();
   }
 
-  Future<void> _charger() async {
-    setState(() => _enCours = true);
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// L'utilisateur revient — probablement de la page de l'opérateur.
+  ///
+  /// ON NE RELIT QUE SI UNE CAISSE A ÉTÉ OUVERTE : rappeler le serveur à chaque
+  /// passage en avant-plan coûterait de la donnée en 3G pour rien (CT-05).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState etat) {
+    if (etat == AppLifecycleState.resumed && _paiementOuvert && !_enCours) {
+      _charger(discret: true);
+    }
+  }
+
+  Future<void> _charger({bool discret = false}) async {
+    // DISCRET AU RETOUR : remplacer l'écran par un indicateur de chargement
+    // ferait clignoter ce que l'utilisateur vient de regarder.
+    if (!discret) {
+      setState(() => _enCours = true);
+    }
 
     try {
       final ListingState etat = await widget.session.miseEnAvant.state(widget.bien.id);
 
       if (mounted) {
-        setState(() => _etat = etat);
+        setState(() {
+          _etat = etat;
+
+          if (etat.listed) {
+            // ON NE DIT « PUBLIÉ » QUE SUR LA PAROLE DU SERVEUR, jamais sur
+            // celle de l'utilisateur qui affirme avoir payé.
+            _confirmation = 'Paiement confirmé : ton bien est sur la liste.';
+            _paiementOuvert = false;
+          } else if (discret && _paiementOuvert) {
+            // NI ÉCHEC NI SILENCE. Le rappel de l'opérateur met parfois
+            // quelques secondes : annoncer un échec ferait repayer.
+            _confirmation = 'Le paiement n\'est pas encore confirmé par l\'opérateur. '
+                'Réessaie dans un instant — ne repaie pas.';
+          }
+        });
       }
     } on PreuveException catch (e) {
-      if (mounted) {
+      if (mounted && !discret) {
         setState(() => _erreur = messageDeRefus(e));
       }
     } finally {
-      if (mounted) {
+      if (mounted && !discret) {
         setState(() => _enCours = false);
       }
     }
@@ -85,8 +133,9 @@ class _StolenListingScreenState extends State<StolenListingScreen> {
         if (mounted) {
           setState(() {
             _etat = etat;
+            _paiementOuvert = ouverte;
             _confirmation = ouverte
-                ? 'Règle le montant, puis reviens : ton bien paraîtra dès la confirmation.'
+                ? 'Règle le montant, puis reviens : cet écran se mettra à jour tout seul.'
                 : null;
             _erreur = ouverte ? null : 'Impossible d\'ouvrir la page de paiement.';
           });
@@ -269,10 +318,25 @@ class _StolenListingScreenState extends State<StolenListingScreen> {
                 ),
                 const SizedBox(height: 16),
                 BoutonRelief(
-                  libelle: etat.free ? 'Publier mon bien' : 'Payer et publier',
+                  libelle: etat.free
+                      ? 'Publier mon bien'
+                      : (_paiementOuvert ? 'Rouvrir la page de paiement' : 'Payer et publier'),
                   enCours: _enCours,
                   onPressed: _publier,
                 ),
+                // LE FILET DE SECOURS. La relecture au retour d'application
+                // couvre le cas ordinaire ; ce bouton couvre celui où le
+                // système n'a pas signalé le retour, ou celui où le rappel de
+                // l'opérateur arrive après.
+                if (_paiementOuvert) ...<Widget>[
+                  const SizedBox(height: 10),
+                  BoutonRelief(
+                    libelle: 'J\'ai payé, vérifier',
+                    principal: false,
+                    enCours: _enCours,
+                    onPressed: _charger,
+                  ),
+                ],
               ],
             ],
           ],
