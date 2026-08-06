@@ -43,27 +43,72 @@
         .marque { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 26px; }
         .point { color: #D97706; }
         /* Cible de 56 px : on saisit debout, une main sur le guidon. */
+        /*
+         * LE RELIEF DE LA MAQUETTE DJASSA, le même que l'application : une
+         * ombre pleine et décalée, sans flou. Ce n'est pas un ornement — c'est
+         * ce qui fait qu'un champ et un bouton se distinguent du fond à deux
+         * mètres, en plein soleil, sur un écran d'entrée de gamme.
+         */
         .champ {
-            width: 100%; padding: 16px 18px; font-size: 20px; min-height: 56px;
-            border: 3px solid #2B1D12; border-radius: 12px; background: #fff; color: #2B1D12;
-            font-family: inherit;
+            width: 100%; padding: 16px 18px; font-size: 20px; min-height: 64px;
+            border: 3px solid #2B1D12; border-radius: 16px; background: #fff; color: #2B1D12;
+            font-family: inherit; font-weight: 700;
+            box-shadow: 4px 4px 0 #2B1D12;
+        }
+        .champ::placeholder { color: #8A7358; font-weight: 700; }
+        /* L'ANNEAU DE FOCUS EST REMPLACÉ, JAMAIS SUPPRIMÉ. Celui du navigateur
+           jure avec la charte, mais l'enlever rendrait le site impraticable au
+           clavier — et c'est exactement le public d'Atkinson Hyperlegible. */
+        .champ:focus-visible, .bouton:focus-visible, a:focus-visible {
+            outline: 3px solid #D97706; outline-offset: 3px;
         }
         .bouton {
-            width: 100%; margin-top: 12px; padding: 16px 18px; min-height: 56px;
-            background: #D97706; color: #2B1D12; border: 3px solid #2B1D12; border-radius: 12px;
-            font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 20px;
-            cursor: pointer;
+            width: 100%; margin-top: 14px; padding: 18px; min-height: 64px;
+            background: #D97706; color: #FFF6E8; border: 3px solid #2B1D12; border-radius: 16px;
+            font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 21px;
+            letter-spacing: .3px; cursor: pointer; box-shadow: 4px 4px 0 #2B1D12;
         }
-        .bouton:hover { background: #2B1D12; color: #FFF6E8; }
+        .bouton.secondaire { background: #FFF; color: #2B1D12; }
+        /* Un lien qui porte l'allure d'un bouton doit se comporter comme lui :
+           pleine largeur, centré, et sans le soulignement des liens de texte. */
+        a.bouton { display: block; text-decoration: none; text-align: center; }
+        /* L'ENFONCEMENT PLUTÔT QU'UN CHANGEMENT DE COULEUR : le bouton bouge
+           de la hauteur de son ombre, et le doigt sent qu'il a appuyé. */
+        .bouton:active { transform: translate(4px, 4px); box-shadow: none; }
+        .bouton:hover { filter: brightness(1.05); }
+        /* La pastille de la maquette : elle répond à la première question que
+           se pose quelqu'un à qui l'on propose une moto sur un parking. */
+        .pastille {
+            display: inline-block; background: #2B1D12; color: #FFF6E8;
+            padding: 8px 16px; border-radius: 999px; font-size: 14px; font-weight: 700;
+        }
+        /* Le bandeau sombre de l'application, pour la phrase qui vend le
+           produit : ce que PREUVE fait, en une ligne. */
+        .bandeau {
+            display: flex; gap: 14px; align-items: center;
+            background: #2B1D12; color: #FFF6E8; border-radius: 16px;
+            padding: 18px 20px; font-size: 16px; font-weight: 700; line-height: 1.45;
+        }
+        .surtitre {
+            font-size: 13px; font-weight: 700; letter-spacing: .8px;
+            color: #8A7358; text-transform: uppercase;
+        }
         .note { font-size: 15px; color: #5C4A33; }
         @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important } }
     </style>
 </head>
 <body>
 <header style="padding:18px 20px;border-bottom:3px solid #2B1D12">
-    <div style="max-width:720px;margin:0 auto;display:flex;align-items:baseline;gap:10px">
+    <div style="max-width:720px;margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <a href="/" style="text-decoration:none" class="marque">Preuve<span class="point">.</span></a>
-        <span class="note">Registre des biens · Côte d'Ivoire</span>
+        {{-- LA PASTILLE DIT LA VÉRITÉ DE LA PAGE OÙ ELLE SE TROUVE. « Sans
+             compte » au-dessus d'un formulaire de connexion se lit comme un
+             mensonge, et une promesse démentie une fois n'est plus crue
+             ailleurs.
+             UNE SECTION ET NON UNE VARIABLE : une variable posée par `@php`
+             dans une vue enfant est locale à cette vue et n'atteint jamais son
+             gabarit. La section, si. --}}
+        <span class="pastille">@yield('pastille', 'Gratuit · Sans compte')</span>
     </div>
 </header>
 
@@ -75,7 +120,15 @@
     <div style="max-width:720px;margin:0 auto" class="note">
         La consultation est <strong>gratuite, anonyme et sans compte</strong>.
         Nous ne disons jamais qui a enregistré un bien, ni qui l'a consulté.
-        <br><a href="/confidentialite">Confidentialité et mentions légales</a> · Édité par OVERNETFLOW.
+        <br>
+        {{-- LES AUTRES PORTES DU SITE. Deux pages ont été livrées sans lien
+             depuis nulle part — un espace loueur et un rapport payé — et
+             personne ne pouvait les atteindre. Une capacité sans porte
+             d'entrée n'existe pas. --}}
+        <a href="/verifier">Vérifier un bien</a> ·
+        <a href="/flotte/connexion">Espace loueur</a> ·
+        <a href="/confidentialite">Confidentialité et mentions légales</a>
+        <br>Édité par BookMi · Côte d'Ivoire.
     </div>
 </footer>
 </body>

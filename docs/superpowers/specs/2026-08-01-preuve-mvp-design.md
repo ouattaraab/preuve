@@ -1,6 +1,6 @@
 # PREUVE — Design du MVP
 
-> Spécification de conception validée le 01/08/2026 avec Aboubakar Ouattara (OVERNETFLOW).
+> Spécification de conception validée le 01/08/2026 avec Aboubakar Ouattara (BookMi).
 > Source : Project Brief BMAD v1.0, PRD v1.0, schéma MySQL v1.1, Backlog v1.1, prototypes DJASSA et Admin.
 > Ce document fait foi sur les points où il diverge des documents de cadrage antérieurs.
 

@@ -4,7 +4,7 @@
 Vérifier gratuitement, avant d'acheter, si un véhicule ou un téléphone est
 déclaré volé, en litige ou en location.
 
-Édité par OVERNETFLOW · <https://preuve.click>
+Édité par BookMi · <https://preuve.click>
 
 ---
 

@@ -1,5 +1,7 @@
 @extends('public.layout')
 
+@section('pastille', 'Rapport détaillé')
+
 @php
     $bien = $rapport['asset'] ?? [];
     $propriete = $rapport['ownership'] ?? [];

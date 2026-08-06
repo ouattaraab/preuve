@@ -1,5 +1,7 @@
 @extends('public.layout')
 
+@section('pastille', 'Espace loueur')
+
 @section('contenu')
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">
         <h1 style="font-family:'Bricolage Grotesque',sans-serif;font-size:32px;line-height:1.1">

@@ -1,5 +1,7 @@
 @extends('public.layout')
 
+@section('pastille', 'Rapport détaillé')
+
 @section('contenu')
     {{-- LE MESSAGE DIT LEQUEL DES DEUX CAS, parce que la conduite à tenir
          diffère : un lien expiré se rachète, un lien erroné se revérifie. Le

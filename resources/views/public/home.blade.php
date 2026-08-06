@@ -7,11 +7,16 @@
         seule un châssis, une plaque ou un IMEI, et demander à l'acheteur de
         trancher lui ferait porter une erreur qui n'est pas la sienne.
     --}}
-    <h1 style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:34px;line-height:1.15">
-        Ce bien est-il volé&nbsp;?
+    {{-- LA MÊME ACCROCHE QUE L'APPLICATION, au mot près. Quelqu'un qui arrive
+         par le web puis installe l'application doit reconnaître le même
+         produit ; deux promesses différentes pour la même chose font douter
+         des deux. La coupure en trois lignes est voulue : à cette taille, le
+         moteur couperait « vérifie ! » n'importe où. --}}
+    <h1 style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:44px;line-height:1.02;letter-spacing:-.5px">
+        Avant<br>d'acheter,<br><span style="color:#D97706">vérifie&nbsp;!</span>
     </h1>
-    <p style="margin-top:10px;font-size:19px">
-        Vérifie avant de payer. C'est gratuit, anonyme, et personne ne saura que tu as cherché.
+    <p style="margin-top:12px;font-size:19px;color:#5A4632;line-height:1.45">
+        Moto, voiture, téléphone… tape le numéro, tu sais tout de suite.
     </p>
 
     @isset($erreur)
@@ -21,18 +26,32 @@
     @endisset
 
     <form method="GET" action="/verifier" style="margin-top:22px">
-        <label for="q" style="display:block;font-weight:700;margin-bottom:8px">
+        {{-- L'ÉTIQUETTE RESTE POUR LES LECTEURS D'ÉCRAN, mais quitte l'écran :
+             elle répétait mot pour mot l'indication du champ, et deux fois la
+             même phrase se lit comme une erreur. Un champ sans étiquette du
+             tout serait, lui, muet pour qui n'y voit pas. --}}
+        <label for="q" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">
             Numéro de châssis, plaque ou IMEI
         </label>
         <input id="q" name="q" class="champ" required autofocus
                autocomplete="off" autocapitalize="characters" spellcheck="false"
-               placeholder="Ex. 1M8GDM9AXKP042788">
-        <button type="submit" class="bouton">Vérifier</button>
+               placeholder="Plaque, châssis ou IMEI">
+        <button type="submit" class="bouton">JE VÉRIFIE</button>
     </form>
 
-    <div style="margin-top:34px;border-top:3px solid #2B1D12;padding-top:20px">
-        <h2 style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:22px">
-            Où trouver le numéro&nbsp;?
+    {{-- CE QUE PREUVE FAIT, EN UNE LIGNE, et c'est la phrase qui vend le
+         produit : ce n'est pas un annuaire, c'est ce qui rend un bien volé
+         invendable. --}}
+    <div class="bandeau" style="margin-top:20px">
+        <span style="font-size:26px;line-height:1">⚡</span>
+        <span>Une déclaration de vol rend le bien invendable dans la seconde,
+              partout en Côte d'Ivoire.</span>
+    </div>
+
+    <div style="margin-top:30px;border-top:3px solid #2B1D12;padding-top:20px">
+        <p class="surtitre">Où trouver le numéro</p>
+        <h2 style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:22px;margin-top:6px">
+            Sur le bien, ou sur ses papiers
         </h2>
         <ul style="margin-top:10px;padding-left:22px">
             <li><strong>Voiture, moto</strong> — le numéro de châssis (VIN) est sur la carte grise, et gravé sur le cadre.</li>

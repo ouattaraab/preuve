@@ -1032,6 +1032,42 @@ distinct, et un test vérifie qu'une session de loueur reçoit **403** sur
 
 **Couverture** : 888 Pest.
 
+## Éditeur, portes d'entrée et alignement du front (06/08/2026)
+
+**BookMi remplace OVERNETFLOW** partout : mentions légales publiques (le
+*responsable de traitement* au sens de la Loi 2013-450), pied de page, README,
+CLAUDE.md, backlog, schéma SQL, documentation d'exploitation et adresses des
+jeux d'essai. Aucune occurrence ne subsiste.
+
+**Les deux pages livrées la veille n'étaient atteignables depuis nulle part** —
+signalé par Aboubakar, et c'est exactement le défaut que cette session passe à
+corriger ailleurs. Le pied de page porte désormais « Vérifier un bien · Espace
+loueur · Confidentialité ». `/rapport/{token}` reste sans lien **par nature** :
+il en faut un jeton.
+
+**Le front public suit maintenant la maquette DJASSA**, comme l'application :
+accroche « Avant d'acheter, **vérifie !** » au mot près, pastille, champ et
+boutons en relief (ombre pleine décalée, enfoncement au toucher), bandeau sombre
+« Une déclaration de vol rend le bien invendable dans la seconde ». Quelqu'un
+qui arrive par le web puis installe l'application doit reconnaître le même
+produit ; deux promesses différentes pour la même chose font douter des deux.
+
+**Trois défauts corrigés en le faisant** :
+
+1. **La pastille « Gratuit · Sans compte » s'affichait sur la page de
+   connexion loueur** — un mensonge au-dessus d'un formulaire de connexion, et
+   une promesse démentie une fois n'est plus crue ailleurs. Elle est devenue
+   contextuelle.
+2. **Une variable posée par `@php` dans une vue enfant n'atteint jamais son
+   gabarit.** Première tentative faite ainsi : cinq pages en erreur 500. Une
+   `@section` le fait ; c'est la seule voie. Et `@php(...)` en ligne juxtaposé à
+   un bloc `@php` casse la compilation Blade.
+3. **L'anneau de focus** du navigateur a été remplacé, jamais supprimé : le
+   retirer rendrait le site impraticable au clavier — précisément le public
+   pour lequel Atkinson Hyperlegible a été choisie.
+
+**Couverture** : 888 Pest. Pages vérifiées au rendu, en 500 px de large.
+
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)

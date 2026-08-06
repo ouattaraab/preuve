@@ -1,7 +1,7 @@
 # CLAUDE.md — Projet PREUVE
 
 > Registre déclaratif de propriété et de statut des biens (Côte d'Ivoire).
-> Éditeur : OVERNETFLOW. Langue de travail : **français** (code en anglais, commentaires métier en français).
+> Éditeur : BookMi. Langue de travail : **français** (code en anglais, commentaires métier en français).
 
 ## Démarrage de session
 

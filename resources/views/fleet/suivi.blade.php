@@ -1,5 +1,7 @@
 @extends('public.layout')
 
+@section('pastille', 'Espace loueur')
+
 @php
     $fait = (int) ($import->processed_rows ?? 0);
     $total = max(1, (int) ($import->total_rows ?? 1));

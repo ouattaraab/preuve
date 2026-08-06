@@ -1,5 +1,7 @@
 @extends('public.layout')
 
+@section('pastille', 'Espace loueur')
+
 @php
     $etape = session('etape', 'phone');
 @endphp

@@ -1,6 +1,6 @@
 -- ============================================================================
 -- PREUVE — Schéma de base de données MySQL 8.0+
--- Dérivé du PRD v1.0 (§7.2) — OVERNETFLOW · Juillet 2026
+-- Dérivé du PRD v1.0 (§7.2) — BookMi · Juillet 2026
 -- Moteur : InnoDB · Charset : utf8mb4 · Collation : utf8mb4_0900_ai_ci
 -- Prérequis : MySQL >= 8.0.16 (contraintes CHECK appliquées)
 -- Convention Laravel 11 : id BIGINT UNSIGNED AUTO_INCREMENT, created_at/updated_at

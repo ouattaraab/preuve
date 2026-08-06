@@ -1,6 +1,6 @@
 # PREUVE — Backlog produit v1.1
 
-**OVERNETFLOW · Août 2026 · Méthodologie BMAD** — dérivé du PRD v1.0 et du schéma MySQL v1.1 (14 tables).
+**BookMi · Août 2026 · Méthodologie BMAD** — dérivé du PRD v1.0 et du schéma MySQL v1.1 (14 tables).
 
 > **Conventions.** Points : suite de Fibonacci (1, 2, 3, 5, 8). Priorités MoSCoW. 13 sprints de 2 semaines en 4 phases : Fondations (S1-S3), Cœur produit (S4-S7), Protection (S8-S10), Marché (S11-S13). **Definition of Done transverse** : critères CT-01 à CT-06 du PRD respectés (consultation ≤ 2 interactions, enregistrement < 90 s médian, friction proportionnée au risque), tests automatisés, action sensible journalisée dans la chaîne d'audit, revue sécurité pour toute story touchant OTP/paiement/statut.
 

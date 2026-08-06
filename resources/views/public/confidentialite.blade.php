@@ -107,7 +107,7 @@
         Éditeur
     </h2>
     <p style="margin-top:8px">
-        PREUVE est édité par <strong>OVERNETFLOW</strong>, Côte d'Ivoire.
+        PREUVE est édité par <strong>BookMi</strong>, Côte d'Ivoire.
     </p>
 
     <p style="margin-top:28px;border-top:3px solid #2B1D12;padding-top:18px">
