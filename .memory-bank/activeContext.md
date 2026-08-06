@@ -1239,6 +1239,50 @@ compte sans numéro ni adresse ne serait pas corrigé mais supprimé.
 
 **Couverture** : 933 Pest, 124 `preuve_core`, 36 `preuve_app`.
 
+## Biens volés publics, péage de déclaration, invitation de cession (06/08/2026)
+
+**Trois mécanismes livrés, et une distinction qui porte tout.** Déclarer un vol
+rend le bien invendable pour quiconque VÉRIFIE son numéro : c'est la protection,
+immédiate, et elle ne se monnaie pas — celui qui déclare vient de se faire
+dépouiller. Ce qui se vend, c'est la VISIBILITÉ : paraître sur la liste que l'on
+parcourt sans numéro sous les yeux. Les deux écrans le disent en vert avant de
+parler d'argent ; sans cela on ferait payer quelqu'un pour ce qu'il possède déjà.
+
+**Liste publique** `/voles` (indexable) et `/api/v1/stolen` (anonyme, paginée,
+recherche par fragment). Elle dit ce qu'elle NE prouve pas : « Un bien absent
+d'ici peut très bien être volé. » `StolenListingService::present()` énumère les
+champs un par un plutôt que de filtrer un modèle — un champ ajouté demain à
+`assets` n'y paraîtra pas par accident. Le retrait est toujours gratuit.
+
+**Péage de déclaration** : `pricing.theft_declaration_fcfa`, **zéro par défaut**,
+et ce défaut est une position — la valeur du registre vient de sa couverture.
+Deux tests le gardent, un par bout de la chaîne. L'ordre est **payer puis
+recevoir le code** : émis avant, il aurait expiré pendant la traversée de la page
+bancaire. Le code part de `PaymentService::fulfill()`, sur le chemin du webhook.
+Refus non réglé = **402**, jamais 422 : l'utilisateur n'a aucun champ à corriger.
+La garde vit dans `AssetLifecycleService`, pas seulement dans le contrôleur.
+
+**Un défaut réel, trouvé en écrivant le test de cession** : le défi OTP d'un
+transfert était indexé sur le NUMÉRO et livré à l'ADRESSE. L'acheteur joint par
+courriel recevait son code et ne pouvait JAMAIS le valider. Le défi est
+désormais indexé sur la coordonnée du transfert (`to_email ?? to_phone`).
+
+**L'invitation arrive vraiment.** Sans passerelle SMS, un code adressé à un
+numéro ne part nulle part : le vendeur voyait « transfert en cours », l'acheteur
+n'était jamais prévenu, la cession expirait à J+7 — et le bien restait au vendeur
+alors que l'acheteur l'avait payé et emporté. Deux messages distincts : le lien
+décrit (jamais le vendeur, règle n° 4), le code autorise. `/cession/{jeton}`
+laisse accepter depuis un navigateur — jeton de 32 octets, `/cession/42`
+s'énumérerait. Le compte est créé à la confirmation, jamais avant. La page
+distingue « accord enregistré » de « le bien est à vous » : une cession exige les
+DEUX confirmations.
+
+**Limite levée** : un compte ouvert par adresse peut désormais RECEVOIR un bien.
+La note « devra renseigner un numéro » plus haut ne vaut plus pour la cession.
+
+**Couverture** : 981 Pest, 126 `preuve_core`, 43 `preuve_app`. Déployé sur
+preuve.click ; APK 1.2.0+3 vérifié au démarrage sur émulateur (arm64).
+
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)
