@@ -1148,10 +1148,34 @@ dans le dump et trouvé zéro, concluant que les protections manquaient.
 touchent jamais. Le motif était faux, pas le dispositif. **Vérifier une alarme
 avant de la sonner vaut aussi pour les miennes.**
 
-**Ce qui reste** : l'exercice de restauration complet sur l'hébergement cible.
-La commande refuse — à juste titre — de créer ou supprimer une base en
-production, et il n'existe qu'une base. Il faut **créer une base vide dans
-hPanel** puis lancer `preuve:restore-drill --database=nom`.
+### La restauration est éprouvée SUR L'HÉBERGEMENT CIBLE (06/08/2026)
+
+Ce point traînait depuis le 02/08 : la procédure n'avait été validée que sur
+poste de développement. Elle l'est désormais en production, dans la base
+d'exercice `u726808002_drill` :
+
+```
+Biens restaurés                        5
+Entrées d'audit restaurées             8
+Refus d'un UPDATE sur audit_log      oui
+Refus d'un DELETE sur audit_log      oui
+Cohérence interne de la chaîne   intacte
+Ancrages confrontés      5 concordant(s)
+```
+
+**Les deux refus sont le cœur de l'exercice.** Un dump restauré sans ses
+déclencheurs rend une base d'apparence parfaite — complète, cohérente — et dont
+le journal d'audit est silencieusement modifiable. Constater que les lignes sont
+revenues ne dit rien de cela : il faut TENTER l'écriture et la voir échouer.
+
+Côté pièces, `--verify` relit tout : 3 pièces référencées, 3 empreintes
+conformes au dépôt.
+
+**Le compte applicatif n'a aucun droit sur la base d'exercice**, et c'est voulu :
+le droit de créer une base ne servirait qu'une fois par trimestre et resterait
+ouvert le reste du temps, sur le compte qu'un attaquant atteint en premier.
+L'exercice emprunte des identifiants d'exploitation distincts
+(`PREUVE_RESTORE_DB_*`), déjà renseignés.
 
 ### Publication mobile
 
