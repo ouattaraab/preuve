@@ -269,21 +269,21 @@ it('SIGNALE L\'ABSENCE DE SAUVEGARDE HORS SERVEUR', function (): void {
     // rien d'autre. Le dire chaque semaine évite de le découvrir le jour où le
     // serveur est perdu — c'est-à-dire le jour où c'est irréparable.
     config()->set('preuve.backup.disk', 'local');
-    config()->set('preuve.documents.backup_disk', null);
 
     $this->artisan('preuve:weekly-digest')->assertSuccessful();
 
     Mail::assertSent(OpsReportMail::class, fn (OpsReportMail $m): bool => $m->anomalie
-        && str_contains($m->corps, 'Aucune copie hors serveur')
-        && str_contains($m->corps, 'base et pièces'));
+        && str_contains($m->corps, 'SUR PLACE seulement')
+        && str_contains($m->corps, 'aucune copie hors serveur'));
 });
 
 it('se tait sur les sauvegardes quand elles sont bien ailleurs', function (): void {
+    // LA MÊME CLÉ POUR LA BASE ET LES PIÈCES : les deux commandes lisent
+    // `preuve.backup.disk`, et le rapport doit lire celle-là.
     config()->set('preuve.backup.disk', 'r2');
-    config()->set('preuve.documents.backup_disk', 'r2');
 
     $this->artisan('preuve:weekly-digest')->assertSuccessful();
 
-    Mail::assertSent(OpsReportMail::class, fn (OpsReportMail $m): bool => str_contains($m->corps, 'configurées')
-        && ! str_contains($m->corps, 'Aucune copie hors serveur'));
+    Mail::assertSent(OpsReportMail::class, fn (OpsReportMail $m): bool => str_contains($m->corps, 'sur « r2 »')
+        && ! str_contains($m->corps, 'aucune copie hors serveur'));
 });

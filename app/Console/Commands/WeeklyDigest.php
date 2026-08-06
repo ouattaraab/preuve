@@ -160,29 +160,24 @@ final class WeeklyDigest extends Command
      */
     private function sauvegardes(): array
     {
-        $absents = [];
+        // UNE SEULE CLÉ POUR LES DEUX, relevée dans les commandes et non
+        // devinée : `BackupDatabase` et `BackupDocuments` lisent toutes deux
+        // `preuve.backup.disk`. J'avais d'abord interrogé un
+        // `preuve.documents.backup_disk` qui n'existe pas — il aurait rendu
+        // `null` pour toujours, et le rapport aurait signalé les pièces comme
+        // non sauvegardées même une fois R2 branché. Une alerte qui crie sans
+        // raison finit ignorée, y compris le jour où elle a raison.
+        $disque = config('preuve.backup.disk');
 
-        foreach ([
-            'base' => config('preuve.backup.disk'),
-            'pièces' => config('preuve.documents.backup_disk'),
-        ] as $quoi => $disque) {
-            if (! is_string($disque) || $disque === '' || $disque === 'local') {
-                $absents[] = $quoi;
-            }
-        }
-
-        if ($absents === []) {
-            return ['texte' => 'configurées', 'anomalie' => null];
+        if (is_string($disque) && $disque !== '' && $disque !== 'local') {
+            return ['texte' => 'sur « '.$disque.' »', 'anomalie' => null];
         }
 
         return [
-            'texte' => 'AUCUNE ('.implode(', ', $absents).')',
-            'anomalie' => sprintf(
-                'Aucune copie hors serveur pour : %s. Une perte du disque emporterait '
-                .'les pièces d\'identité, les preuves de réclamation et le registre. '
-                .'Renseigner un stockage distant (s3, r2).',
-                implode(' et ', $absents),
-            ),
+            'texte' => $disque === 'local' ? 'SUR PLACE seulement' : 'AUCUNE',
+            'anomalie' => 'Base et pièces n\'ont aucune copie hors serveur. Une perte du disque '
+                .'emporterait les pièces d\'identité, les preuves de réclamation et le registre. '
+                .'Renseigner preuve.backup.disk sur un stockage distant (s3, r2).',
         ];
     }
 
