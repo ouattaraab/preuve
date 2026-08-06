@@ -7,7 +7,9 @@ publish_to: none
 # La version est lue par le serveur (`X-App-Version`) pour appliquer, le cas
 # échéant, une version minimale exigée. Elle doit donc suivre la réalité des
 # livraisons, pas rester à 1.0.0.
-version: 0.1.0+1
+# PREMIÈRE VERSION PUBLIABLE. Le `+1` est le `versionCode` Android : il doit
+# croître à CHAQUE dépôt sur Google Play, qui refuse deux fois le même.
+version: 1.0.0+1
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

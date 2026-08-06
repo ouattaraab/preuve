@@ -43,3 +43,16 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# TROUSSEAU DE SIGNATURE ANDROID — jamais dans le dépôt.
+#
+# Le .jks et son mot de passe sont la seule preuve que les mises à jour de
+# Preuve viennent de BookMi. Versionnés, ils permettraient à quiconque lit ce
+# dépôt de publier une application se faisant passer pour la nôtre. Perdus,
+# ils interdiraient toute mise à jour future : Google Play refuse un binaire
+# signé par une autre clé, et il faudrait abandonner tous les utilisateurs
+# installés sous un nouvel identifiant.
+android/key.properties
+android/keystore/
+*.jks
+*.keystore
