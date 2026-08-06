@@ -1690,3 +1690,361 @@ const Adresses = {
 document.addEventListener('DOMContentLoaded', () => {
   if (document.getElementById('ad-ops')) Adresses.init();
 });
+
+/* ------------------------------------------------------------------ */
+/* Écran : Sociétés à valider                                          */
+/*                                                                     */
+/* L'API existait depuis EP-07 sans aucun écran : un loueur qui        */
+/* s'inscrivait restait « en attente » pour toujours, et la verticale  */
+/* de lancement était bloquée par une porte manquante.                 */
+/* ------------------------------------------------------------------ */
+
+const Societes = {
+  statut: 'pending',
+
+  async charger() {
+    const zone = document.getElementById('table-societes');
+    if (!zone) return;
+
+    try {
+      const r = await Api.get('/api/v1/admin/companies?status=' + encodeURIComponent(this.statut));
+      const compteur = document.getElementById('compte-societes');
+      if (compteur) compteur.textContent = `${r.meta.total} société(s)`;
+
+      if (!r.companies.length) {
+        zone.innerHTML = `<p style="padding:26px;background:#FFF6E8;border-radius:12px;font-size:15px;font-weight:700;text-align:center">Aucune société dans cet état.</p>`;
+        return;
+      }
+
+      const enAttente = this.statut === 'pending';
+
+      zone.innerHTML = `
+        <table style="width:100%;border-collapse:collapse;background:#FFF6E8;border-radius:12px;overflow:hidden">
+          <thead><tr style="background:#2B1D12;color:#FFF6E8">
+            ${['RAISON SOCIALE', 'RCCM', 'QUOTA DE PARC', 'ÉTAT', 'ACTION']
+              .map(h => `<th style="text-align:left;padding:12px 14px;font-size:11px;font-weight:700;letter-spacing:.4px">${h}</th>`).join('')}
+          </tr></thead>
+          <tbody>${r.companies.map(c => `
+            <tr style="border-top:1px solid #E4DBC8">
+              <td style="padding:12px 14px;font-size:14px;font-weight:700">${txt(c.legal_name)}</td>
+              <td style="padding:12px 14px;font-size:13px;font-family:ui-monospace,monospace">${txt(c.rccm_number || '—')}</td>
+              <td style="padding:12px 14px;font-size:14px">${txt(c.free_fleet_quota)}</td>
+              <td style="padding:12px 14px">${pastille(
+                txt(c.validation_status),
+                c.validation_status === 'validated' ? '#3F8F5B' : (c.validation_status === 'rejected' ? '#B23A3A' : '#FFF'),
+                c.validation_status === 'pending' ? '#2B1D12' : '#FFF6E8',
+              )}</td>
+              <td style="padding:12px 14px">${enAttente ? `
+                <button data-valider="${txt(c.id)}"
+                        style="background:#2B1D12;color:#FFF6E8;border:none;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer">Valider</button>
+                <button data-refuser="${txt(c.id)}"
+                        style="margin-left:6px;background:transparent;color:#B23A3A;border:2px solid #B23A3A;border-radius:8px;padding:4px 10px;font-size:13px;font-weight:700;cursor:pointer">Refuser</button>
+              ` : '—'}</td>
+            </tr>`).join('')}</tbody>
+        </table>`;
+
+      zone.querySelectorAll('[data-valider]').forEach(b =>
+        b.addEventListener('click', () => this.decider(b.dataset.valider, 'validated')));
+      zone.querySelectorAll('[data-refuser]').forEach(b =>
+        b.addEventListener('click', () => this.decider(b.dataset.refuser, 'rejected')));
+    } catch (e) {
+      zone.innerHTML = `<p style="color:#B23A3A;font-weight:700">${txt(e.message)}</p>`;
+    }
+  },
+
+  async decider(id, statut) {
+    // LE MOTIF EST EXIGÉ SUR UN REFUS, et pour cause : la société ne saura
+    // sinon jamais quoi corriger, et redéposera le même dossier.
+    let motif = null;
+
+    if (statut === 'rejected') {
+      motif = window.prompt('Motif du refus (il sera consigné) :');
+      if (motif === null || motif.trim() === '') return;
+    } else if (!window.confirm('Valider cette société ? Elle aura accès à l’espace loueur.')) {
+      return;
+    }
+
+    try {
+      await Api.post(`/api/v1/admin/companies/${id}/validate`, { status: statut, reason: motif });
+      this.charger();
+    } catch (e) {
+      window.alert(e.message);
+    }
+  },
+
+  init() {
+    document.querySelectorAll('[data-statut]').forEach(b =>
+      b.addEventListener('click', () => {
+        this.statut = b.dataset.statut;
+        document.querySelectorAll('[data-statut]').forEach(a => {
+          const actif = a.dataset.statut === this.statut;
+          a.style.background = actif ? '#2B1D12' : '#FFF';
+          a.style.color = actif ? '#FFF6E8' : '#2B1D12';
+        });
+        this.charger();
+      }));
+
+    const premier = document.querySelector('[data-statut="pending"]');
+    if (premier) { premier.style.background = '#2B1D12'; premier.style.color = '#FFF6E8'; }
+
+    this.charger();
+  },
+};
+
+/* ------------------------------------------------------------------ */
+/* Écran : Réglages techniques                                         */
+/*                                                                     */
+/* Six configurations qui ne se posaient qu'en base ou par appel       */
+/* d'API — c'est-à-dire, en pratique, jamais.                          */
+/* ------------------------------------------------------------------ */
+
+const Reglages = {
+  smsCatalogue: [],
+
+  vert: (t) => `<span style="color:#3F8F5B;font-weight:700">✓ ${txt(t)}</span>`,
+  gris: (t) => `<span style="color:#7A6A55">${txt(t)}</span>`,
+  rouge: (t) => `<span style="color:#B23A3A;font-weight:700">⚠️ ${txt(t)}</span>`,
+
+  poser(id, html) {
+    const zone = document.getElementById(id);
+    if (zone) zone.innerHTML = html;
+  },
+
+  async chargerPlateforme() {
+    try {
+      const r = await Api.get('/api/v1/admin/platform-state');
+      this.poser('rg-etat-plateforme', r.read_only
+        ? this.rouge('Écritures SUSPENDUES' + (r.reason ? ` — ${r.reason}` : ''))
+        : this.vert('Plateforme ouverte : les écritures passent.'));
+      const bouton = document.getElementById('rg-basculer');
+      if (bouton) {
+        bouton.textContent = r.read_only ? 'Rouvrir les écritures' : 'Passer en lecture seule';
+        bouton.style.background = r.read_only ? '#3F8F5B' : '#B23A3A';
+      }
+      this.lectureSeule = r.read_only;
+    } catch (e) {
+      this.poser('rg-etat-plateforme', this.rouge(e.message));
+    }
+  },
+
+  async chargerSms() {
+    try {
+      const r = await Api.get('/api/v1/admin/sms-provider');
+      this.smsCatalogue = r.available || [];
+      const select = document.getElementById('rg-sms');
+
+      if (select) {
+        select.innerHTML = this.smsCatalogue
+          .map(p => `<option value="${txt(p.key)}"${p.key === r.active.provider ? ' selected' : ''}>${txt(p.label)}</option>`)
+          .join('');
+        this.peindreChampsSms(r.active.provider, r.active.config || {});
+      }
+
+      const reel = r.active.provider !== 'log' && r.active.provider !== 'mail';
+      this.poser('rg-etat-sms', reel
+        ? this.vert(`Passerelle active : ${r.active.provider}`)
+        : this.gris(`Aucune passerelle SMS réelle (« ${r.active.provider} ») : les codes partent par courriel.`));
+    } catch (e) {
+      this.poser('rg-etat-sms', this.rouge(e.message));
+    }
+  },
+
+  peindreChampsSms(cle, config) {
+    const zone = document.getElementById('rg-sms-champs');
+    if (!zone) return;
+
+    const fournisseur = this.smsCatalogue.find(p => p.key === cle);
+    const aide = document.getElementById('rg-sms-aide');
+    if (aide) aide.textContent = fournisseur ? fournisseur.description : '';
+
+    const champs = (fournisseur && fournisseur.fields) || {};
+    zone.innerHTML = Object.entries(champs).map(([nom, def]) => `
+      <label style="display:block">
+        <span style="display:block;font-weight:700;font-size:14px;margin-bottom:6px">${txt(def.label)}${def.required ? ' *' : ''}</span>
+        <input data-sms-champ="${txt(nom)}" type="${def.secret ? 'password' : 'text'}" autocomplete="off"
+               value="${def.secret ? '' : txt(config[nom] || '')}"
+               placeholder="${def.secret ? 'inchangé si laissé vide' : ''}"
+               style="width:100%;padding:12px 14px;border:2px solid #E4DBC8;border-radius:10px;font-size:14px">
+        ${def.help ? `<span style="display:block;margin-top:5px;font-size:12px;color:#7A6A55;line-height:1.5">${txt(def.help)}</span>` : ''}
+      </label>`).join('');
+  },
+
+  async chargerCaptcha() {
+    try {
+      const r = await Api.get('/api/v1/admin/captcha-provider');
+      this.poser('rg-etat-captcha', r.configured
+        ? this.vert(`Défi actif — ${r.grant_lookups} consultations accordées par défi réussi.`)
+        : this.gris(r.fallback));
+      const site = document.getElementById('rg-captcha-site');
+      if (site && r.site_key) site.value = r.site_key;
+    } catch (e) {
+      this.poser('rg-etat-captcha', this.rouge(e.message));
+    }
+  },
+
+  async chargerKyc() {
+    try {
+      const r = await Api.get('/api/v1/admin/kyc-provider');
+      this.poser('rg-etat-kyc', r.configured ? this.vert('Clé renseignée.') : this.gris(r.fallback));
+      const e1 = document.getElementById('rg-kyc-endpoint');
+      const e2 = document.getElementById('rg-kyc-scan');
+      if (e1 && r.endpoint) e1.value = r.endpoint;
+      if (e2 && r.scan_endpoint) e2.value = r.scan_endpoint;
+    } catch (e) {
+      this.poser('rg-etat-kyc', this.rouge(e.message));
+    }
+  },
+
+  async chargerPush() {
+    try {
+      const r = await Api.get('/api/v1/admin/push-provider');
+      // LE NOMBRE D'APPAREILS DIT LA VÉRITÉ : une clé posée sans aucun
+      // appareil enregistré signifie que rien ne recevra jamais de push.
+      const appareils = `${r.registered_devices} appareil(s) enregistré(s)`;
+      this.poser('rg-etat-push', r.configured
+        ? (r.registered_devices > 0
+            ? this.vert(`Clé renseignée · ${appareils}`)
+            : this.gris(`Clé renseignée, mais ${appareils} : aucune application ne s'est encore annoncée.`))
+        : this.gris(`Aucune clé : les notifications restent visibles dans l'application. ${appareils}`));
+    } catch (e) {
+      this.poser('rg-etat-push', this.rouge(e.message));
+    }
+  },
+
+  async chargerAncrage() {
+    try {
+      const r = await Api.get('/api/v1/admin/audit-anchor');
+      const d = r.last_anchor;
+      this.poser('rg-etat-ancrage', r.opposable
+        ? this.vert(`Dernier ancrage le ${new Date(d.anchored_at).toLocaleString('fr-FR')} · ${d.entry_count} entrée(s)`
+            + (r.failed_since_last_success > 0 ? ` — ${r.failed_since_last_success} échec(s) depuis` : ''))
+        : this.rouge(r.warning));
+      const m = document.getElementById('rg-ancrage-mail');
+      const s = document.getElementById('rg-ancrage-disque');
+      if (m && r.configuration.mail_recipient) m.value = r.configuration.mail_recipient;
+      if (s && r.configuration.storage_disk) s.value = r.configuration.storage_disk;
+    } catch (e) {
+      this.poser('rg-etat-ancrage', this.rouge(e.message));
+    }
+  },
+
+  /** Les champs laissés vides ne sont PAS envoyés : vide veut dire « inchangé ». */
+  corpsRenseigne(paires) {
+    const corps = {};
+    for (const [cle, id] of Object.entries(paires)) {
+      const valeur = ((document.getElementById(id) || {}).value || '').trim();
+      if (valeur !== '') corps[cle] = valeur;
+    }
+    return corps;
+  },
+
+  async envoyer(url, corps, apres) {
+    try {
+      const r = await Api.put(url, corps);
+      window.alert(r.message || 'Enregistré.');
+      if (apres) await apres.call(this);
+    } catch (e) {
+      window.alert(e.message);
+    }
+  },
+
+  init() {
+    const brancher = (id, action) => {
+      const bouton = document.getElementById(id);
+      if (bouton) bouton.addEventListener('click', action);
+    };
+
+    brancher('rg-basculer', async () => {
+      const motif = (document.getElementById('rg-motif') || {}).value || '';
+      const versLectureSeule = !this.lectureSeule;
+
+      if (versLectureSeule && !window.confirm(
+        'Suspendre TOUTES les écritures ?\n\n' +
+        'Plus aucun enregistrement, transfert ni déclaration de vol ne sera accepté. ' +
+        'La consultation, elle, reste ouverte.'
+      )) return;
+
+      await this.envoyer('/api/v1/admin/platform-state',
+        { read_only: versLectureSeule, reason: motif || null }, this.chargerPlateforme);
+    });
+
+    const select = document.getElementById('rg-sms');
+    if (select) select.addEventListener('change', () => this.peindreChampsSms(select.value, {}));
+
+    brancher('rg-sms-appliquer', () => {
+      const config = {};
+      document.querySelectorAll('[data-sms-champ]').forEach(c => {
+        if (c.value.trim() !== '') config[c.dataset.smsChamp] = c.value.trim();
+      });
+
+      if (!window.confirm(
+        'Changer la passerelle SMS ?\n\n' +
+        'Tous les codes d’accès de la plateforme passeront par elle.'
+      )) return;
+
+      this.envoyer('/api/v1/admin/sms-provider',
+        { provider: (select || {}).value, config }, this.chargerSms);
+    });
+
+    brancher('rg-sms-tester', async () => {
+      const numero = ((document.getElementById('rg-sms-essai') || {}).value || '').trim();
+      if (numero === '') return window.alert('Renseignez un numéro d’essai.');
+
+      try {
+        const r = await Api.post('/api/v1/admin/sms-provider/test', { phone: numero });
+        window.alert(r.message);
+      } catch (e) {
+        window.alert(e.message);
+      }
+    });
+
+    brancher('rg-captcha-appliquer', () => this.envoyer('/api/v1/admin/captcha-provider',
+      this.corpsRenseigne({ site_key: 'rg-captcha-site', secret_key: 'rg-captcha-secret' }),
+      this.chargerCaptcha));
+
+    brancher('rg-kyc-appliquer', () => this.envoyer('/api/v1/admin/kyc-provider',
+      this.corpsRenseigne({ api_key: 'rg-kyc-cle', endpoint: 'rg-kyc-endpoint', scan_endpoint: 'rg-kyc-scan' }),
+      this.chargerKyc));
+
+    brancher('rg-push-appliquer', () => this.envoyer('/api/v1/admin/push-provider',
+      this.corpsRenseigne({ server_key: 'rg-push-cle' }), this.chargerPush));
+
+    brancher('rg-ancrage-appliquer', () => this.envoyer('/api/v1/admin/audit-anchor',
+      this.corpsRenseigne({ mail_recipient: 'rg-ancrage-mail', storage_disk: 'rg-ancrage-disque' }),
+      this.chargerAncrage));
+
+    brancher('rg-ancrage-verifier', async () => {
+      try {
+        const r = await Api.get('/api/v1/admin/audit-anchor/verify');
+
+        if (r.valid) {
+          window.alert('La chaîne se relit d’un bout à l’autre, et le dernier ancrage lui correspond.');
+          return;
+        }
+
+        // ON DIT QUEL DES DEUX CONTRÔLES A CÉDÉ : « chaîne rompue » et
+        // « ancrage divergent » n'appellent pas la même conduite. Le premier
+        // dit qu'une ligne a été réécrite ; le second, que la trace déposée
+        // dehors ne correspond plus — ce qui peut aussi venir d'un ancrage
+        // manqué.
+        window.alert('ATTENTION, à traiter en priorité absolue.\n\n'
+          + `Relecture interne de la chaîne : ${r.internal && r.internal.valid ? 'intacte' : 'ROMPUE'}\n`
+          + `Correspondance avec les ancrages : ${r.anchors && r.anchors.valid ? 'conforme' : 'DIVERGENTE'}`);
+      } catch (e) {
+        window.alert(e.message);
+      }
+    });
+
+    this.chargerPlateforme();
+    this.chargerSms();
+    this.chargerCaptcha();
+    this.chargerKyc();
+    this.chargerPush();
+    this.chargerAncrage();
+  },
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (document.getElementById('table-societes')) Societes.init();
+  if (document.getElementById('rg-etat-plateforme')) Reglages.init();
+});

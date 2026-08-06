@@ -37,6 +37,11 @@ final class AdminConsoleController extends Controller
         ['key' => 'registry', 'nom' => 'Registre des biens', 'route' => 'admin.registry', 'admin_seul' => false],
         ['key' => 'categories', 'nom' => 'Catégories & champs', 'route' => 'admin.categories', 'admin_seul' => true],
         ['key' => 'users', 'nom' => 'Utilisateurs', 'route' => 'admin.users', 'admin_seul' => false],
+        // LES SOCIÉTÉS ATTENDAIENT SANS QUE PERSONNE NE PUISSE LES VOIR.
+        // L'API de validation existait depuis EP-07 ; sans écran, un loueur
+        // qui s'inscrivait restait « en attente » pour toujours — et la
+        // verticale de lancement était bloquée par une porte manquante.
+        ['key' => 'companies', 'nom' => 'Sociétés à valider', 'route' => 'admin.companies', 'admin_seul' => false],
         ['key' => 'stats', 'nom' => 'Statistiques app', 'route' => 'admin.stats', 'admin_seul' => true],
         // Les tarifs décident de ce que les gens paient : administrateurs seuls,
         // comme tous les écrans de configuration.
@@ -44,6 +49,13 @@ final class AdminConsoleController extends Controller
         ['key' => 'monitoring', 'nom' => 'Supervision', 'route' => 'admin.monitoring', 'admin_seul' => false],
         ['key' => 'audit', 'nom' => "Piste d'audit", 'route' => 'admin.audit', 'admin_seul' => true],
         ['key' => 'team', 'nom' => 'Équipe & rôles', 'route' => 'admin.team', 'admin_seul' => true],
+        // SIX CONFIGURATIONS N'AVAIENT AUCUN ÉCRAN : passerelle SMS, défi
+        // anti-automate, lecteur de pièces, push, ancrage d'audit et mode
+        // lecture seule. Elles ne se réglaient qu'en base ou par appel d'API —
+        // c'est-à-dire, en pratique, jamais. Le mode lecture seule est le plus
+        // grave : on en a besoin pendant un incident, précisément quand
+        // personne n'a de terminal sous la main.
+        ['key' => 'settings', 'nom' => 'Réglages techniques', 'route' => 'admin.settings', 'admin_seul' => true],
     ];
 
     public function overview(Request $request): View
@@ -89,6 +101,16 @@ final class AdminConsoleController extends Controller
     public function audit(Request $request): View
     {
         return view('admin.audit', $this->contexte($request, 'audit', "Piste d'audit"));
+    }
+
+    public function companies(Request $request): View
+    {
+        return view('admin.entreprises', $this->contexte($request, 'companies', 'Sociétés à valider'));
+    }
+
+    public function settings(Request $request): View
+    {
+        return view('admin.reglages', $this->contexte($request, 'settings', 'Réglages techniques'));
     }
 
     public function team(Request $request): View

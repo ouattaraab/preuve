@@ -242,6 +242,9 @@ Route::prefix('admin')->group(function (): void {
         Route::get('registre', [AdminConsoleController::class, 'registry'])->name('admin.registry');
         Route::get('comptes', [AdminConsoleController::class, 'users'])->name('admin.users');
         Route::get('supervision', [AdminConsoleController::class, 'monitoring'])->name('admin.monitoring');
+        // Ouverte aux agents comme la modération : valider une société est un
+        // travail de guichet, pas une décision d'administrateur.
+        Route::get('societes', [AdminConsoleController::class, 'companies'])->name('admin.companies');
 
         /*
          * Écrans de configuration : administrateurs seulement, comme les API
@@ -255,6 +258,7 @@ Route::prefix('admin')->group(function (): void {
             Route::get('equipe', [AdminConsoleController::class, 'team'])->name('admin.team');
             Route::get('statistiques', [AdminConsoleController::class, 'stats'])->name('admin.stats');
             Route::get('tarifs', [AdminConsoleController::class, 'pricing'])->name('admin.pricing');
+            Route::get('reglages', [AdminConsoleController::class, 'settings'])->name('admin.settings');
         });
     });
 });
