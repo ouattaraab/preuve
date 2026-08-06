@@ -4,6 +4,26 @@
 > transaction ouverte, **devise XOF acceptée**, montant `20000` pour 200 FCFA,
 > domaine `test`. Vérifié via `transaction/verify`.
 
+## Le canal actif est le MOBILE MONEY, pas la carte
+
+Relevé en interrogeant l'API avec la clé de ce compte :
+
+| Canal demandé | Réponse de Paystack |
+|---|---|
+| `mobile_money` | **accepté** |
+| `card` seul | **refusé** — « No active channel to process transaction » |
+| `card` + `mobile_money` | accepté (grâce au second) |
+
+**Conséquence pratique : une carte de test ne sert à rien ici.** La page de
+règlement proposera le mobile money — Wave, Orange, MTN, Moov selon ce que le
+compte expose. C'est la bonne nouvelle pour ce marché, où la carte est
+minoritaire, et c'est ce qui rend PawaPay inutile.
+
+**On ne passe volontairement AUCUN paramètre `channels`** dans
+`PaystackGateway::initialize`. Les canaux suivent la configuration du compte :
+les figer dans le code ferait manquer une carte activée plus tard, ou pire,
+demanderait un déploiement pour l'accompagner.
+
 ## Ce qui se règle, et où
 
 | Élément | Où | Pourquoi pas ailleurs |
@@ -65,8 +85,11 @@ réception, donc nous priver des rappels utiles.
    Webhook URL* = `https://preuve.click/api/v1/webhooks/payments/paystack`
 3. Ouvrir un tarif : mettre `theft_listing` à 200 FCFA, par exemple.
 4. Depuis l'application, sur un bien déclaré volé : « Le faire connaître » →
-   « Payer et publier ». Régler avec une **carte de test** Paystack.
-5. Vérifier que le bien paraît sur <https://preuve.click/voles>.
+   « Payer et publier ». **Régler en mobile money** — la carte n'est pas active
+   sur ce compte (voir plus haut) ; en mode test, Paystack affiche lui-même la
+   marche à suivre pour simuler le règlement.
+5. Revenir dans l'application : l'écran se met à jour tout seul.
+6. Vérifier que le bien paraît sur <https://preuve.click/voles>.
 
 **Ce qui prouve que la boucle est fermée**, ce n'est pas la page de retour —
 elle ne fait que relire — mais l'apparition du bien sur la liste. Le retour du
@@ -88,10 +111,7 @@ n'échangent aucune transaction.
   implémente, et l'application ne les propose nulle part : elle ouvre toujours
   Paystack. Le format maison du webhook reste en place pour un éventuel autre
   opérateur.
-- **À VÉRIFIER : les moyens de paiement réellement offerts en XOF.** Sur ce
-  marché, le mobile money pèse davantage que la carte. Regarder, dans le
-  tableau de bord Paystack, quels canaux le compte expose pour la Côte d'Ivoire
-  — si le mobile money y figure, il n'y a rien de plus à brancher ; sinon,
-  c'est le prochain chantier de paiement, avant toute autre fonctionnalité
-  payante.
+- **La carte n'est pas activée sur ce compte Paystack.** Ce n'est pas un défaut
+  de la plateforme, et rien n'est à changer dans le code — mais si l'on veut un
+  jour encaisser par carte, cela se demande à Paystack, pas à nous.
 - **CinetPay est interdit** (CLAUDE.md).
