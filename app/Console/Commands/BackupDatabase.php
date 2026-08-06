@@ -70,6 +70,28 @@ final class BackupDatabase extends Command
             return self::FAILURE;
         }
 
+        // LA SAUVEGARDE EST ÉCRITE, MAIS ON DIT CE QU'ELLE VAUT.
+        //
+        // Configurée sur le même disque que la base, elle protège d'une
+        // corruption logique — une migration ratée, une suppression de trop —
+        // et de RIEN d'autre. Le jour où le serveur est perdu, elle l'est avec
+        // lui. La commande des pièces refuse carrément ce montage ; ici on ne
+        // refuse pas, parce qu'une copie locale a une vraie valeur contre les
+        // fautes de manipulation. Mais se taire ferait passer pour un plan de
+        // reprise ce qui n'en est pas un, et c'est ainsi qu'on découvre le
+        // problème le jour où il n'est plus réparable.
+        if ($this->resteSurPlace($disque)) {
+            $message = sprintf(
+                'La sauvegarde est écrite sur le disque « %s », celui-là même où vit la plateforme. '.
+                'Elle protège d\'une corruption logique, pas d\'une perte du serveur. '.
+                'Renseignez preuve.backup.disk sur un stockage distant (s3, r2).',
+                $disque,
+            );
+
+            $this->components->warn($message);
+            $this->rapports->alert('Sauvegarde de la base', $message, true);
+        }
+
         $nom = 'preuve-'.now()->format('Y-m-d-His').'.sql.enc';
 
         // Chiffrement avec APP_KEY : la clé ne quitte pas la machine, la
@@ -171,6 +193,23 @@ final class BackupDatabase extends Command
                 Storage::disk($disque)->delete($ancien);
             }
         }
+    }
+
+    /**
+     * Vrai quand la « sauvegarde » vit sur le même disque que ce qu'elle
+     * sauvegarde.
+     *
+     * On compare les RACINES et non les noms : deux disques nommés
+     * différemment peuvent pointer le même dossier, et c'est exactement le
+     * genre de configuration qu'on croit sûre.
+     */
+    private function resteSurPlace(string $disque): bool
+    {
+        $racine = config('filesystems.disks.'.$disque.'.root');
+        $local = config('filesystems.disks.local.root');
+
+        return $disque === 'local'
+            || (is_string($racine) && is_string($local) && realpath($racine) === realpath($local));
     }
 
     private function disk(): ?string

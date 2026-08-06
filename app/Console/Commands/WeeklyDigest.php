@@ -154,6 +154,39 @@ final class WeeklyDigest extends Command
     }
 
     /**
+     * Les sauvegardes existent-elles ailleurs que sur cette machine ?
+     *
+     * @return array{texte: string, anomalie: string|null}
+     */
+    private function sauvegardes(): array
+    {
+        $absents = [];
+
+        foreach ([
+            'base' => config('preuve.backup.disk'),
+            'pièces' => config('preuve.documents.backup_disk'),
+        ] as $quoi => $disque) {
+            if (! is_string($disque) || $disque === '' || $disque === 'local') {
+                $absents[] = $quoi;
+            }
+        }
+
+        if ($absents === []) {
+            return ['texte' => 'configurées', 'anomalie' => null];
+        }
+
+        return [
+            'texte' => 'AUCUNE ('.implode(', ', $absents).')',
+            'anomalie' => sprintf(
+                'Aucune copie hors serveur pour : %s. Une perte du disque emporterait '
+                .'les pièces d\'identité, les preuves de réclamation et le registre. '
+                .'Renseigner un stockage distant (s3, r2).',
+                implode(' et ', $absents),
+            ),
+        ];
+    }
+
+    /**
      * Âge en jours d'un horodatage rendu par la base.
      *
      * Le type venant de la base n'est pas garanti — chaîne selon le pilote,
@@ -235,6 +268,13 @@ final class WeeklyDigest extends Command
                 'anomalie' => 'La chaîne d\'audit n\'a pas pu être vérifiée ('.$e::class.').',
             ];
         }
+
+        // LES SAUVEGARDES, ET CE QU'ELLES VALENT VRAIMENT.
+        //
+        // Une copie posée à côté de l'original protège d'une fausse manœuvre et
+        // de rien d'autre. Le dire chaque semaine évite de le découvrir le jour
+        // où le serveur est perdu — c'est-à-dire le jour où c'est irréparable.
+        $etats['Sauvegardes hors serveur'] = $this->sauvegardes();
 
         // LA SURVEILLANCE SE SURVEILLE ELLE-MÊME. Le canal d'alerte n'est actif
         // que s'il figure dans `LOG_STACK` : un déploiement qui l'omet perd

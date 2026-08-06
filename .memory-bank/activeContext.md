@@ -1068,6 +1068,79 @@ produit ; deux promesses différentes pour la même chose font douter des deux.
 
 **Couverture** : 888 Pest. Pages vérifiées au rendu, en 500 px de large.
 
+## Audit de sécurité, supervision, et publication mobile (06/08/2026)
+
+### Ce que l'audit a confirmé comme solide
+
+`composer audit` propre ; tout le SQL brut paramétré ou constant ; aucun
+`create($request->all())` ; les 41 routes admin/flotte portent toutes un garde
+de rôle ; cloisonnement par propriétaire avec **404 et non 403** (un 403
+révélerait l'existence) ; webhooks en HMAC-SHA256 **temps constant**, échouant
+fermé et idempotents ; `txt()` échappe via `textContent` et la CSP est
+`default-src 'none'; script-src 'self'` sans `unsafe-inline` ; **les deux
+déclencheurs anti-réécriture de l'audit sont présents en production** ; HSTS,
+cookies `secure`+`httponly`+`samesite` ; `.env`, `.git/config` et journaux en
+403/404 ; côté mobile, jeton au trousseau, pas de `debuggable`, pas de trafic en
+clair.
+
+### Ce qu'il a trouvé
+
+**Corrigé** — aucun plafond HTTP sur `/rapport/{token}` ni `/verifier`. Le jeton
+fait quarante caractères et ne se devine pas : ce qui manquait n'était pas une
+protection contre la force brute mais contre son COÛT, chaque tentative étant
+une requête en base gratuite pour l'attaquant.
+
+**NON CORRIGEABLE DEPUIS LE CODE, et c'est le point à retenir** : l'hébergement
+accepte **1536 Mo par requête** quand l'application valide à 8 Mo, et la
+validation de Laravel s'exécute APRÈS que PHP a bufferisé. Les deux remèdes
+applicatifs échouent ici, **éprouvés et non supposés** — `.user.ini` est
+désactivé (`user_ini.filename` vide) et `LimitRequestBody` n'est pas honoré. Le
+remède est dans **hPanel**. Risque résiduel mesuré : temporaires effacés en fin
+de requête, donc transitoire, et route bornée à 10/10 min.
+
+**Arbitrage assumé** : le plafond de consultation est passé à 300 identifiants
+distincts par heure faute de défi configuré. Renseigner Turnstile le ramène à
+dix **avec** une porte de sortie, ce qui est strictement meilleur.
+
+### Supervision : trois dispositifs, et ce qu'ils couvrent chacun
+
+1. **Alerte sur erreur** (04/08) — débit borné, contexte non recopié, échec
+   avalé. Ne peut pas signaler que le serveur est tombé.
+2. **Contrôle quotidien du stockage** — `disk_free_space` rend **14 To** sur ce
+   mutualisé, le volume de l'hébergeur et non le quota du compte : l'API ment.
+   On éprouve donc l'**écriture réelle**, suivie d'une relecture — une écriture
+   qui « réussit » sans restituer son contenu est le symptôme classique d'un
+   quota atteint.
+3. **Point hebdomadaire** (lundi 7 h) — ce qui se **dégrade lentement** et ne
+   produit aucun événement. Donne l'**ancienneté du plus vieux dossier** et pas
+   seulement le décompte. **Il surveille sa propre surveillance** : un
+   `LOG_STACK` sans `alerte-ops` éteint toutes les alertes en silence.
+4. **Surveillant extérieur** (Healthchecks.io, interrupteur d'homme mort) — la
+   plateforme donne signe de vie toutes les cinq minutes, **son silence
+   alerte**. `/fail` emprunte un chemin distinct du courriel : la seule voie qui
+   reste le jour où la messagerie est en panne. URL en réglage, jamais au dépôt,
+   refusée hors HTTPS, jamais journalisée.
+
+### Sauvegardes : le trou qui demeure
+
+**Ni la base ni les pièces n'ont de copie hors du serveur.** La commande des
+pièces le refusait déjà bruyamment ; celle de la base écrivait à côté de
+l'original **en se déclarant réussie**. Elle avertit désormais, et le résumé
+hebdomadaire porte l'état. Les disques `s3` et `r2` sont déjà déclarés : il ne
+manque qu'un bucket.
+
+### Publication mobile
+
+Trousseau BookMi 4096 bits hors dépôt, identifiant **définitif**
+`ci.bookmi.preuve` choisi pour ne pas dépendre du domaine, R8 avec les règles
+Flutter et ML Kit, App Bundle 76 Mo et APK par architecture (42/32 Mo) contre
+106 Mo en universel. **Vérifié sur appareil** : installé, démarré, signature
+confirmée. Une heure perdue sur un faux coupable — l'émulateur plein à 95 %
+faisait échouer `adb install` en silence, et tout rendait « Activity class does
+not exist ».
+
+**Couverture** : 920 Pest, 118 `preuve_core`, 31 `preuve_app`.
+
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)
