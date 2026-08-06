@@ -1121,13 +1121,37 @@ dix **avec** une porte de sortie, ce qui est strictement meilleur.
    reste le jour où la messagerie est en panne. URL en réglage, jamais au dépôt,
    refusée hors HTTPS, jamais journalisée.
 
-### Sauvegardes : le trou qui demeure
+### Sauvegardes : sur Cloudflare R2 depuis le 06/08/2026
 
-**Ni la base ni les pièces n'ont de copie hors du serveur.** La commande des
-pièces le refusait déjà bruyamment ; celle de la base écrivait à côté de
-l'original **en se déclarant réussie**. Elle avertit désormais, et le résumé
-hebdomadaire porte l'état. Les disques `s3` et `r2` sont déjà déclarés : il ne
-manque qu'un bucket.
+**Le trou existentiel est fermé.** `PREUVE_BACKUP_DISK=r2` — base ET pièces
+lisent cette même clé, il n'y en a qu'une (mon résumé hebdomadaire lisait
+d'abord un `preuve.documents.backup_disk` qui n'existe nulle part : il aurait
+signalé les pièces comme non sauvegardées à jamais).
+
+**Piège de configuration évité** : Cloudflare affiche l'adresse S3 sous la forme
+`…r2.cloudflarestorage.com/preuve`, mais `use_path_style_endpoint` rajoute le
+nom du seau. Enregistrer l'adresse telle quelle produisait des chemins
+`/preuve/preuve/…` — des écritures qui réussissent au mauvais endroit, **sans la
+moindre erreur**, et qu'on ne découvre qu'au jour de la restauration.
+
+**Éprouvé, et non supposé** : écriture, relecture octet pour octet, listage,
+effacement. Puis la sauvegarde réelle relue depuis R2, déchiffrée avec `APP_KEY`
+— 36 tables, et **les six déclencheurs anti-réécriture présents**.
+
+Deux pièces sur R2 pour trois fichiers KYC locaux : c'est de la **déduplication
+par contenu** (le verso et le selfie du dossier d'essai sont la même image), pas
+une perte.
+
+**Ma propre fausse alerte, à retenir** : j'ai d'abord cherché `CREATE TRIGGER`
+dans le dump et trouvé zéro, concluant que les protections manquaient.
+`mysqldump` écrit `/*!50003 CREATE*/ … /*!50003 TRIGGER` — les deux mots ne se
+touchent jamais. Le motif était faux, pas le dispositif. **Vérifier une alarme
+avant de la sonner vaut aussi pour les miennes.**
+
+**Ce qui reste** : l'exercice de restauration complet sur l'hébergement cible.
+La commande refuse — à juste titre — de créer ou supprimer une base en
+production, et il n'existe qu'une base. Il faut **créer une base vide dans
+hPanel** puis lancer `preuve:restore-drill --database=nom`.
 
 ### Publication mobile
 
