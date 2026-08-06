@@ -34,6 +34,21 @@ const Api = {
       throw new Error('session expirée');
     }
 
+    // 419 : LE JETON CSRF A PÉRIMÉ SUR UNE PAGE LAISSÉE OUVERTE. La session,
+    // elle, est peut-être encore valide — d'où un traitement distinct du 401.
+    // Sans ce cas, l'échec se lisait « Erreur 419 » dans un texte de 14 px à
+    // côté du bouton, et l'exploitant repartait convaincu d'avoir enregistré.
+    // Un tarif qu'on croit posé et qui vaut toujours zéro, c'est un service
+    // rendu gratuitement sans que personne ne s'en aperçoive.
+    if (reponse.status === 419) {
+      window.alert(
+        'Cette page est restée ouverte trop longtemps et votre jeton de sécurité a expiré.\n\n' +
+        'RIEN N’A ÉTÉ ENREGISTRÉ. La page va se recharger : refaites la modification.'
+      );
+      window.location.reload();
+      throw new Error('jeton expiré');
+    }
+
     const corps = await reponse.json().catch(() => ({}));
 
     if (!reponse.ok) {
@@ -835,8 +850,13 @@ const Tarifs = {
           retour.style.color = '#3F8F5B';
           await this.charger();
         } catch (e) {
-          retour.textContent = e.message;
-          retour.style.color = '#B23A3A';
+          // UN ÉCHEC D'ENREGISTREMENT DE TARIF NE DOIT PAS ÊTRE DISCRET. Un
+          // montant qu'on croit posé et qui vaut toujours zéro rend le service
+          // gratuit sans que personne ne s'en aperçoive — c'est arrivé le
+          // 06/08/2026, et il a fallu lire la chaîne d'audit pour comprendre
+          // que la requête n'avait jamais abouti.
+          retour.textContent = '';
+          window.alert('Les tarifs N’ONT PAS été enregistrés.\n\n' + e.message);
         }
       });
     }
