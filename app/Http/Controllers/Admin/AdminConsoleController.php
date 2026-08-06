@@ -113,7 +113,7 @@ final class AdminConsoleController extends Controller
             'estAdministrateur' => $estAdministrateur,
             'navigation' => $this->navigation($estAdministrateur),
             'nomAffiche' => $nom,
-            'initiales' => $this->initiales($nom),
+            'initiales' => $this->initiales($nom ?? ''),
             'profil' => $utilisateur instanceof User ? $utilisateur->role->label() : '—',
         ];
     }

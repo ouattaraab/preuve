@@ -22,22 +22,27 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $buyer_otp_at
  * @property Carbon $expires_at
  * @property Carbon|null $completed_at
+ * @property string|null $to_email
  * @property int|null $created_asset_id
  */
 class Transfer extends Model
 {
     protected $fillable = [
-        'asset_id', 'from_user_id', 'to_user_id', 'to_phone', 'status',
+        'asset_id', 'from_user_id', 'to_user_id', 'to_phone', 'to_email', 'status',
         'previous_life_status', 'seller_otp_at', 'buyer_otp_at', 'expires_at',
         'completed_at', 'created_asset_id',
     ];
 
     /**
-     * Le téléphone de l'acheteur ne sort jamais par une sérialisation
-     * automatique : il désigne une personne qui n'a peut-être pas encore de
-     * compte, et n'a rien à faire dans une réponse publique.
+     * Les coordonnées de l'acheteur ne sortent JAMAIS par une sérialisation
+     * automatique : elles désignent une personne qui n'a peut-être pas encore
+     * de compte, et n'ont rien à faire dans une réponse publique.
+     *
+     * L'ADRESSE EST AUSSI CACHÉE QUE LE NUMÉRO. L'ajouter sans l'inscrire ici
+     * l'aurait exposée au premier `->toJson()` d'un contrôleur — et une adresse
+     * divulguée vaut un numéro divulgué.
      */
-    protected $hidden = ['to_phone'];
+    protected $hidden = ['to_phone', 'to_email'];
 
     /** @return array<string, string> */
     protected function casts(): array

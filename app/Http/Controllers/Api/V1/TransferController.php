@@ -52,9 +52,20 @@ final class TransferController extends Controller
 
         $transferts = Transfer::query()
             ->where(function ($requete) use ($utilisateur): void {
+                // ON N'INTERROGE QUE LES COORDONNÉES QUI EXISTENT. Un compte
+                // ouvert par adresse n'a pas de numéro : comparer `to_phone` à
+                // NULL ne rendrait jamais vrai, mais l'écrire explicitement
+                // évite de croire que la ligne fait quelque chose.
                 $requete->where('from_user_id', $utilisateur->id)
-                    ->orWhere('to_phone', $utilisateur->phone)
                     ->orWhere('to_user_id', $utilisateur->id);
+
+                if ($utilisateur->phone !== null && $utilisateur->phone !== '') {
+                    $requete->orWhere('to_phone', $utilisateur->phone);
+                }
+
+                if ($utilisateur->email !== null && $utilisateur->email !== '') {
+                    $requete->orWhere('to_email', $utilisateur->email);
+                }
             })
             // Seuls ceux sur lesquels il reste un geste à faire. Les finalisés,
             // annulés et expirés appartiennent à l'historique du bien, pas à
@@ -96,7 +107,14 @@ final class TransferController extends Controller
 
     public function store(Request $request, int $asset): JsonResponse
     {
-        $request->validate(['buyer_phone' => ['required', 'string', 'max:30']]);
+        $request->validate([
+            'buyer_phone' => ['required', 'string', 'max:30'],
+            // L'ADRESSE PRÉVIENT, ELLE NE DÉSIGNE PAS. Le numéro reste ce sur
+            // quoi porte le contrôle au moment d'accepter ; l'adresse est le
+            // seul canal par lequel l'acheteur apprendra qu'on lui cède
+            // quelque chose, tant qu'aucune passerelle SMS n'est branchée.
+            'buyer_email' => ['sometimes', 'nullable', 'email', 'max:150'],
+        ]);
 
         $bien = Asset::query()->whereKey($asset)->first();
 
@@ -109,13 +127,20 @@ final class TransferController extends Controller
                 $bien,
                 $this->utilisateur($request),
                 $request->string('buyer_phone')->toString(),
+                $request->string('buyer_email')->toString() ?: null,
             );
         } catch (DomainException $e) {
             throw ValidationException::withMessages(['buyer_phone' => $e->getMessage()]);
         }
 
         return response()->json([
-            'message' => "Un code vient d'être envoyé à l'acheteur. Le transfert expire dans 7 jours.",
+            // LE MESSAGE DIT LA VÉRITÉ DU CANAL. Promettre un envoi « à
+            // l'acheteur » sans passerelle SMS et sans adresse ferait attendre
+            // un vendeur pour un avertissement qui ne partira jamais.
+            'message' => $transfert->to_email === null
+                ? 'Transfert ouvert. Préviens l\'acheteur toi-même : sans son adresse '
+                    .'e-mail, nous n\'avons aucun moyen de le joindre. Il expire dans 7 jours.'
+                : 'L\'acheteur vient d\'être prévenu par e-mail. Le transfert expire dans 7 jours.',
             'transfer' => $this->present($transfert),
         ], 201);
     }

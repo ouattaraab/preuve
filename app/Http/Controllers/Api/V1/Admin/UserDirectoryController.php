@@ -292,10 +292,16 @@ final class UserDirectoryController extends Controller
         ];
     }
 
-    /** Deux derniers caractères seulement : reconnaître, pas joindre. */
+    /**
+     * Deux derniers caractères seulement : reconnaître, pas joindre.
+     *
+     * ON MASQUE LA COORDONNÉE QUI EXISTE. Un compte ouvert par adresse n'a pas
+     * de numéro : masquer une valeur nulle rendait une chaîne vide, et l'agent
+     * voyait une ligne sans rien pour distinguer un compte d'un autre.
+     */
     private function masquer(User $compte): string
     {
-        $numero = $compte->phone;
+        $numero = $compte->otpDestination() ?? '';
         $longueur = mb_strlen($numero);
 
         return $longueur <= 2

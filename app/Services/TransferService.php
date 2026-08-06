@@ -60,8 +60,12 @@ final class TransferService
      *
      * @throws DomainException
      */
-    public function initiate(Asset $bien, User $vendeur, string $telephoneAcheteur): Transfer
-    {
+    public function initiate(
+        Asset $bien,
+        User $vendeur,
+        string $telephoneAcheteur,
+        ?string $adresseAcheteur = null,
+    ): Transfer {
         if ($bien->owner_user_id !== $vendeur->id) {
             throw new DomainException('Seul le détenteur enregistré peut céder ce bien.');
         }
@@ -81,8 +85,24 @@ final class TransferService
 
         $destinataire = $this->otp->normalizeDestination($telephoneAcheteur);
 
+        // L'ADRESSE PRÉVIENT, LE NUMÉRO DÉSIGNE. C'est sur le numéro que porte
+        // le contrôle au moment d'accepter : le laisser remplacer par une
+        // adresse ferait basculer une règle de propriété pour une commodité de
+        // notification.
+        $adresse = $adresseAcheteur === null || trim($adresseAcheteur) === ''
+            ? null
+            : $this->otp->normalizeDestination($adresseAcheteur);
+
+        if ($adresse !== null && ! $this->otp->isEmail($adresse)) {
+            throw new DomainException('L\'adresse de l\'acheteur n\'est pas une adresse électronique.');
+        }
+
         if ($destinataire === $vendeur->phone) {
             throw new DomainException('Le numéro de l\'acheteur ne peut pas être le vôtre.');
+        }
+
+        if ($adresse !== null && $adresse === $vendeur->email) {
+            throw new DomainException('L\'adresse de l\'acheteur ne peut pas être la vôtre.');
         }
 
         if ($this->hasOpenTransfer($bien)) {
@@ -92,11 +112,12 @@ final class TransferService
         $statutAnterieur = $bien->life_status;
 
         $transfert = $this->auditChain->transaction(
-            function () use ($bien, $vendeur, $destinataire, $statutAnterieur): array {
+            function () use ($bien, $vendeur, $destinataire, $adresse, $statutAnterieur): array {
                 $transfert = Transfer::create([
                     'asset_id' => $bien->id,
                     'from_user_id' => $vendeur->id,
                     'to_phone' => $destinataire,
+                    'to_email' => $adresse,
                     'status' => TransferStatus::Initiated,
                     'previous_life_status' => $statutAnterieur,
                     'expires_at' => now()->addDays(self::EXPIRY_DAYS),
@@ -144,7 +165,7 @@ final class TransferService
             throw new DomainException('Seul le vendeur peut confirmer de son côté.');
         }
 
-        $this->otp->verify($vendeur->phone, $code, OtpPurpose::Transfer);
+        $this->otp->verify($this->destinationDe($vendeur), $code, OtpPurpose::Transfer);
 
         $transfert->forceFill(['seller_otp_at' => now()])->save();
 
@@ -161,11 +182,20 @@ final class TransferService
     {
         $this->assertOpen($transfert);
 
-        if ($acheteur->phone !== $transfert->to_phone) {
+        // LE DESTINATAIRE SE RECONNAÎT PAR L'UNE OU L'AUTRE DE SES
+        // COORDONNÉES. Exiger le numéro fermerait la cession à un acheteur
+        // ouvert par adresse — qui est justement celui que l'adresse a permis
+        // de prévenir. La comparaison ignore les valeurs nulles : sans cela,
+        // deux comptes sans numéro se reconnaîtraient l'un dans le transfert de
+        // l'autre.
+        $parNumero = $acheteur->phone !== null && $acheteur->phone === $transfert->to_phone;
+        $parAdresse = $acheteur->email !== null && $acheteur->email === $transfert->to_email;
+
+        if (! $parNumero && ! $parAdresse) {
             throw new DomainException('Ce transfert ne vous est pas destiné.');
         }
 
-        $this->otp->verify($acheteur->phone, $code, OtpPurpose::Transfer);
+        $this->otp->verify($this->destinationDe($acheteur), $code, OtpPurpose::Transfer);
 
         $transfert->forceFill([
             'to_user_id' => $acheteur->id,
@@ -417,5 +447,27 @@ final class TransferService
         } while (DB::table('assets')->where('public_ref', $reference)->exists());
 
         return $reference;
+    }
+
+    /**
+     * Où ce compte reçoit ses codes.
+     *
+     * PAS `->phone` EN DUR : un compte ouvert par adresse n'en a pas, et
+     * l'interroger renverrait `null` — le service refuserait alors une
+     * destination invalide, sans que rien n'explique pourquoi le titulaire ne
+     * peut pas déclarer le vol de son propre bien.
+     */
+    private function destinationDe(User $compte): string
+    {
+        $destination = $compte->otpDestination();
+
+        if ($destination === null) {
+            throw new DomainException(
+                'Ce compte n\'a ni numéro ni adresse : il ne peut recevoir aucun code. '
+                .'Ajoutez une coordonnée avant de continuer.'
+            );
+        }
+
+        return $destination;
     }
 }

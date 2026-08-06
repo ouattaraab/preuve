@@ -18,7 +18,10 @@ use Laravel\Sanctum\HasApiTokens;
  * Sanctum.
  *
  * @property int $id
- * @property string $phone
+ * @property string|null $phone Facultatif depuis le 06/08/2026 : un compte
+ *                              s'ouvre par numéro OU par adresse, et lui
+ *                              inventer un numéro casserait l'unicité au
+ *                              deuxième compte sans numéro.
  * @property Carbon|null $phone_verified_at
  * @property string|null $email
  * @property string|null $full_name
@@ -61,6 +64,33 @@ class User extends Authenticatable
         'role' => 'user',
         'kyc_status' => 'none',
     ];
+
+    /**
+     * La destination sous laquelle ce compte reçoit et vérifie ses codes.
+     *
+     * UNE SEULE NOTION, PARTOUT. Depuis qu'un compte s'ouvre par adresse, tout
+     * ce qui exige un code — déclarer un vol, confirmer une cession, réclamer —
+     * doit savoir OÙ le demander. Neuf endroits interrogeaient `phone` en dur :
+     * un compte sans numéro s'y serait heurté silencieusement, et son
+     * titulaire n'aurait jamais pu déclarer le vol de son propre bien.
+     *
+     * LE NUMÉRO PRIME quand les deux existent : c'est lui que le SMS atteindra
+     * le jour où une passerelle sera branchée, et changer de destination d'un
+     * jour à l'autre invaliderait les codes en cours.
+     *
+     * Rend `null` pour un compte sans aucune coordonnée. Cela ne devrait pas
+     * exister — la création en exige une, et la correction en back-office
+     * refuse de les retirer toutes deux — mais l'affirmer par un type non
+     * nullable ferait mentir le modèle une seconde fois.
+     */
+    public function otpDestination(): ?string
+    {
+        if (is_string($this->phone) && $this->phone !== '') {
+            return $this->phone;
+        }
+
+        return is_string($this->email) && $this->email !== '' ? $this->email : null;
+    }
 
     /** @return array<string, string> */
     protected function casts(): array

@@ -335,3 +335,94 @@ class CapteurCodes implements OtpSender
         return $this->codes[$destination] ?? '';
     }
 }
+
+/*
+|--------------------------------------------------------------------------
+| Céder à quelqu'un qu'on peut PRÉVENIR (06/08/2026)
+|--------------------------------------------------------------------------
+|
+| Le transfert s'adressait à un numéro, et l'acheteur était prévenu par SMS — un
+| canal qui n'existe pas. Un vendeur pouvait donc ouvrir une cession que
+| l'acheteur n'apprenait JAMAIS : elle expirait au bout de sept jours sans que
+| personne ne comprenne pourquoi.
+*/
+
+it('RETIENT L\'ADRESSE DE L\'ACHETEUR en plus de son numéro', function (): void {
+    $cedant = vendeur();
+    $bien = bienCessible($cedant);
+
+    $transfert = $this->transferts->initiate($bien, $cedant, '+2250700000002', 'acheteur@exemple.ci');
+
+    expect($transfert->to_phone)->toBe('+2250700000002')
+        ->and($transfert->to_email)->toBe('acheteur@exemple.ci');
+});
+
+it('ACCEPTE UNE CESSION SANS ADRESSE, comme avant', function (): void {
+    // Un vendeur qui ne connaît que le numéro doit pouvoir ouvrir la cession :
+    // la lui refuser vaudrait moins que de le prévenir qu'il devra joindre
+    // l'acheteur lui-même.
+    $cedant = vendeur();
+    $bien = bienCessible($cedant);
+
+    $transfert = $this->transferts->initiate($bien, $cedant, '+2250700000002');
+
+    expect($transfert->to_email)->toBeNull();
+});
+
+it('LAISSE L\'ACHETEUR SE RECONNAÎTRE PAR SON ADRESSE', function (): void {
+    // C'est justement celui que l'adresse a permis de prévenir : exiger le
+    // numéro lui fermerait la cession qu'on vient de lui annoncer.
+    $cedant = vendeur();
+    $bien = bienCessible($cedant);
+    $transfert = $this->transferts->initiate($bien, $cedant, '+2250700000002', 'acheteur@exemple.ci');
+
+    $acheteur = User::create(['email' => 'acheteur@exemple.ci']);
+    $acheteur->forceFill(['kyc_status' => 'verified', 'email_verified_at' => now()])->save();
+
+    test()->travel(2)->minutes();
+    app(OtpService::class)->request('acheteur@exemple.ci', OtpPurpose::Transfer);
+
+    $this->transferts->confirmByBuyer(
+        $transfert->fresh(),
+        $acheteur,
+        test()->sender->pour('acheteur@exemple.ci'),
+    );
+
+    expect($transfert->fresh()?->status)->toBe(TransferStatus::BuyerConfirmed);
+});
+
+it('NE LAISSE PAS UN TIERS SE RECONNAÎTRE dans une cession vide', function (): void {
+    // LE piège des colonnes facultatives : deux comptes sans numéro
+    // compareraient `null === null` et se reconnaîtraient l'un dans le
+    // transfert de l'autre.
+    $cedant = vendeur();
+    $bien = bienCessible($cedant);
+    $transfert = $this->transferts->initiate($bien, $cedant, '+2250700000002');
+
+    $tiers = User::create(['email' => 'tiers@exemple.ci']);
+    $tiers->forceFill(['kyc_status' => 'verified'])->save();
+
+    expect(fn () => $this->transferts->confirmByBuyer($transfert, $tiers, '000000'))
+        ->toThrow(DomainException::class);
+});
+
+it('REFUSE UNE ADRESSE QUI N\'EN EST PAS UNE', function (): void {
+    $cedant = vendeur();
+    $bien = bienCessible($cedant);
+
+    expect(fn () => $this->transferts->initiate($bien, $cedant, '+2250700000002', '0700000003'))
+        ->toThrow(DomainException::class);
+});
+
+it('NE DIVULGUE JAMAIS L\'ADRESSE DE L\'ACHETEUR par sérialisation', function (): void {
+    // Une adresse divulguée vaut un numéro divulgué : l'ajouter sans la cacher
+    // l'aurait exposée au premier `toJson()` d'un contrôleur.
+    $cedant = vendeur();
+    $bien = bienCessible($cedant);
+    $transfert = $this->transferts->initiate($bien, $cedant, '+2250700000002', 'acheteur@exemple.ci');
+
+    $json = $transfert->toJson();
+
+    expect($json)->not->toContain('acheteur@exemple.ci')
+        ->and($json)->not->toContain('+2250700000002');
+});

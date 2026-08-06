@@ -74,13 +74,22 @@ function bienVivant(User $proprietaire, ?LifeStatus $statut = null): Asset
  * d'un pilonnage de SMS. Un scénario qui déclare puis lève un vol en enchaîne
  * deux.
  */
+/**
+ * Le code d'un compte, demandé là OÙ IL LE REÇOIT.
+ *
+ * `otpDestination()` et non `->phone` : un compte ouvert par adresse n'a pas de
+ * numéro, et un harnais qui interrogerait la mauvaise colonne éprouverait autre
+ * chose que la production.
+ */
 function codePour(User $utilisateur): string
 {
     test()->travel(2)->minutes();
 
-    app(OtpService::class)->request($utilisateur->phone, OtpPurpose::SensitiveAction);
+    $destination = $utilisateur->otpDestination() ?? '';
 
-    return test()->sender->pour($utilisateur->phone);
+    app(OtpService::class)->request($destination, OtpPurpose::SensitiveAction);
+
+    return test()->sender->pour($destination);
 }
 
 it('rend le bien invendable immédiatement, sur un seul code', function (): void {
@@ -211,3 +220,32 @@ class CapteurVol implements OtpSender
         return $this->codes[$destination] ?? '';
     }
 }
+
+it('LAISSE UN COMPTE SANS NUMÉRO DÉCLARER LE VOL DE SON BIEN', function (): void {
+    // Depuis qu'un compte s'ouvre par adresse, neuf endroits interrogeaient
+    // `phone` en dur. Un titulaire sans numéro s'y heurtait en silence — et ne
+    // pouvait pas signaler le vol de son propre bien, ce qui est la promesse
+    // la plus urgente du produit.
+    $sansNumero = User::create(['email' => 'awa@exemple.ci']);
+    $sansNumero->forceFill([
+        'kyc_status' => 'verified',
+        'email_verified_at' => now(),
+    ])->save();
+
+    $bien = bienVivant($sansNumero);
+
+    expect($sansNumero->otpDestination())->toBe('awa@exemple.ci');
+
+    $this->cycle->declareStolen($bien, $sansNumero, codePour($sansNumero));
+
+    expect($bien->fresh()?->life_status)->toBe(LifeStatus::Stolen);
+});
+
+it('PRÉFÈRE LE NUMÉRO quand le compte a les deux', function (): void {
+    // C'est lui que le SMS atteindra le jour où une passerelle sera branchée,
+    // et changer de destination d'un jour à l'autre invaliderait les codes en
+    // cours.
+    $compte = User::create(['phone' => '+2250700123456', 'email' => 'awa@exemple.ci']);
+
+    expect($compte->otpDestination())->toBe('+2250700123456');
+});

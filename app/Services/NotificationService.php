@@ -149,7 +149,12 @@ final class NotificationService
             return;
         }
 
-        if (! $this->sms->isConfigured()) {
+        // SANS NUMÉRO, PAS DE SMS — et ce n'est pas une panne : un compte
+        // ouvert par adresse n'en a jamais eu. Le courriel est alors le seul
+        // canal, et c'est exactement celui du repli ci-dessous.
+        $numero = $destinataire->phone;
+
+        if ($numero === null || $numero === '' || ! $this->sms->isConfigured()) {
             // Repli par courriel tant qu'aucune passerelle SMS n'est arbitrée.
             // Sans lui, une alerte critique — tentative d'enregistrement
             // frauduleux, transfert engagé — ne sortirait pas de l'application,
@@ -160,7 +165,7 @@ final class NotificationService
         }
 
         try {
-            $this->sms->send($destinataire->phone, $this->smsText($notification));
+            $this->sms->send($numero, $this->smsText($notification));
             $this->traceCost($type->value, 'sms', 'sent', null);
         } catch (Throwable $e) {
             $this->traceCost($type->value, 'sms', 'failed', $e::class);

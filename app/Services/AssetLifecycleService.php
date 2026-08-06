@@ -53,7 +53,7 @@ final class AssetLifecycleService
     {
         $this->assertHolder($bien, $detenteur);
 
-        $this->otp->verify($detenteur->phone, $code, OtpPurpose::SensitiveAction);
+        $this->otp->verify($this->destinationDe($detenteur), $code, OtpPurpose::SensitiveAction);
 
         $this->transitions->transitionTo(
             $bien,
@@ -86,7 +86,7 @@ final class AssetLifecycleService
             throw new DomainException("Ce bien n'est pas déclaré volé.");
         }
 
-        $this->otp->verify($detenteur->phone, $code, OtpPurpose::SensitiveAction);
+        $this->otp->verify($this->destinationDe($detenteur), $code, OtpPurpose::SensitiveAction);
 
         $this->transitions->transitionTo(
             $bien,
@@ -116,7 +116,7 @@ final class AssetLifecycleService
     {
         $this->assertHolder($bien, $detenteur);
 
-        $this->otp->verify($detenteur->phone, $code, OtpPurpose::SensitiveAction);
+        $this->otp->verify($this->destinationDe($detenteur), $code, OtpPurpose::SensitiveAction);
 
         $this->transitions->transitionTo(
             $bien,
@@ -152,5 +152,27 @@ final class AssetLifecycleService
         if ($bien->active_flag === null) {
             throw new DomainException('Cet enregistrement est archivé.');
         }
+    }
+
+    /**
+     * Où ce compte reçoit ses codes.
+     *
+     * PAS `->phone` EN DUR : un compte ouvert par adresse n'en a pas, et
+     * l'interroger renverrait `null` — le service refuserait alors une
+     * destination invalide, sans que rien n'explique pourquoi le titulaire ne
+     * peut pas déclarer le vol de son propre bien.
+     */
+    private function destinationDe(User $compte): string
+    {
+        $destination = $compte->otpDestination();
+
+        if ($destination === null) {
+            throw new DomainException(
+                'Ce compte n\'a ni numéro ni adresse : il ne peut recevoir aucun code. '
+                .'Ajoutez une coordonnée avant de continuer.'
+            );
+        }
+
+        return $destination;
     }
 }
