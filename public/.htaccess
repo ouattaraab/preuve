@@ -1,3 +1,21 @@
+# BORNE LA TAILLE DES REQUÊTES, AVANT PHP.
+#
+# L'hébergement accepte 1536 Mo par requête, alors que l'application valide
+# chaque pièce à 8 Mo — et la validation de Laravel s'exécute APRÈS que PHP a
+# bufferisé l'envoi sur disque. Un visiteur SANS COMPTE pouvait donc faire
+# écrire un giga-octet et demi au serveur avant d'être refusé, dix fois par dix
+# minutes, sur `/api/v1/lookup/scan`. Sur un mutualisé dont le quota disque
+# coupe aussi l'écriture du registre, c'est un déni de service à coût nul.
+#
+# `.user.ini` NE MARCHE PAS ICI : `user_ini.filename` est vide sur cet hôte,
+# donc PHP l'ignore. Vérifié, pas supposé. `LimitRequestBody` est appliqué par
+# le serveur web lui-même, ce qui est précisément ce qu'il faut : le corps est
+# refusé avant d'être écrit quelque part.
+#
+# 56 Mo tient compte du dossier d'identité, qui part d'un seul tenant : recto,
+# verso, selfie et deux prises de vivacité, soit cinq fichiers de 8 Mo.
+LimitRequestBody 58720256
+
 # PHP 8.4 explicitement, sur l'hébergement mutualisé CloudLinux d'Hostinger.
 #
 # Le sélecteur du compte annonce 8.4 et le CLI l'applique, mais le serveur web
