@@ -84,7 +84,6 @@ final class StolenListingController extends Controller
                 $operateur,
                 PaymentPurpose::TheftListing,
                 $this->liste->price(),
-                url('/api/v1/assets/'.$bien->id.'/stolen-listing'),
             );
         } catch (DomainException $e) {
             throw ValidationException::withMessages(['provider' => $e->getMessage()]);

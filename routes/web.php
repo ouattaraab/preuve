@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AdminAuthController;
 use App\Http\Controllers\Admin\AdminConsoleController;
 use App\Http\Controllers\Web\FleetAuthController;
 use App\Http\Controllers\Web\FleetImportController;
+use App\Http\Controllers\Web\PaymentReturnController;
 use App\Http\Controllers\Web\PublicLookupController;
 use App\Http\Controllers\Web\PublicReportController;
 use App\Http\Controllers\Web\StolenListPageController;
@@ -87,6 +88,21 @@ Route::withoutMiddleware([
         // et payée par un mutualisé.
         ->middleware('throttle:30,1')
         ->name('public.report');
+
+    /*
+     * OÙ L'OPÉRATEUR RAMÈNE LE PAYEUR (ST-0801, ST-0805).
+     *
+     * `ReportController` désignait déjà cette adresse, qui n'existait nulle
+     * part : après avoir réglé, l'acheteur tombait sur un 404. Il avait payé,
+     * la plateforme avait encaissé, et l'écran lui disait que la page était
+     * introuvable.
+     *
+     * ELLE NE DÉCIDE RIEN, ELLE RELIT : le retour du navigateur ne prouve aucun
+     * paiement — seul le webhook signé fait foi.
+     */
+    Route::get('paiement/retour', [PaymentReturnController::class, 'show'])
+        ->middleware('throttle:60,1')
+        ->name('public.payment.return');
 
     /*
      * ACCEPTER UNE CESSION SANS AVOIR L'APPLICATION (ST-0601).

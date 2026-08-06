@@ -796,6 +796,20 @@ const Tarifs = {
           ? `<p style="padding:12px 16px;background:#E7F3EA;border-radius:10px;font-size:14px;font-weight:700;color:#2B1D12">✓ Paystack est configuré : les tarifs supérieurs à zéro peuvent être encaissés.</p>`
           : `<p style="padding:12px 16px;background:#FDE7E4;border-radius:10px;font-size:14px;font-weight:700;color:#2B1D12;line-height:1.6">⚠️ ${txt(p.notice || '')}</p>`;
       }
+
+      // L'ADRESSE DE RAPPEL EST AFFICHÉE, PAS À DEVINER : c'est elle qu'il faut
+      // déclarer chez l'opérateur, et une adresse recopiée de travers produit
+      // un encaissement sans contrepartie que rien ne signale.
+      const w = r.webhook || {};
+      const url = document.getElementById('url-webhook');
+      if (url) url.textContent = w.endpoint || '—';
+
+      const etatW = document.getElementById('etat-webhook');
+      if (etatW) {
+        etatW.innerHTML = w.configured
+          ? `<span style="color:#3F8F5B;font-weight:700">✓ Un secret partagé est enregistré.</span>`
+          : `<span style="color:#7A6A55">Aucun secret partagé. Sans conséquence tant que seul Paystack est branché.</span>`;
+      }
     } catch (e) {
       zone.innerHTML = `<p style="color:#B23A3A;font-weight:700">${txt(e.message)}</p>`;
     }
@@ -840,6 +854,28 @@ const Tarifs = {
           // Le champ est vidé aussitôt : une clé secrète ne reste pas à l'écran.
           champ.value = '';
           retour.textContent = 'Clé enregistrée.';
+          retour.style.color = '#3F8F5B';
+          await this.charger();
+        } catch (e) {
+          retour.textContent = e.message;
+          retour.style.color = '#B23A3A';
+        }
+      });
+    }
+
+    const secret = document.getElementById('form-webhook');
+
+    if (secret) {
+      secret.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const champ = document.getElementById('secret-webhook');
+        const retour = document.getElementById('retour-webhook');
+
+        try {
+          await Api.put('/api/v1/admin/pricing/webhook-secret', { secret: champ.value });
+          // Vidé aussitôt : un secret ne reste pas à l'écran.
+          champ.value = '';
+          retour.textContent = 'Secret enregistré.';
           retour.style.color = '#3F8F5B';
           await this.charger();
         } catch (e) {

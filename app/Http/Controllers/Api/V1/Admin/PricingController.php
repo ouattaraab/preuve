@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\ActorType;
+use App\Http\Controllers\Api\V1\PaymentWebhookController;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\AuditChain;
@@ -49,6 +50,13 @@ final class PricingController extends Controller
                     : 'Aucune clé Paystack n\'est renseignée : tout tarif supérieur à zéro '.
                         'produira un refus au moment de payer. Mettez les montants à zéro, '.
                         'ou renseignez la clé.',
+            ],
+            // LE SECRET DES AUTRES OPÉRATEURS. Paystack n'en a pas besoin — il
+            // signe ses rappels avec la clé secrète ci-dessus. Celui-ci garde
+            // l'endpoint générique, et sans lui cet endpoint refuse tout.
+            'webhook' => [
+                'configured' => $this->secretDeRappelPose(),
+                'endpoint' => url('/api/v1/webhooks/payments/paystack'),
             ],
         ]);
     }
@@ -109,6 +117,53 @@ final class PricingController extends Controller
             'pricing' => $this->tarifs->fresh()->all(),
             'changed' => $changes,
         ]);
+    }
+
+    /**
+     * Enregistre le secret partagé des opérateurs au format maison.
+     *
+     * IL N'AVAIT AUCUN ÉCRAN, et ne se posait donc qu'en base, à la main.
+     * Un secret qu'on ne peut régler que par une console SQL finit par ne pas
+     * être réglé du tout — et l'endpoint générique refuse alors tous les
+     * rappels, en silence.
+     *
+     * PAYSTACK N'EN A PAS BESOIN : il signe avec sa propre clé secrète. Ce
+     * champ ne concerne que les opérateurs qui exigent un secret distinct.
+     */
+    public function updateWebhookSecret(Request $request): JsonResponse
+    {
+        $request->validate(['secret' => ['required', 'string', 'min:16', 'max:200']]);
+
+        $administrateur = $request->user();
+
+        if (! $administrateur instanceof User) {
+            abort(401);
+        }
+
+        $this->settings->setSecret(
+            PaymentWebhookController::SECRET_SETTING,
+            $request->string('secret')->toString(),
+            $administrateur->id,
+        );
+
+        $this->auditChain->append(
+            ActorType::Agent,
+            $administrateur->id,
+            'pricing.webhook_secret_updated',
+            'settings',
+            $administrateur->id,
+            // JAMAIS LE SECRET : la chaîne d'audit est inaltérable.
+            ['configured' => true],
+        );
+
+        return response()->json(['webhook' => ['configured' => true]]);
+    }
+
+    private function secretDeRappelPose(): bool
+    {
+        $secret = $this->settings->get(PaymentWebhookController::SECRET_SETTING);
+
+        return is_string($secret) && $secret !== '';
     }
 
     /**

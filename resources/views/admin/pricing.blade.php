@@ -41,6 +41,28 @@
         </form>
     </section>
 
+    <section style="margin-top:32px;padding-top:24px;border-top:1px solid #E4DBC8">
+        <h2 style="margin:0 0 6px;font-size:18px">Rappels des opérateurs</h2>
+        <p style="margin:0 0 14px;font-size:14px;color:#5C4A33;line-height:1.6">
+            Adresse à déclarer chez Paystack :
+            <code id="url-webhook" style="background:#FFF6E8;padding:3px 7px;border-radius:6px">—</code><br>
+            <strong>Paystack n'a besoin d'aucun secret ici</strong> : il signe ses rappels avec
+            la clé secrète ci-dessus. Le champ suivant ne concerne que les opérateurs qui
+            exigent un secret partagé distinct.
+        </p>
+        <div id="etat-webhook" style="margin-bottom:12px;font-size:14px"></div>
+        <form id="form-webhook" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <input id="secret-webhook" type="password" placeholder="secret partagé (16 caractères minimum)"
+                   autocomplete="off"
+                   style="flex:1;min-width:280px;padding:12px 14px;border:2px solid #E4DBC8;border-radius:10px;font-size:14px">
+            <button type="submit"
+                    style="background:#2B1D12;color:#FFF6E8;border:none;border-radius:10px;padding:12px 20px;font-size:14px;font-weight:700;cursor:pointer">
+                Enregistrer le secret
+            </button>
+            <span id="retour-webhook" style="font-size:14px;font-weight:700"></span>
+        </form>
+    </section>
+
     <p style="margin-top:24px;padding:14px 16px;background:#FFF6E8;border-radius:10px;font-size:13px;color:#5C4A33;line-height:1.6">
         🔒 Chaque changement de tarif est journalisé dans la chaîne d'audit avec
         l'<strong>ancien</strong> et le <strong>nouveau</strong> montant : savoir qu'un prix a bougé

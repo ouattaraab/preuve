@@ -242,12 +242,19 @@ it('accuse réception d\'un événement inconnu sans le traiter', function (): v
     // Un opérateur qui reçoit une erreur réessaie parfois pendant des jours,
     // alors qu'une référence qui ne nous concerne pas ne deviendra jamais
     // valide.
+    //
+    // SUR UN OPÉRATEUR AU FORMAT MAISON, et non plus sur `paystack` : depuis
+    // que Paystack est branché dans SON format — `x-paystack-signature`,
+    // SHA-512, corps enveloppé dans `data` — un envoi maison adressé à
+    // `paystack` est refusé, et c'est exactement ce qu'on veut. Ce test-ci
+    // éprouve le format générique ; le format Paystack a le sien
+    // (`tests/BusinessRules/WebhookPaystackTest.php`).
     $this->settings->set(PaymentWebhookController::SECRET_SETTING, 'secret-partage');
 
     $corps = ['reference' => 'REF-ETRANGERE', 'status' => 'succeeded'];
 
     $this->withHeader('X-Preuve-Signature', hash_hmac('sha256', json_encode($corps), 'secret-partage'))
-        ->postJson('/api/v1/webhooks/payments/paystack', $corps)
+        ->postJson('/api/v1/webhooks/payments/pawapay_wave', $corps)
         ->assertOk();
 
     expect(Payment::count())->toBe(0);

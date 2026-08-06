@@ -22,6 +22,10 @@ use DomainException;
  * motif n'auraient plus trouvé leur transaction — un encaissement sans
  * contrepartie, muet.
  *
+ * ELLE CONSTRUIT AUSSI L'ADRESSE DE RETOUR, parce qu'elle seule dispose de
+ * l'identifiant du paiement au bon moment — et parce qu'un retour laissé à
+ * l'appelant finit par pointer une route qui n'affiche rien d'utile.
+ *
  * LA RÉFÉRENCE DE L'OPÉRATEUR EST ÉCRITE AVANT TOUT RETOUR. C'est elle qui
  * relie le webhook à la transaction ; sans elle, l'argent arrive et rien ne
  * s'ouvre.
@@ -39,7 +43,6 @@ final class PaymentCheckout
     ) {}
 
     /**
-     * @param  string  $retour  où l'opérateur renvoie le payeur une fois réglé
      * @return array{payment: Payment, checkout_url: string|null}
      *
      * @throws DomainException si l'opérateur refuse d'ouvrir la page
@@ -50,7 +53,6 @@ final class PaymentCheckout
         PaymentProvider $operateur,
         PaymentPurpose $motif,
         int $montant,
-        string $retour,
     ): array {
         $paiement = $this->paiements->intendFor($payeur, $bien, $operateur, $motif, $montant);
 
@@ -58,7 +60,16 @@ final class PaymentCheckout
             return ['payment' => $paiement, 'checkout_url' => null];
         }
 
-        $ouverture = $this->paystack->initialize($paiement, $payeur->email ?? '', $retour);
+        // L'ADRESSE DE RETOUR EST CONSTRUITE ICI, ET NON PAR L'APPELANT. Elle
+        // a besoin de l'identifiant du paiement, qui n'existe qu'une fois
+        // l'intention créée : la laisser au contrôleur l'a fait pointer une
+        // route d'API authentifiée, où l'opérateur ramenait un NAVIGATEUR pour
+        // lui afficher un 401 en JSON — à quelqu'un qui venait de payer.
+        $ouverture = $this->paystack->initialize(
+            $paiement,
+            $payeur->email ?? '',
+            url('/paiement/retour?payment='.$paiement->id),
+        );
 
         $paiement->forceFill(['provider_ref' => $ouverture['reference']])->save();
 

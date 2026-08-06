@@ -100,7 +100,6 @@ final class TheftDeclarationFeeController extends Controller
                 $operateur,
                 PaymentPurpose::TheftDeclaration,
                 $montant,
-                url('/api/v1/assets/'.$bien->id.'/theft-fee'),
             );
         } catch (DomainException $e) {
             throw ValidationException::withMessages(['provider' => $e->getMessage()]);

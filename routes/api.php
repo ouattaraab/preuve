@@ -405,6 +405,9 @@ Route::prefix('v1')->group(function (): void {
         Route::get('pricing', [PricingController::class, 'show']);
         Route::put('pricing', [PricingController::class, 'update']);
         Route::put('pricing/paystack', [PricingController::class, 'updatePaystack']);
+        // Le secret des opérateurs au format maison. Paystack n'en a pas
+        // besoin : il signe ses rappels avec sa propre clé secrète.
+        Route::put('pricing/webhook-secret', [PricingController::class, 'updateWebhookSecret']);
 
         Route::get('kyc-provider', [KycProviderController::class, 'show']);
         Route::put('kyc-provider', [KycProviderController::class, 'update']);
