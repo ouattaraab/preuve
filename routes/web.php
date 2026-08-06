@@ -42,7 +42,13 @@ Route::withoutMiddleware([
     AddQueuedCookiesToResponse::class,
 ])->group(function (): void {
     Route::get('/', [PublicLookupController::class, 'home'])->name('public.home');
-    Route::get('verifier', [PublicLookupController::class, 'verify'])->name('public.verify');
+    // Le plafond métier compte les identifiants DISTINCTS par heure ; celui-ci
+    // borne le DÉBIT de la route elle-même. Le premier protège le registre du
+    // balayage, le second protège le serveur du martèlement — ce ne sont pas
+    // les mêmes attaques, et le second manquait.
+    Route::get('verifier', [PublicLookupController::class, 'verify'])
+        ->middleware('throttle:60,1')
+        ->name('public.verify');
 
     // Confidentialité et mentions légales : indexable, et sans session comme le
     // reste du front — la lire ne doit rien coûter en traces.
@@ -62,6 +68,11 @@ Route::withoutMiddleware([
     // tierce — sans quoi le jeton fuirait par l'en-tête `Referer`.
     Route::get('rapport/{token}', [PublicReportController::class, 'show'])
         ->where('token', '[A-Za-z0-9]{20,64}')
+        // Le jeton fait quarante caractères : il ne se devine pas. Le plafond
+        // ne protège donc pas d'une force brute, mais du COÛT d'y prétendre —
+        // chaque tentative est une requête en base, gratuite pour l'attaquant
+        // et payée par un mutualisé.
+        ->middleware('throttle:30,1')
         ->name('public.report');
 
     // Page indexable, adressée par la référence publique OPAQUE. Le motif borne
