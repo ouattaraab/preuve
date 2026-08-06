@@ -216,3 +216,153 @@ it('ne laisse pas lire l\'import d\'un autre loueur', function (): void {
 
     test()->getJson("/api/v1/fleet/{$autre->id}/imports/{$import?->id}")->assertStatus(404);
 });
+
+/*
+|--------------------------------------------------------------------------
+| L'import depuis le web (EP-07)
+|--------------------------------------------------------------------------
+|
+| L'application mobile le promet mot pour mot : « L'import d'un parc entier se
+| fait depuis un fichier, sur le web ». Cette page n'existait pas, alors que le
+| serveur savait importer depuis le 3 août.
+|
+| C'est bien sur le web que ça se passe : un fichier de parc vit sur
+| l'ordinateur d'une agence, pas dans le téléphone du gérant.
+*/
+
+it('MONTRE LA PAGE D\'IMPORT, avec ce qu\'elle attend', function (): void {
+    // La page doit dire le format attendu AVANT l'envoi : un fichier refusé
+    // après coup fait recommencer, et un loueur ne devine pas trois noms de
+    // colonnes.
+    [$gerant, $societe] = loueurImport();
+
+    test()->actingAs($gerant)->get('/flotte/import')
+        ->assertOk()
+        ->assertSee('Importer un parc')
+        ->assertSee($societe->legal_name)
+        ->assertSee('category,identifier,brand_model')
+        // Une seule société : on ne fait pas cocher l'unique option disponible.
+        ->assertDontSee('<select', false)
+        // Et ce qui rassure avant de cliquer : réimporter ne casse rien.
+        ->assertSee('déjà connu');
+});
+
+it('IMPORTE UN PARC DEPUIS LE WEB', function (): void {
+    [$gerant, $societe] = loueurImport();
+
+    test()->actingAs($gerant)
+        ->post('/flotte/import', [
+            'company' => $societe->id,
+            'file' => fichierDePlaques(5),
+        ])
+        ->assertRedirect();
+
+    expect(Asset::where('company_id', $societe->id)->count())->toBe(5);
+});
+
+it('RENVOIE VERS UN SUIVI au-delà du seuil, sans bloquer la page', function (): void {
+    Queue::fake();
+    [$gerant, $societe] = loueurImport();
+
+    test()->actingAs($gerant)
+        ->post('/flotte/import', [
+            'company' => $societe->id,
+            'file' => fichierDePlaques(FleetService::MAX_ROWS + 5),
+        ])
+        ->assertRedirect(route('fleet.import'))
+        ->assertSessionHas('suivi');
+
+    expect(FleetImport::where('company_id', $societe->id)->count())->toBe(1);
+});
+
+it('UNE SESSION DE LOUEUR N\'OUVRE PAS LE BACK-OFFICE', function (): void {
+    // LE test de cette page. Les deux espaces partagent le gardien de session
+    // de Laravel ; si le contrôle de rôle du back-office ne tenait pas, un
+    // client verrait la piste d'audit et la modération d'identité.
+    [$gerant] = loueurImport();
+
+    test()->actingAs($gerant)->get('/flotte/import')->assertOk();
+
+    // 403, franchement, et non une redirection : la porte est fermée, pas
+    // déplacée.
+    test()->actingAs($gerant)->get('/admin/moderation')->assertForbidden();
+    test()->actingAs($gerant)->get('/admin/audit')->assertForbidden();
+});
+
+it('N\'IMPORTE PAS DANS LE PARC D\'UN AUTRE', function (): void {
+    [$gerant] = loueurImport();
+    [, $autre] = loueurImport();
+
+    test()->actingAs($gerant)
+        ->post('/flotte/import', ['company' => $autre->id, 'file' => fichierDePlaques(3)])
+        // 404 et non 403 : distinguer « n'existe pas » de « pas à vous »
+        // permettrait de dénombrer les sociétés du registre, une par une.
+        ->assertNotFound();
+
+    expect(Asset::where('company_id', $autre->id)->count())->toBe(0);
+});
+
+it('NE MONTRE PAS LE SUIVI D\'UN AUTRE', function (): void {
+    Queue::fake();
+    [$gerant] = loueurImport();
+    [$autreGerant, $autre] = loueurImport();
+
+    test()->actingAs($autreGerant)->post('/flotte/import', [
+        'company' => $autre->id,
+        'file' => fichierDePlaques(FleetService::MAX_ROWS + 2),
+    ]);
+
+    $import = FleetImport::where('company_id', $autre->id)->sole();
+
+    test()->actingAs($gerant)->get('/flotte/import/'.$import->id)->assertNotFound();
+    test()->actingAs($autreGerant)->get('/flotte/import/'.$import->id)->assertOk();
+});
+
+it('FERME LA PORTE À QUI NE DIRIGE AUCUNE FLOTTE', function (): void {
+    $quidam = User::create(['phone' => '+22505'.random_int(10000000, 99999999)]);
+
+    test()->actingAs($quidam)->get('/flotte/import')->assertRedirect(route('fleet.login'));
+    test()->get('/flotte/import')->assertRedirect(route('fleet.login'));
+});
+
+it('NOMME LES LIGNES QUI NE PASSENT PAS, plutôt que de tout rejeter', function (): void {
+    // Un fichier de quarante véhicules dont trois sont mal saisis ne doit pas
+    // échouer en entier : les trente-sept bons entrent, et les trois autres
+    // sont nommés pour être corrigés. Tout rejeter ferait recommencer un
+    // fichier presque juste.
+    [$gerant, $societe] = loueurImport();
+
+    $melange = UploadedFile::fake()->createWithContent(
+        'flotte.csv',
+        "category,identifier,brand_model\nvoiture,AA123BZ,Toyota\nvoiture,,Peugeot\n",
+    );
+
+    test()->actingAs($gerant)
+        ->post('/flotte/import', ['company' => $societe->id, 'file' => $melange])
+        ->assertRedirect()
+        ->assertSessionHas('rapport', fn (array $r): bool => $r['imported'] === 1 && $r['failed'] === 1);
+});
+
+it('DIT POURQUOI un fichier entier est refusé, au lieu de le rejeter en silence', function (): void {
+    // « Ça n'a pas marché » fait réessayer à l'identique. Le motif — ici, la
+    // ligne d'en-tête attendue — permet de corriger le fichier.
+    [$gerant, $societe] = loueurImport();
+
+    $vide = UploadedFile::fake()->createWithContent('flotte.csv', "rien,du,tout\n");
+
+    test()->actingAs($gerant)
+        ->post('/flotte/import', ['company' => $societe->id, 'file' => $vide])
+        ->assertRedirect()
+        ->assertSessionHasErrors('file');
+});
+
+it('la page de connexion ne dit pas si le numéro est connu', function (): void {
+    // Toute différence observable ferait de cette page un annuaire des loueurs.
+    [$gerant] = loueurImport();
+
+    $connu = test()->post('/flotte/connexion/code', ['phone' => $gerant->phone]);
+    $inconnu = test()->post('/flotte/connexion/code', ['phone' => '+2250500000000']);
+
+    expect($connu->getStatusCode())->toBe($inconnu->getStatusCode())
+        ->and(session('message'))->toContain('Si ce compte peut recevoir un code');
+});

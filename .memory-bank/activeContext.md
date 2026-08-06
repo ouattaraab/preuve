@@ -975,6 +975,63 @@ relevée pour elle.
 **Couverture** : 868 Pest, 121 `preuve_core`, 31 `preuve_app`. Compilation iOS
 vérifiée.
 
+## Deux pages web, choisies et non recopiées (06/08/2026)
+
+**Question d'Aboubakar** : faut-il faire des pages web pour toutes les
+fonctionnalités ? **Non** — mais deux manquaient, et les deux étaient déjà
+promises ou déjà payées.
+
+**Le cadrage retenu** : pas la parité fonctionnelle, mais *qui arrive d'où*. Le
+web sert l'inconnu et celui qui a payé (zéro installation, indexable,
+partageable) ; l'application sert le détenteur qui revient (appareil photo, hors
+ligne, alertes) ; la console sert le back-office. **Ce qui NE sera pas porté** :
+KYC, vivacité et scan — on vient de les déplacer sur l'appareil pour que l'image
+ne parte plus, et une version web devrait la ré-envoyer ; la file d'envoi
+différée, qui survit à la fermeture de l'application quand un onglet ne survit à
+rien ; et le transfert, dont la friction est voulue (CT-06).
+
+### `/rapport/{token}` — le seul parcours payant n'aboutissait nulle part
+
+La règle n° 7 autorise l'achat **sans compte**. Un tel acheteur payait, recevait
+un `access_token` dans une réponse HTTP, et n'avait **rien à ouvrir** : ni
+application, ni page, et aucun code n'envoie ce jeton par SMS ou courriel.
+L'intention était pourtant écrite dans la route API depuis le début — « pour
+qu'un rapport reçu par SMS s'ouvre sur n'importe quel appareil ».
+
+Le jeton est une **capacité au porteur**, et c'est voulu : un rapport se
+transmet à son garagiste sans lui créer de compte. D'où : jamais indexée, jamais
+mise en cache (`no-store`), `Referrer-Policy: no-referrer` — le jeton est dans
+l'URL —, et **aucune ressource tierce**. Même code de statut pour un jeton
+inconnu et un jeton expiré, mais **message distinct** : l'un se rachète, l'autre
+se revérifie. `report_url` est désormais rendue par l'API, sans quoi la page
+serait une porte de plus sans chemin.
+
+### `/flotte/import` — la promesse écrite à l'écran
+
+L'application dit mot pour mot : « L'import d'un parc entier se fait depuis un
+fichier, sur le web ». **Cette page n'existait pas**, alors que le serveur
+importe depuis le 3 août. Neuvième capacité serveur sans porte d'entrée, et la
+seule dont l'absence était affichée à l'utilisateur.
+
+Elle a demandé ce qui n'existait pas : **une connexion web pour les loueurs**
+(`FleetAuthController`, OTP, même `OtpService` que partout). **Un espace de
+client, pas un coin du back-office** : `EnsureUserLeadsAFleet` est un gardien
+distinct, et un test vérifie qu'une session de loueur reçoit **403** sur
+`/admin/*`.
+
+### Trois défauts trouvés en chemin
+
+1. **`APP_LOCALE` valait `en`** — la page de consultation, promesse n° 1 du
+   produit, affichait « 6 December 2025 » à Abidjan. Corrigé **dans le code**
+   (`config/app.php`) et non seulement dans le `.env`, pour qu'un serveur où on
+   l'oublie ne repasse pas en anglais en silence.
+2. **`TriggerType` n'avait pas de libellé** : le rapport payé affichait
+   « owner » (CT-04). Il dit maintenant « Une action du détenteur ».
+3. La page d'import **ne nommait pas les colonnes attendues** — le test l'a
+   trouvé, et c'est la page qui a été corrigée, pas le test.
+
+**Couverture** : 888 Pest.
+
 ## Questions ouvertes (à trancher avec Aboubakar)
 - Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)

@@ -80,7 +80,16 @@ return [
     |
     */
 
-    'locale' => env('APP_LOCALE', 'en'),
+    /*
+    | LE FRANÇAIS PAR DÉFAUT, ET NON L'ANGLAIS.
+    |
+    | Ce n'est pas cosmétique : `translatedFormat` suit cette valeur, et la page
+    | de consultation — la promesse n° 1 du produit, lue debout sur un parking
+    | en Côte d'Ivoire — affichait « 6 December 2025 ». Le laisser dépendre d'un
+    | `.env` signifie qu'un serveur où on l'oublie repasse en anglais sans que
+    | personne ne s'en aperçoive.
+    */
+    'locale' => env('APP_LOCALE', 'fr'),
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 

@@ -215,6 +215,7 @@ final class ReportAccessService
                 // L'origine de la transition, jamais son auteur : « décision
                 // d'arbitrage » informe, « décidé par Awa Koné » dénonce.
                 'trigger' => $ligne->trigger_type->value,
+                'trigger_label' => $ligne->trigger_type->label(),
                 'at' => $ligne->created_at?->toIso8601String(),
             ])->all(),
             'incidents' => [

@@ -296,3 +296,146 @@ it('refuse un événement sans référence', function (): void {
     expect(fn () => $this->paiements->reconcile(PaymentProvider::Paystack, '', PaymentStatus::Succeeded))
         ->toThrow(DomainException::class);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Le rapport payé, lisible sur n'importe quel appareil (ST-0802)
+|--------------------------------------------------------------------------
+|
+| La règle n° 7 autorise l'achat SANS COMPTE. Jusqu'ici un tel acheteur payait
+| et recevait un jeton dans une réponse HTTP : ni application, ni page, rien à
+| ouvrir. De l'argent entrait, rien d'utilisable n'en sortait.
+*/
+
+it('OUVRE LE RAPPORT PAYÉ SANS AUCUN COMPTE', function (): void {
+    $bien = bienRapportable(proprietaireDuBien());
+    $acces = app(ReportAccessService::class)->grant(paiementAbouti($bien), $bien);
+
+    test()->get('/rapport/'.$acces->access_token)
+        ->assertOk()
+        ->assertSee($bien->public_ref)
+        ->assertSee('détenteur(s) depuis');
+});
+
+it('NE NOMME PERSONNE, jamais', function (): void {
+    // Règle métier absolue n° 4. Le rapport apporte le NOMBRE de détenteurs et
+    // les DATES de changement — c'est ce qu'un acheteur a besoin de juger — et
+    // pas les personnes.
+    $proprietaire = proprietaireDuBien();
+    $bien = bienRapportable($proprietaire);
+    $acces = app(ReportAccessService::class)->grant(paiementAbouti($bien), $bien);
+
+    $page = test()->get('/rapport/'.$acces->access_token)->assertOk();
+
+    $page->assertDontSee('Awa Koné')
+        ->assertDontSee($proprietaire->phone)
+        // Ni le numéro réel du bien : le lien se transmet à un garagiste, et ne
+        // doit rien livrer de plus que ce qui a été acheté.
+        ->assertDontSee('1M8GDM9AXKP042788');
+});
+
+it('N\'EST NI INDEXÉE NI MISE EN CACHE', function (): void {
+    // L'adresse porte la capacité de lire un rapport payé. Un cache partagé —
+    // celui d'un cybercafé, d'un proxy d'entreprise — le rendrait au suivant.
+    $bien = bienRapportable(proprietaireDuBien());
+    $acces = app(ReportAccessService::class)->grant(paiementAbouti($bien), $bien);
+
+    $page = test()->get('/rapport/'.$acces->access_token)->assertOk();
+
+    expect($page->headers->get('Cache-Control'))->toContain('no-store');
+    // Le jeton est DANS l'URL : sans cet en-tête, le moindre lien sortant
+    // l'expédierait au site visité.
+    expect($page->headers->get('Referrer-Policy'))->toBe('no-referrer');
+    $page->assertSee('noindex', false);
+});
+
+it('NE CHARGE AUCUNE RESSOURCE TIERCE', function (): void {
+    // C'est ce qui empêche le jeton de fuir par un en-tête `Referer` vers un
+    // régisseur, et ce qui rend la page utilisable en 3G (CT-05).
+    $bien = bienRapportable(proprietaireDuBien());
+    $acces = app(ReportAccessService::class)->grant(paiementAbouti($bien), $bien);
+
+    $html = test()->get('/rapport/'.$acces->access_token)->getContent();
+
+    expect($html)->not->toMatch('#(src|href)="https?://(?!preuve)#i');
+});
+
+it('DIT POURQUOI quand le lien ne mène nulle part', function (): void {
+    // Un lien expiré se rachète, un lien erroné se revérifie : la conduite à
+    // tenir diffère, et le message doit la donner.
+    test()->get('/rapport/'.str_repeat('z', 40))
+        ->assertNotFound()
+        ->assertSee('RAPPORT INDISPONIBLE')
+        ->assertSee('invalide');
+});
+
+it('LE MÊME CODE POUR UN JETON INCONNU ET UN JETON EXPIRÉ', function (): void {
+    // Faire varier le code de statut donnerait à un automate de quoi éprouver
+    // des jetons au hasard, un par un.
+    $bien = bienRapportable(proprietaireDuBien());
+    $acces = app(ReportAccessService::class)->grant(paiementAbouti($bien), $bien);
+    $acces->forceFill(['expires_at' => now()->subDay()])->save();
+
+    $expire = test()->get('/rapport/'.$acces->access_token)->assertNotFound();
+    $inconnu = test()->get('/rapport/'.str_repeat('z', 40))->assertNotFound();
+
+    expect($expire->getStatusCode())->toBe($inconnu->getStatusCode());
+    // Le MESSAGE, lui, distingue : l'acheteur légitime doit savoir s'il doit
+    // racheter ou s'il s'est trompé de lien.
+    $expire->assertSee('expiré');
+});
+
+it('COMPTE L\'ACCÈS, comme la lecture par l\'API', function (): void {
+    $bien = bienRapportable(proprietaireDuBien());
+    $acces = app(ReportAccessService::class)->grant(paiementAbouti($bien), $bien);
+
+    test()->get('/rapport/'.$acces->access_token)->assertOk();
+
+    expect($acces->fresh()?->access_count)->toBe(1);
+});
+
+it('PARLE FRANÇAIS, dates comprises', function (): void {
+    // `translatedFormat` suit la locale de l'application. Elle valait « en » par
+    // défaut : la page de consultation — la promesse n° 1 du produit, lue debout
+    // sur un parking à Abidjan — affichait « 6 December 2025 ».
+    $bien = bienRapportable(proprietaireDuBien());
+    $bien->forceFill(['registered_at' => \Illuminate\Support\Carbon::parse('2025-12-06')])->save();
+    $acces = app(ReportAccessService::class)->grant(paiementAbouti($bien), $bien);
+
+    test()->get('/rapport/'.$acces->access_token)
+        ->assertOk()
+        ->assertSee('6 décembre 2025')
+        ->assertDontSee('December');
+});
+
+it('DIT L\'ORIGINE EN LANGAGE COURANT, jamais son code (CT-04)', function (): void {
+    // Le rapport affichait « owner » à un acheteur. Et c'est l'ORIGINE, jamais
+    // l'auteur : « une décision d'arbitrage » informe, « décidé par Awa Koné »
+    // dénonce (règle métier absolue n° 4).
+    $bien = bienRapportable(proprietaireDuBien());
+
+    \App\Models\AssetStatusHistory::create([
+        'asset_id' => $bien->id,
+        'from_status' => 'V-ACT',
+        'to_status' => 'V-VOL',
+        'trigger_type' => \App\Enums\TriggerType::Owner,
+    ]);
+
+    $acces = app(ReportAccessService::class)->grant(paiementAbouti($bien), $bien);
+
+    test()->get('/rapport/'.$acces->access_token)
+        ->assertOk()
+        ->assertSee('Une action du détenteur')
+        ->assertDontSee('>owner<', false);
+});
+
+it('REND L\'ADRESSE PARTAGEABLE, pas seulement le jeton', function (): void {
+    // Un jeton nu se lit avec un client d'API ; personne d'autre n'en fait
+    // rien. C'est l'adresse qui s'ouvre sur n'importe quel appareil.
+    $bien = bienRapportable(proprietaireDuBien());
+    $acces = app(ReportAccessService::class)->grant(paiementAbouti($bien), $bien);
+
+    test()->getJson('/api/v1/reports/access/'.$acces->access_token)
+        ->assertOk()
+        ->assertJsonPath('report_url', url('/rapport/'.$acces->access_token));
+});

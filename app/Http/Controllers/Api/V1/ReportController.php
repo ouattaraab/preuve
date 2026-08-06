@@ -109,6 +109,12 @@ final class ReportController extends Controller
                 'payment' => null,
                 'free' => true,
                 'access_token' => $acces->access_token,
+                // L'ADRESSE, PAS SEULEMENT LE JETON. Un jeton nu se lit avec un
+                // client d'API ; personne d'autre n'en fait rien. C'est cette
+                // adresse qui s'ouvre sur n'importe quel appareil, se transmet
+                // par SMS et se transfère à son garagiste — c'était l'intention
+                // depuis le début, et il n'y avait pas de page pour l'accueillir.
+                'report_url' => route('public.report', ['token' => $acces->access_token]),
                 'message' => 'Le rapport détaillé est gratuit en ce moment.',
             ], 201);
         }
@@ -210,6 +216,11 @@ final class ReportController extends Controller
             return response()->json(['message' => $e->getMessage()], 404);
         }
 
-        return response()->json($rapport);
+        return response()->json($rapport + [
+            // L'adresse partageable du même rapport. Elle permet à un client
+            // d'offrir « transmettre ce lien » sans reconstruire une URL, donc
+            // sans se tromper de domaine sur une recette.
+            'report_url' => route('public.report', ['token' => $token]),
+        ]);
     }
 }
