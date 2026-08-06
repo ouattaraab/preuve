@@ -50,13 +50,28 @@ final class PublicReportController extends Controller
             return response()->view('public.rapport-absent', [
                 'titre' => 'Rapport indisponible — Preuve',
                 'message' => $e->getMessage(),
-            ], 404)->header('Cache-Control', 'no-store, private');
+            ], 404)->withHeaders($this->entetes());
         }
 
         return response()->view('public.rapport', [
             'titre' => 'Rapport détaillé — Preuve',
             'rapport' => $rapport,
-        ])->withHeaders([
+        ])->withHeaders($this->entetes());
+    }
+
+    /**
+     * Les MÊMES en-têtes sur la page trouvée et sur la page absente.
+     *
+     * L'adresse d'un jeton EXPIRÉ porte encore un jeton réel : le 404 doit se
+     * protéger comme le 200. Ne les poser que sur le succès laissait la page
+     * d'échec retomber sur la politique par défaut du site — plus permissive,
+     * et divergente de ce que le test vérifiait.
+     *
+     * @return array<string, string>
+     */
+    private function entetes(): array
+    {
+        return [
             // AUCUN CACHE, NULLE PART. La page porte un rapport payé, et son
             // adresse porte la capacité de le lire : un cache partagé — celui
             // d'un cybercafé, d'un proxy d'entreprise — le rendrait au suivant.
@@ -64,6 +79,6 @@ final class PublicReportController extends Controller
             // Le jeton est DANS l'URL. Sans cet en-tête, le moindre lien
             // sortant l'expédierait au site visité.
             'Referrer-Policy' => 'no-referrer',
-        ]);
+        ];
     }
 }

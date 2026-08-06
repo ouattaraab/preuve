@@ -363,10 +363,15 @@ it('NE CHARGE AUCUNE RESSOURCE TIERCE', function (): void {
 it('DIT POURQUOI quand le lien ne mène nulle part', function (): void {
     // Un lien expiré se rachète, un lien erroné se revérifie : la conduite à
     // tenir diffère, et le message doit la donner.
-    test()->get('/rapport/'.str_repeat('z', 40))
+    $page = test()->get('/rapport/'.str_repeat('z', 40))
         ->assertNotFound()
         ->assertSee('RAPPORT INDISPONIBLE')
         ->assertSee('invalide');
+
+    // LES MÊMES EN-TÊTES QUE LA PAGE TROUVÉE : l'adresse d'un jeton expiré
+    // porte encore un jeton réel, et la page d'échec doit se protéger autant.
+    expect($page->headers->get('Referrer-Policy'))->toBe('no-referrer');
+    expect($page->headers->get('Cache-Control'))->toContain('no-store');
 });
 
 it('LE MÊME CODE POUR UN JETON INCONNU ET UN JETON EXPIRÉ', function (): void {
