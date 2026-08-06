@@ -9,6 +9,7 @@ use App\Http\Controllers\Web\FleetImportController;
 use App\Http\Controllers\Web\PaymentReturnController;
 use App\Http\Controllers\Web\PublicLookupController;
 use App\Http\Controllers\Web\PublicReportController;
+use App\Http\Controllers\Web\ReportPurchaseController;
 use App\Http\Controllers\Web\StolenListPageController;
 use App\Http\Controllers\Web\TransferInvitationController;
 use App\Http\Middleware\EnsureUserHasBackOfficeAccess;
@@ -104,31 +105,6 @@ Route::withoutMiddleware([
         ->middleware('throttle:60,1')
         ->name('public.payment.return');
 
-    /*
-     * ACCEPTER UNE CESSION SANS AVOIR L'APPLICATION (ST-0601).
-     *
-     * Au marché, le vendeur a l'application et l'acheteur non. Sans ce chemin,
-     * l'acheteur reçoit un courriel qui lui demande d'installer une application
-     * pour valider une vente déjà conclue — et sept jours plus tard la cession
-     * expire, le bien reste au vendeur, et l'acheteur détient un bien qui n'est
-     * pas à son nom.
-     *
-     * DEUX FACTEURS : le jeton prouve qu'on a reçu le courriel, le code qu'on
-     * lit cette boîte à l'instant. Jamais indexée — la page décrit un bien
-     * identifiable et une transaction en cours.
-     */
-    Route::get('cession/{token}', [TransferInvitationController::class, 'show'])
-        ->where('token', '[a-f0-9]{64}')
-        ->middleware('throttle:60,1')
-        ->name('public.transfer.invite');
-    Route::post('cession/{token}', [TransferInvitationController::class, 'confirm'])
-        ->where('token', '[a-f0-9]{64}')
-        // Plus serré que la lecture : c'est ici qu'on présente un code à six
-        // chiffres, et le plafond de l'OTP ne protège que la destination — pas
-        // le nombre de jetons qu'un attaquant essaierait en parallèle.
-        ->middleware('throttle:12,1')
-        ->name('public.transfer.confirm');
-
     // Page indexable, adressée par la référence publique OPAQUE. Le motif borne
     // la route à cette forme : elle ne doit jamais servir d'identifiant réel.
     Route::get('b/{publicRef}', [PublicLookupController::class, 'asset'])
@@ -161,6 +137,74 @@ Route::withoutMiddleware([
 | un gardien distinct de `EnsureUserHasBackOfficeAccess`. Une session de loueur
 | n'ouvre ni la piste d'audit, ni la modération, ni le registre.
 */
+/*
+ * LES DEUX PAGES QUI ONT BESOIN D'UNE SESSION — et pourquoi elles sont ICI,
+ * hors du groupe sans cookie.
+ *
+ * La consultation est anonyme et le restera : y déposer un identifiant de
+ * session permettrait de recoudre les consultations successives d'un visiteur,
+ * exactement ce que le hachage quotidien de l'IP existe pour empêcher. Ces
+ * deux pages-ci sont d'une autre nature : le visiteur s'y identifie
+ * DÉLIBÉRÉMENT — il donne son nom pour acheter un rapport, ou il accepte une
+ * cession qui lui est nominativement adressée. Un cookie y est cohérent, et il
+ * y est nécessaire : sans session, pas de jeton CSRF sur des formulaires qui
+ * engagent un paiement ou un changement de propriétaire, et rien pour retenir
+ * les coordonnées entre l'envoi du code et sa vérification.
+ *
+ * La frontière est donc nette : cookie UNIQUEMENT quand le visiteur choisit de
+ * se nommer. Les pages de consultation restent cacheables et sans trace.
+ */
+/*
+ * ACHETER LE RAPPORT DÉTAILLÉ DEPUIS LE WEB (ST-0801, ST-0802).
+ *
+ * La page de verdict s'arrêtait sur « Vérifier un autre bien » — au moment
+ * exact où quelqu'un, debout devant une moto, voudrait en savoir plus. Tout
+ * existait côté serveur, l'application mobile le proposait ; le canal le
+ * plus accessible, un navigateur sans installation, ne vendait rien.
+ *
+ * ADRESSÉE PAR LA RÉFÉRENCE PUBLIQUE, jamais par l'identifiant interne :
+ * l'acheteur ne connaît que ce que le verdict lui a montré.
+ */
+Route::get('rapport/commander/{publicRef}', [ReportPurchaseController::class, 'show'])
+    ->where('publicRef', 'PRV-[A-Z0-9]{8}')
+    ->middleware('throttle:60,1')
+    ->name('public.report.order');
+Route::post('rapport/commander/{publicRef}/code', [ReportPurchaseController::class, 'requestCode'])
+    ->where('publicRef', 'PRV-[A-Z0-9]{8}')
+    // Plus serré : chaque envoi coûte un message, et le plafond de l'OTP
+    // ne protège qu'une destination à la fois.
+    ->middleware('throttle:10,1')
+    ->name('public.report.code');
+Route::post('rapport/commander/{publicRef}', [ReportPurchaseController::class, 'purchase'])
+    ->where('publicRef', 'PRV-[A-Z0-9]{8}')
+    ->middleware('throttle:12,1')
+    ->name('public.report.buy');
+
+/*
+ * ACCEPTER UNE CESSION SANS AVOIR L'APPLICATION (ST-0601).
+ *
+ * Au marché, le vendeur a l'application et l'acheteur non. Sans ce chemin,
+ * l'acheteur reçoit un courriel qui lui demande d'installer une application
+ * pour valider une vente déjà conclue — et sept jours plus tard la cession
+ * expire, le bien reste au vendeur, et l'acheteur détient un bien qui n'est
+ * pas à son nom.
+ *
+ * DEUX FACTEURS : le jeton prouve qu'on a reçu le courriel, le code qu'on
+ * lit cette boîte à l'instant. Jamais indexée — la page décrit un bien
+ * identifiable et une transaction en cours.
+ */
+Route::get('cession/{token}', [TransferInvitationController::class, 'show'])
+    ->where('token', '[a-f0-9]{64}')
+    ->middleware('throttle:60,1')
+    ->name('public.transfer.invite');
+Route::post('cession/{token}', [TransferInvitationController::class, 'confirm'])
+    ->where('token', '[a-f0-9]{64}')
+    // Plus serré que la lecture : c'est ici qu'on présente un code à six
+    // chiffres, et le plafond de l'OTP ne protège que la destination — pas
+    // le nombre de jetons qu'un attaquant essaierait en parallèle.
+    ->middleware('throttle:12,1')
+    ->name('public.transfer.confirm');
+
 Route::prefix('flotte')->group(function (): void {
     Route::get('connexion', [FleetAuthController::class, 'show'])->name('fleet.login');
     Route::post('connexion/code', [FleetAuthController::class, 'requestCode'])

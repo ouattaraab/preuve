@@ -46,17 +46,38 @@ final class AccountOtpSender
             return false;
         }
 
-        $adresse = is_string($titulaire->email) && $titulaire->email !== '' ? $titulaire->email : null;
+        return $this->sendTo(
+            $destination,
+            is_string($titulaire->email) && $titulaire->email !== '' ? $titulaire->email : null,
+            $motif,
+        );
+    }
 
+    /**
+     * Émet un code vers une destination donnée, en le livrant là où il peut
+     * RÉELLEMENT arriver.
+     *
+     * L'IDENTITÉ ET LA LIVRAISON SONT DEUX CHOSES, et c'est tout l'objet de
+     * cette méthode. `$destination` indexe le défi — c'est elle que la
+     * vérification interrogera — tandis que `$adresse` dit où le porter. Tant
+     * qu'aucune passerelle SMS n'est branchée, un code indexé sur un numéro et
+     * livré à ce numéro ne part nulle part : le demandeur attend un message que
+     * rien n'a émis. C'est le défaut qui rendait les cessions inaboutissables,
+     * et il guettait à l'identique l'achat d'un rapport sans compte.
+     *
+     * @param  string  $destination  ce sur quoi le défi est indexé (numéro ou adresse)
+     * @param  string|null  $adresse  où livrer si le courriel est le seul canal branché
+     */
+    public function sendTo(string $destination, ?string $adresse, OtpPurpose $motif): bool
+    {
         // Une destination qui EST une adresse s'auto-livre ; sinon, le canal
         // dépend de la passerelle réglée dans l'espace administrateur.
-        $parCourriel = $this->otp->isEmail($destination)
-            || $this->settings->get(ConfigurableOtpSender::PROVIDER_KEY) === 'mail';
+        $parCourriel = $this->otp->isEmail($destination) || $this->smsAbsent();
 
         if ($parCourriel && $adresse === null && ! $this->otp->isEmail($destination)) {
-            // Compte sans adresse alors que seul le courriel est branché :
-            // le code n'a aucun chemin. Le dire à l'appelant vaut mieux que
-            // de faire croire à un envoi.
+            // Aucune adresse alors que seul le courriel est branché : le code
+            // n'a aucun chemin. Le dire à l'appelant vaut mieux que de faire
+            // croire à un envoi.
             return false;
         }
 
@@ -72,5 +93,26 @@ final class AccountOtpSender
         }
 
         return true;
+    }
+
+    /**
+     * Vrai tant qu'aucune passerelle capable d'envoyer un SMS n'est réglée.
+     *
+     * ON ÉNUMÈRE CE QUI N'ENVOIE PAS DE SMS, ET NON L'INVERSE. Ne tester que
+     * `=== 'mail'` laissait le défaut `log` passer pour une passerelle : sur
+     * une installation neuve, le code partait vers un numéro par un
+     * transporteur qui l'écrit dans un fichier — l'acheteur attendait un
+     * message que rien n'avait émis. Un fournisseur ajouté demain sera un vrai
+     * envoyeur de SMS jusqu'à preuve du contraire ; s'il ne l'est pas, sa clé
+     * se rajoute ici, en une ligne.
+     */
+    public function smsAbsent(): bool
+    {
+        $actif = $this->settings->get(
+            ConfigurableOtpSender::PROVIDER_KEY,
+            ConfigurableOtpSender::DEFAULT_PROVIDER,
+        );
+
+        return ! is_string($actif) || in_array($actif, ['mail', 'log'], true);
     }
 }

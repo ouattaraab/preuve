@@ -56,6 +56,34 @@
             @endforeach
         </dl>
 
+        {{-- L'OFFRE ARRIVE ICI, ET NULLE PART AILLEURS. C'est le moment de plus
+             forte intention du produit : quelqu'un est debout devant un bien
+             qu'on lui propose, il vient de lire le verdict gratuit, et il lui
+             manque exactement ce que le rapport contient. Cette page se
+             terminait par « Vérifier un autre bien » — la principale ligne de
+             revenu n'était pas vendable sur le canal le plus accessible.
+
+             ELLE NE DÉNIGRE PAS LE VERDICT GRATUIT. Celui-ci reste la promesse
+             du produit ; le rapport ajoute, il ne débloque pas. --}}
+        <div style="margin-top:22px;border:3px solid #2B1D12;border-radius:16px;padding:20px;background:#FFF;box-shadow:4px 4px 0 #2B1D12">
+            <p style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:21px">
+                Besoin de son histoire complète&nbsp;?
+            </p>
+            <p style="margin-top:8px;font-size:16px;color:#5C4A33;line-height:1.55">
+                Combien de fois ce bien a changé de mains, depuis quand il est enregistré,
+                les épisodes qu'il a traversés et les pièces qu'un agent a contrôlées.
+                <strong>Sans aucun nom</strong>, dans les deux sens.
+            </p>
+            <a href="/rapport/commander/{{ $bien->public_ref }}" class="bouton"
+               style="display:block;text-align:center;text-decoration:none;margin-top:14px">
+                @if (($prixRapport ?? 0) > 0)
+                    LE RAPPORT DÉTAILLÉ · {{ number_format($prixRapport, 0, ',', ' ') }} FCFA
+                @else
+                    OUVRIR LE RAPPORT DÉTAILLÉ · GRATUIT
+                @endif
+            </a>
+        </div>
+
         {{--
             Ce que la page ne dira jamais. Le dire explicitement vaut mieux que
             de laisser chercher : c'est la promesse d'anonymat, et elle vaut

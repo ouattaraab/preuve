@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\Captcha\CaptchaVerifier;
 use App\Services\LookupResult;
 use App\Services\LookupService;
+use App\Services\PricingService;
 use App\Services\Settings\SettingsRepository;
 use App\Services\StolenListingService;
 use Illuminate\Http\Request;
@@ -49,6 +50,7 @@ final class PublicLookupController extends Controller
         private readonly CaptchaVerifier $captcha,
         private readonly SettingsRepository $settings,
         private readonly StolenListingService $voles,
+        private readonly PricingService $tarifs,
     ) {}
 
     /**
@@ -139,6 +141,11 @@ final class PublicLookupController extends Controller
                 'captcha' => $resultat->rateLimited && $this->captcha->isConfigured()
                     ? $this->captcha->siteKey()
                     : null,
+                // LE PRIX VIENT DU SERVEUR, jamais d'une constante de gabarit :
+                // un tarif changé dans l'espace admin doit se voir sur-le-champ,
+                // et surtout un rapport devenu gratuit ne doit pas continuer
+                // d'afficher un montant.
+                'prixRapport' => $this->tarifs->amount('report'),
             ], $this->code($resultat))
             ->header('X-Robots-Tag', 'noindex, nofollow')
             // La page ne charge aucune ressource tierce ; l'en-tête garantit
@@ -169,6 +176,11 @@ final class PublicLookupController extends Controller
                 'captcha' => $resultat->rateLimited && $this->captcha->isConfigured()
                     ? $this->captcha->siteKey()
                     : null,
+                // LE PRIX VIENT DU SERVEUR, jamais d'une constante de gabarit :
+                // un tarif changé dans l'espace admin doit se voir sur-le-champ,
+                // et surtout un rapport devenu gratuit ne doit pas continuer
+                // d'afficher un montant.
+                'prixRapport' => $this->tarifs->amount('report'),
             ], $this->code($resultat))
             // Une référence inconnue ne doit pas s'installer dans un index :
             // le bien peut avoir été archivé, et la page ne dit alors plus rien

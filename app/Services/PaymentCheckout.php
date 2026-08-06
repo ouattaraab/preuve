@@ -56,23 +56,45 @@ final class PaymentCheckout
     ): array {
         $paiement = $this->paiements->intendFor($payeur, $bien, $operateur, $motif, $montant);
 
-        if ($operateur !== PaymentProvider::Paystack) {
-            return ['payment' => $paiement, 'checkout_url' => null];
+        return [
+            'payment' => $paiement,
+            'checkout_url' => $this->openFor($paiement, $payeur->email ?? ''),
+        ];
+    }
+
+    /**
+     * Ouvre la caisse pour un paiement DÉJÀ créé, et rend l'adresse à ouvrir.
+     *
+     * SÉPARÉE DE `open()` parce que l'achat d'un rapport sans compte crée son
+     * intention autrement — il faut d'abord vérifier le code de l'acheteur, et
+     * `intendForGuest()` s'en charge. Sans ce point d'entrée, ce chemin-là
+     * recopiait l'appel à l'opérateur, et une recopie finit par oublier
+     * `provider_ref` : l'argent arrive alors sans que rien ne s'ouvre.
+     *
+     * L'ADRESSE DE RETOUR EST CONSTRUITE ICI, ET NON PAR L'APPELANT. Elle a
+     * besoin de l'identifiant du paiement, qui n'existe qu'une fois l'intention
+     * créée : la laisser au contrôleur l'a fait pointer une route d'API
+     * authentifiée, où l'opérateur ramenait un NAVIGATEUR pour lui afficher un
+     * 401 en JSON — à quelqu'un qui venait de payer.
+     *
+     * @throws DomainException si l'opérateur refuse d'ouvrir la page
+     */
+    public function openFor(Payment $paiement, string $courriel): ?string
+    {
+        if ($paiement->provider !== PaymentProvider::Paystack) {
+            return null;
         }
 
-        // L'ADRESSE DE RETOUR EST CONSTRUITE ICI, ET NON PAR L'APPELANT. Elle
-        // a besoin de l'identifiant du paiement, qui n'existe qu'une fois
-        // l'intention créée : la laisser au contrôleur l'a fait pointer une
-        // route d'API authentifiée, où l'opérateur ramenait un NAVIGATEUR pour
-        // lui afficher un 401 en JSON — à quelqu'un qui venait de payer.
         $ouverture = $this->paystack->initialize(
             $paiement,
-            $payeur->email ?? '',
+            $courriel,
             url('/paiement/retour?payment='.$paiement->id),
         );
 
+        // ÉCRITE AVANT TOUT RETOUR : c'est elle qui relie le webhook à la
+        // transaction ; sans elle, l'argent arrive et rien ne s'ouvre.
         $paiement->forceFill(['provider_ref' => $ouverture['reference']])->save();
 
-        return ['payment' => $paiement, 'checkout_url' => $ouverture['authorization_url']];
+        return $ouverture['authorization_url'];
     }
 }
