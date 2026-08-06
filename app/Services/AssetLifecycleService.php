@@ -7,7 +7,9 @@ namespace App\Services;
 use App\Enums\LifeStatus;
 use App\Enums\NotificationType;
 use App\Enums\OtpPurpose;
+use App\Enums\PaymentPurpose;
 use App\Enums\TriggerType;
+use App\Exceptions\PaymentRequiredException;
 use App\Models\Asset;
 use App\Models\User;
 use DomainException;
@@ -41,6 +43,8 @@ final class AssetLifecycleService
         private readonly StatusTransitionService $transitions,
         private readonly OtpService $otp,
         private readonly NotificationService $notifications,
+        private readonly PricingService $tarifs,
+        private readonly PaymentService $paiements,
     ) {}
 
     /**
@@ -52,6 +56,7 @@ final class AssetLifecycleService
     public function declareStolen(Asset $bien, User $detenteur, string $code): Asset
     {
         $this->assertHolder($bien, $detenteur);
+        $this->assertPeageRegle($bien, $detenteur);
 
         $this->otp->verify($this->destinationDe($detenteur), $code, OtpPurpose::SensitiveAction);
 
@@ -71,6 +76,45 @@ final class AssetLifecycleService
         ])->save();
 
         return $bien->fresh() ?? $bien;
+    }
+
+    /**
+     * Le péage de déclaration, quand l'exploitant en a ouvert un.
+     *
+     * FERMÉ PAR DÉFAUT, ET C'EST L'ESSENTIEL. Le tarif vaut zéro tant que
+     * personne ne l'a réglé : la déclaration reste alors ce qu'elle doit être,
+     * gratuite et immédiate. La garde ci-dessous ne coûte donc rien au parcours
+     * ordinaire — elle ne se referme que sur décision explicite.
+     *
+     * ELLE EST ICI, ET PAS SEULEMENT DANS LE CONTRÔLEUR. Le contrôleur sait
+     * ouvrir la page de l'opérateur et rend un 402 utile ; mais un péage qui
+     * n'existerait QUE dans le contrôleur tomberait au premier autre appelant —
+     * une commande d'exploitation, un import, un contrôleur ajouté plus tard.
+     * Ce qui encaisse doit être gardé là où le geste s'accomplit.
+     *
+     * @throws PaymentRequiredException
+     */
+    private function assertPeageRegle(Asset $bien, User $detenteur): void
+    {
+        $montant = $this->tarifs->amount('theft_declaration');
+
+        if ($montant === 0) {
+            return;
+        }
+
+        // DÉJÀ PAYÉ, DÉJÀ DÛ. Le code arrive après le règlement : entre les
+        // deux, l'application a pu se fermer, le code expirer, l'utilisateur en
+        // redemander un. Aucun de ces incidents ne doit faire payer deux fois.
+        if ($this->paiements->hasPaidFor($detenteur, $bien, PaymentPurpose::TheftDeclaration)) {
+            return;
+        }
+
+        throw new PaymentRequiredException(
+            PaymentPurpose::TheftDeclaration,
+            $montant,
+            'La déclaration de vol est soumise à un règlement de '.number_format($montant, 0, ',', ' ')
+                .' FCFA. Le code de confirmation te sera envoyé dès le paiement reçu.',
+        );
     }
 
     /**

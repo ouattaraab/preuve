@@ -28,6 +28,7 @@ class PreuveSession {
     required this.scans,
     required this.voles,
     required this.miseEnAvant,
+    required this.peageVol,
     required this.kyc,
     required this.envois,
   });
@@ -47,6 +48,7 @@ class PreuveSession {
       scans: ScanService(api),
       voles: StolenService(api),
       miseEnAvant: StolenListingService(api),
+      peageVol: TheftFeeService(api),
       kyc: KycService(api),
       envois: UploadManager(
         // La lecture du fichier est INJECTÉE : c'est ce qui permet d'éprouver
@@ -76,6 +78,10 @@ class PreuveSession {
 
   /// La mise en avant de SES biens volés sur cette liste.
   final StolenListingService miseEnAvant;
+
+  /// Le péage de déclaration de vol. À ZÉRO par défaut : ce service répond
+  /// alors « déjà réglé » et l'écran enchaîne sans jamais parler d'argent.
+  final TheftFeeService peageVol;
   final KycService kyc;
 
   /// File d'envoi différée, avec reprise (ST-0206, CT-05).

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\PaymentRequiredException;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PublicAssetResource;
 use App\Models\Asset;
@@ -96,6 +97,17 @@ final class AssetLifecycleController extends Controller
 
         try {
             $misAJour = $action($bien, $utilisateur);
+        } catch (PaymentRequiredException $e) {
+            // 402 ET NON 422. L'utilisateur n'a rien rempli de travers : il lui
+            // manque un règlement. Le rendre comme une erreur de saisie le
+            // ferait chercher un champ fautif qui n'existe pas — et le client
+            // a besoin du montant pour l'annoncer avant d'ouvrir la caisse.
+            return response()->json([
+                'payment_required' => true,
+                'purpose' => $e->purpose->value,
+                'fee_fcfa' => $e->amountFcfa,
+                'message' => $e->getMessage(),
+            ], 402);
         } catch (DomainException $e) {
             throw ValidationException::withMessages(['asset' => $e->getMessage()]);
         }

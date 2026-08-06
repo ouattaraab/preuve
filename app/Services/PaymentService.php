@@ -44,6 +44,7 @@ final class PaymentService
         private readonly ReportAccessService $reports,
         private readonly PricingService $tarifs,
         private readonly StolenListingService $listings,
+        private readonly AccountOtpSender $codes,
     ) {}
 
     /**
@@ -214,6 +215,7 @@ final class PaymentService
         match ($paiement->purpose) {
             PaymentPurpose::DetailedReport => $this->reports->grant($paiement, $bien),
             PaymentPurpose::TheftListing => $this->publierLeBienVole($paiement, $bien),
+            PaymentPurpose::TheftDeclaration => $this->envoyerLeCodeDeDeclaration($paiement),
             // Les autres motifs se règlent ailleurs : la place
             // d'enregistrement au moment de l'enregistrement, les frais de
             // dossier au dépôt, l'abonnement flotte au décompte mensuel.
@@ -239,6 +241,36 @@ final class PaymentService
 
         if ($detenteur instanceof User) {
             $this->listings->publish($bien, $detenteur);
+        }
+    }
+
+    /**
+     * Le règlement du péage de déclaration est reçu : le code peut partir.
+     *
+     * C'EST ICI QUE L'ORDRE DEMANDÉ SE JOUE — payer, PUIS recevoir le code.
+     * L'émettre avant aurait fait courir son expiration pendant la traversée
+     * d'une page bancaire : l'utilisateur serait revenu, aurait payé, et aurait
+     * trouvé un code périmé.
+     *
+     * LE CODE NE DÉCLARE RIEN À LUI SEUL. Il ouvre le geste ; c'est
+     * `AssetLifecycleService::declareStolen()` qui change le statut, après
+     * l'avoir vérifié. Un paiement n'est pas une preuve d'identité, et un
+     * webhook n'est pas un utilisateur.
+     *
+     * UN ENVOI QUI ÉCHOUE NE FAIT PAS ÉCHOUER LE WEBHOOK : le droit acquis est
+     * enregistré dans `payments`, et l'utilisateur pourra redemander un code
+     * sans repayer. Lever ici ferait rejouer l'opérateur, indéfiniment.
+     */
+    private function envoyerLeCodeDeDeclaration(Payment $paiement): void
+    {
+        if ($paiement->user_id === null) {
+            return;
+        }
+
+        $payeur = User::query()->whereKey($paiement->user_id)->first();
+
+        if ($payeur instanceof User) {
+            $this->codes->send($payeur, OtpPurpose::SensitiveAction);
         }
     }
 

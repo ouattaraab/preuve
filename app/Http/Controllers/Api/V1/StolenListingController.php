@@ -9,8 +9,8 @@ use App\Enums\PaymentPurpose;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\User;
+use App\Services\PaymentCheckout;
 use App\Services\PaymentService;
-use App\Services\PaystackGateway;
 use App\Services\StolenListingService;
 use DomainException;
 use Illuminate\Http\JsonResponse;
@@ -37,7 +37,7 @@ final class StolenListingController extends Controller
     public function __construct(
         private readonly StolenListingService $liste,
         private readonly PaymentService $paiements,
-        private readonly PaystackGateway $paystack,
+        private readonly PaymentCheckout $caisse,
     ) {}
 
     /** Ce que la mise en avant coûte, et où en est ce bien. */
@@ -77,30 +77,20 @@ final class StolenListingController extends Controller
         $operateur = PaymentProvider::tryFrom($request->string('provider')->toString())
             ?? PaymentProvider::Paystack;
 
-        $paiement = $this->paiements->intendFor(
-            $detenteur,
-            $bien,
-            $operateur,
-            PaymentPurpose::TheftListing,
-            $this->liste->price(),
-        );
-
-        $checkout = null;
-
-        if ($paiement->provider === PaymentProvider::Paystack) {
-            try {
-                $ouverture = $this->paystack->initialize(
-                    $paiement,
-                    $detenteur->email ?? '',
-                    url('/api/v1/assets/'.$bien->id.'/stolen-listing'),
-                );
-            } catch (DomainException $e) {
-                throw ValidationException::withMessages(['provider' => $e->getMessage()]);
-            }
-
-            $checkout = $ouverture['authorization_url'];
-            $paiement->forceFill(['provider_ref' => $ouverture['reference']])->save();
+        try {
+            $ouverture = $this->caisse->open(
+                $detenteur,
+                $bien,
+                $operateur,
+                PaymentPurpose::TheftListing,
+                $this->liste->price(),
+                url('/api/v1/assets/'.$bien->id.'/stolen-listing'),
+            );
+        } catch (DomainException $e) {
+            throw ValidationException::withMessages(['provider' => $e->getMessage()]);
         }
+
+        $checkout = $ouverture['checkout_url'];
 
         return response()->json([
             'listed' => false,

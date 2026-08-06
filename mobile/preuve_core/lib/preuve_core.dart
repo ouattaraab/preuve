@@ -29,6 +29,7 @@ export 'src/models/owned_asset.dart';
 export 'src/models/report.dart';
 export 'src/api/stolen_listing_service.dart';
 export 'src/api/stolen_service.dart';
+export 'src/api/theft_fee_service.dart';
 export 'src/models/transfer.dart';
 export 'src/upload/upload_manager.dart';
 export 'src/upload/upload_queue.dart';

@@ -133,6 +133,7 @@ PreuveSession fauxSession(FauxTransport transport) {
     scans: ScanService(transport),
     voles: StolenService(transport),
     miseEnAvant: StolenListingService(transport),
+    peageVol: TheftFeeService(transport),
     kyc: KycService(transport),
     envois: UploadManager(
       queue: UploadQueue(

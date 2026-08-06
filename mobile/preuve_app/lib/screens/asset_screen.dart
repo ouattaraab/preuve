@@ -8,6 +8,7 @@ import '../ui/photo_choice.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'stolen_listing_screen.dart';
+import 'theft_fee_screen.dart';
 import 'transfer_propose_screen.dart';
 import 'uploads_screen.dart';
 
@@ -135,7 +136,47 @@ class _AssetScreenState extends State<AssetScreen> {
     );
   }
 
-  Future<void> _declarerVol() => _geste(
+  /// Déclare le vol — en passant par la caisse SI, ET SEULEMENT SI, un
+  /// exploitant a ouvert un péage.
+  ///
+  /// LE TARIF VAUT ZÉRO PAR DÉFAUT, et ce chemin est alors exactement celui
+  /// d'avant : un aller-retour de quelques octets, puis le code. Ajouter un
+  /// écran de paiement à 0 FCFA mettrait un obstacle là où il n'y en a pas.
+  ///
+  /// UNE ERREUR RÉSEAU NE BLOQUE PAS LA DÉCLARATION. Si l'état du péage est
+  /// illisible, on tente le geste : le serveur tranchera, et rendra un 402 s'il
+  /// le faut. Refuser ici sur un doute empêcherait de signaler un vol pour une
+  /// requête auxiliaire qui a échoué — le pire moment pour être bloqué.
+  Future<void> _declarerVol() async {
+    TheftFee? peage;
+
+    try {
+      peage = await widget.session.peageVol.state(_bien.id);
+    } on PreuveException {
+      peage = null;
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    if (peage != null && peage.bloque) {
+      final bool regle = await Navigator.of(context).push<bool>(
+            MaterialPageRoute<bool>(
+              builder: (_) => TheftFeeScreen(session: widget.session, bien: _bien),
+            ),
+          ) ??
+          false;
+
+      if (!regle || !mounted) {
+        return;
+      }
+    }
+
+    await _gesteVol();
+  }
+
+  Future<void> _gesteVol() => _geste(
         motif: OtpPurpose.sensitiveAction,
         titre: 'Déclarer ce bien volé',
         consequence:

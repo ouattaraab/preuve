@@ -44,6 +44,7 @@ use App\Http\Controllers\Api\V1\QuotaController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\StolenListController;
 use App\Http\Controllers\Api\V1\StolenListingController;
+use App\Http\Controllers\Api\V1\TheftDeclarationFeeController;
 use App\Http\Controllers\Api\V1\TransferController;
 use App\Http\Controllers\Api\V1\UploadController;
 use App\Http\Controllers\Api\V1\WatchAlertController;
@@ -189,6 +190,18 @@ Route::prefix('v1')->group(function (): void {
         Route::post('assets/{asset}/stolen-listing', [StolenListingController::class, 'store'])
             ->middleware('throttle:20,10');
         Route::delete('assets/{asset}/stolen-listing', [StolenListingController::class, 'destroy']);
+
+        /*
+         * LE PÉAGE DE DÉCLARATION, quand un exploitant en ouvre un (ST-0604).
+         *
+         * Le tarif vaut ZÉRO par défaut, et ces routes le disent alors sans
+         * détour : elles répondent « gratuit, demande ton code ». Elles ne
+         * déclarent jamais rien — le statut ne change que derrière le code
+         * vérifié, sur `assets/{asset}/stolen`.
+         */
+        Route::get('assets/{asset}/theft-fee', [TheftDeclarationFeeController::class, 'show']);
+        Route::post('assets/{asset}/theft-fee', [TheftDeclarationFeeController::class, 'store'])
+            ->middleware('throttle:20,10');
 
         Route::post('assets/{asset}/documents', [AssetDocumentController::class, 'store']);
         // Revoir ce qu'on a déposé, et la pièce elle-même : sans cela, personne
