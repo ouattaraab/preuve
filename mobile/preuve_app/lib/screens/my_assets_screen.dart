@@ -29,9 +29,21 @@ import 'uploads_screen.dart';
 /// bout de sept jours, et un acheteur qui ne sait pas qu'on lui a cédé un bien
 /// ne le confirmera jamais.
 class MyAssetsScreen extends StatefulWidget {
-  const MyAssetsScreen({required this.session, super.key});
+  const MyAssetsScreen({required this.session, this.onDeconnexion, super.key});
 
   final PreuveSession session;
+
+  /// Ce qu'il faut faire une fois la session fermée.
+  ///
+  /// CET ÉCRAN VIT DE DEUX FAÇONS, et c'est ce qui a produit un écran NOIR à la
+  /// déconnexion : il est empilé depuis l'accueil, mais il est aussi le
+  /// troisième ONGLET du shell, où il n'est empilé sur rien. Un
+  /// `Navigator.pop()` y retirait la dernière route de la pile et ne laissait
+  /// plus rien à afficher.
+  ///
+  /// Le shell passe donc de quoi revenir à son premier onglet ; l'usage empilé
+  /// laisse ce paramètre nul et l'écran se dépile, comme avant.
+  final VoidCallback? onDeconnexion;
 
   @override
   State<MyAssetsScreen> createState() => _MyAssetsScreenState();
@@ -150,10 +162,24 @@ class _MyAssetsScreenState extends State<MyAssetsScreen> {
                 alerte: _alertes > 0,
                 onCloche: () => _ouvrir(NotificationsScreen(session: widget.session)),
                 onDeconnexion: () async {
-                  final navigateur = Navigator.of(context);
+                  final NavigatorState navigateur = Navigator.of(context);
 
                   await widget.session.fermer();
-                  navigateur.pop();
+
+                  if (!mounted) {
+                    return;
+                  }
+
+                  // L'HÔTE DÉCIDE, parce que lui seul sait où l'on est. Et
+                  // `canPop` garde le cas empilé : dépiler la dernière route
+                  // laisse un écran noir, ce qui est exactement ce qui arrivait.
+                  final VoidCallback? retour = widget.onDeconnexion;
+
+                  if (retour != null) {
+                    retour();
+                  } else if (navigateur.canPop()) {
+                    navigateur.pop();
+                  }
                 },
               ),
               const SizedBox(height: 14),

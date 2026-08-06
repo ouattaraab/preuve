@@ -94,7 +94,13 @@ class _ShellScreenState extends State<ShellScreen> {
 
     return Scaffold(
       body: _onglet == 2 && session.estConnecte
-          ? MyAssetsScreen(session: session)
+          ? MyAssetsScreen(
+              session: session,
+              // Se déconnecter depuis un ONGLET ne dépile rien : on revient à
+              // la consultation, qui ne demande aucun compte. C'est aussi le
+              // seul écran qui ait du sens une fois déconnecté.
+              onDeconnexion: () => setState(() => _onglet = 0),
+            )
           : LookupScreen(session: session),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
