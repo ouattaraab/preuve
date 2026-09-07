@@ -10,10 +10,18 @@ import 'ui/theme.dart';
 
 /// Version installée, annoncée au serveur à chaque écriture.
 ///
-/// À TENIR À JOUR AVEC `pubspec.yaml` : c'est elle que le serveur compare à la
-/// version minimale exigée. Une constante figée ferait échapper au forçage de
-/// mise à jour précisément les versions qu'il faut arrêter.
-const String versionInstallee = '0.1.0';
+/// ELLE DOIT ÊTRE CELLE DU `pubspec.yaml`, ET UN TEST LE VÉRIFIE
+/// (`test/version_test.dart`). Le commentaire qui le demandait ne suffisait
+/// pas : la constante est restée à `0.1.0` pendant que le binaire passait en
+/// 1.3.x, et le forçage de mise à jour s'en trouvait retourné. Poser une
+/// version minimale au-dessus de `0.1.0` n'aurait pas arrêté les vieilles
+/// applications — il les aurait TOUTES arrêtées, la plus récente comprise,
+/// puisque toutes annonçaient le même numéro périmé.
+///
+/// C'est elle que le serveur compare à la version minimale exigée
+/// (`EnsureAppIsSupported`), et seules les ÉCRITURES sont concernées : la
+/// consultation reste ouverte quoi qu'il arrive (règle métier absolue n° 1).
+const String versionInstallee = '1.4.0';
 
 /// Racine de l'API.
 ///

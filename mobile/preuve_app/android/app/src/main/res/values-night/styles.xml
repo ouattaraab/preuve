@@ -1,18 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Mode sombre — ET IL RESTE CRÈME, délibérément.
+
+    L'application n'a pas de thème sombre : elle est crème quel que soit le
+    réglage du téléphone. Un démarrage noir, comme celui d'usine, aurait donc
+    fait passer du noir au crème en pleine ouverture. On préfère un raccord
+    invisible à une cohérence avec un thème qui n'existe pas.
+
+    Le jour où un thème sombre arrivera, c'est ce fichier qu'il faudra
+    reprendre en même temps que `Djassa` — pas après.
+-->
 <resources>
-    <!-- Theme applied to the Android Window while the process is starting when the OS's Dark Mode setting is on -->
-    <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
-        <!-- Show a splash screen on the activity. Automatically removed when
-             the Flutter engine draws its first frame -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">@drawable/launch_background</item>
     </style>
-    <!-- Theme applied to the Android Window as soon as the process has started.
-         This theme determines the color of the Android Window while your
-         Flutter UI initializes, as well as behind your Flutter UI while its
-         running.
-
-         This Theme is only used starting with V2 of Flutter's Android embedding. -->
-    <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
-        <item name="android:windowBackground">?android:colorBackground</item>
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@color/preuve_creme</item>
     </style>
 </resources>

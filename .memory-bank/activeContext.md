@@ -1362,9 +1362,73 @@ enfin son point rouge — elle ne demandait jamais le décompte de non-lus.
 **`smsAbsent()` énumère ce qui N'ENVOIE PAS de SMS** (`mail`, `log`) : ne tester
 que `mail` laissait le défaut `log` passer pour une passerelle.
 
-**Couverture** : 1009 Pest, 126 `preuve_core`, 65 `preuve_app`. APK 1.3.0+6.
+**Couverture** : 1020 Pest, 126 `preuve_core`, 70 `preuve_app`. **APK 1.4.0+8
+compilé et signé** (`versionCode` 1008 / 2008 / 4008).
+
+## 07/09/2026 — L'identité visuelle mobile (EP-01)
+
+**LA COCHE EST PARTIE.** Elle annonçait « vérifié » avant que la question soit
+posée, sur un registre qui est déclaratif et n'authentifie pas — et
+`productContext.md` range « se présenter comme registre officiel » dans ce qu'on
+refuse de faire. Le monogramme « P. » ne promet rien et reprend le seul signe
+que le site et l'application partageaient déjà.
+
+**TOUT DESCEND D'UN GÉNÉRATEUR** (`tools/marque_preuve.py`) qui lit les contours
+réels du glyphe dans la police embarquée. Huit visages — favicon, avant-plan
+adaptatif, icône héritée, icône de démarrage Android 12+, marque de démarrage,
+jeu iOS, image iOS — une seule géométrie. Aucun `<text>` : il dépendrait d'une
+police que l'appareil n'a pas.
+
+**L'ICÔNE ADAPTATIVE N'EXISTAIT PAS**, et l'écran de démarrage était blanc (noir
+en mode sombre). `values-v31` traitée : à partir de l'API 31 le système ignore
+`windowBackground`, et ne corriger que `values/` donnait un rendu juste sur un
+vieux téléphone et faux sur un neuf.
+
+Décision, écarts et vérifications binaires : `docs/design/brief-identite-visuelle-mobile.md` §8 et §9.
+
+## 07/09/2026 — La cession ne se terminait pour personne (ST-0601)
+
+Le parcours s'écrivait de bout en bout et n'aboutissait dans aucun des deux
+chemins. Trois ruptures, chacune suffisante à laisser un bien payé et emporté
+enregistré au nom du vendeur.
+
+**1. LE CODE ÉTAIT ÉMIS AILLEURS QUE LÀ OÙ IL EST VÉRIFIÉ.** L'application
+passait par `/auth/otp/request`, qui indexe le défi sur la coordonnée DU COMPTE
+qui se présente ; `confirmByBuyer()` le cherche sur celle DU TRANSFERT. Dès
+qu'une adresse était donnée — le cas recommandé, et le seul par lequel
+l'acheteur est réellement prévenu — les deux différaient. `POST
+/transfers/{id}/code` émet désormais du bon côté, **camp calculé par le
+serveur** : l'accepter en paramètre laisserait un vendeur faire partir des codes
+chez son acheteur.
+
+**2. LE LIEN VIT SEPT JOURS, LE CODE CINQ MINUTES.** La page web n'avait aucun
+renvoi et conseillait « demandez-en un nouveau depuis l'application » — celle-là
+même qu'elle existe pour ne pas exiger. `POST /cession/{jeton}/code`.
+
+**3. UN BIEN NON CESSIBLE LAISSAIT UN TRANSFERT ORPHELIN.** La ligne était
+écrite et validée AVANT que la matrice ne refuse la bascule : elle survivait au
+refus et rendait le bien incessible sept jours durant, par un transfert qui
+n'avait jamais commencé. Le statut est contrôlé en amont, en langage courant.
+
+**UN CODE ENCORE VALABLE EST RAPPELÉ, PAS REMPLACÉ.** `hasPendingCode()` : deux
+envois rapprochés se heurtaient au délai de 60 s, et le demandeur recevait
+« trop de demandes » à l'instant où il ouvre l'écran. Même piège que le parcours
+payant, au même endroit.
+
+**PERSONNE N'ÉTAIT PRÉVENU.** `TransferInvitation` et `TransferCompleted`
+existaient depuis EP-10 sans qu'aucune ligne ne les émette : le vendeur ne
+savait pas que son tour était venu, et la cession expirait faute d'un geste que
+personne ne lui avait réclamé.
+
+**LE FORÇAGE DE MISE À JOUR ÉTAIT RETOURNÉ CONTRE LUI-MÊME.** `main.dart`
+annonçait `versionInstallee = '0.1.0'` quand le binaire portait 1.3.x : tout le
+parc envoyait le même numéro périmé. Poser une version minimale au-dessus de
+`0.1.0` n'aurait pas arrêté les vieilles applications — il les aurait TOUTES
+arrêtées, la plus récente comprise, et le seul moyen de s'en apercevoir aurait
+été de tirer le levier. Corrigé, et gardé par `test/version_test.dart` : le
+commentaire « à tenir à jour avec le pubspec » ne tenait rien.
 
 ## Questions ouvertes (à trancher avec Aboubakar)
-- Direction design finale (Tampon vs Feu Vert selon cible de lancement) → conditionne le design system Flutter
+- ~~Direction design finale (Tampon vs Feu Vert)~~ → **tranchée : DJASSA grand public**, implémentée dans `theme.dart`. L'icône et l'écran de démarrage suivent : brief et décision de marque dans `docs/design/brief-identite-visuelle-mobile.md`
 - Nom définitif « Preuve » : vérifier marque OAPI + domaine (preuve.ci ?)
 - Tarif exact rapport détaillé (500 vs 1000 FCFA) et paliers abonnement flotte

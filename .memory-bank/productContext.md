@@ -19,7 +19,16 @@ En Côte d'Ivoire, l'acheteur d'occasion n'a aucun moyen de vérifier qu'un vend
 6. Notifications = réassurance, pas spam : consultations agrégées par heure, identités jamais révélées.
 
 ## Ton et langue
-Français simple, direct, rassurant. Le produit inspire l'autorité d'un document officiel SANS imiter un sceau ou emblème d'État (risque juridique). Direction design en cours d'arbitrage : Tampon (institutionnel) / Sceau (premium sombre) / Feu Vert (grand public).
+Français simple, direct, rassurant. Le produit inspire l'autorité d'un document officiel SANS imiter un sceau ou emblème d'État (risque juridique). **Direction arrêtée : DJASSA — grand public.** Les trois prototypes (Tampon institutionnel /
+Sceau premium sombre / Feu Vert grand public) ne sont plus en arbitrage ; seule DJASSA a été
+livrée et fait foi (`docs/superpowers/specs/2026-08-01-preuve-mvp-design.md`), et c'est elle
+qu'implémente `mobile/preuve_app/lib/ui/theme.dart`.
+
+**Le tampon et le sceau sont écartés pour la raison juridique ci-dessus**, et cela vaut aussi
+pour l'icône de l'application : décision du 07/09/2026, motivée dans
+`docs/design/brief-identite-visuelle-mobile.md` §8. Aucun signe qui affirme un jugement — coche,
+bouclier, cadenas, badge, feu vert — ne convient à un registre déclaratif : il promettrait une
+certification que le produit refuse de délivrer.
 
 ## Ce qu'on refuse de faire
 - Monétiser la consultation de statut (tue l'effet réseau).

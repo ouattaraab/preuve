@@ -19,7 +19,15 @@
                             <imageView opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" image="LaunchImage" translatesAutoresizingMaskIntoConstraints="NO" id="YRO-k0-Ey4">
                             </imageView>
                         </subviews>
-                        <color key="backgroundColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <!--
+                            LE CRÈME DJASSA #FFF6E8, ET NON LE BLANC D'USINE.
+                            L'application s'ouvre en crème : un démarrage blanc
+                            faisait clignoter l'écran au moment exact où
+                            quelqu'un, debout au marché, attend son verdict.
+                            Valeurs sRGB de 255/246/232 — c'est la seule forme
+                            qu'un storyboard accepte.
+                        -->
+                        <color key="backgroundColor" red="1" green="0.96470588235294119" blue="0.90980392156862744" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
                             <constraint firstItem="YRO-k0-Ey4" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="1a2-6s-vTC"/>
                             <constraint firstItem="YRO-k0-Ey4" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" id="4X2-HB-R7a"/>
@@ -32,6 +40,11 @@
         </scene>
     </scenes>
     <resources>
-        <image name="LaunchImage" width="168" height="185"/>
+        <!--
+            88 points de côté : la marque du démarrage, à la même taille que
+            son équivalent Android. Les fichiers d'origine étaient des images
+            de 1 × 1 pixel — des bouchons livrés par Flutter, jamais remplacés.
+        -->
+        <image name="LaunchImage" width="88" height="88"/>
     </resources>
 </document>

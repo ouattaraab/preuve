@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Les jetons DJASSA côté natif.
+
+    ILS SONT RECOPIÉS DE `lib/ui/theme.dart`, ET C'EST INÉVITABLE : le
+    démarrage a lieu AVANT que Flutter ne démarre, donc avant que la classe
+    `Djassa` n'existe. Ce sont les seules valeurs du design system dupliquées
+    hors de Dart. Si l'une d'elles change là-bas, elle change ici — sans quoi
+    le passage du démarrage au premier écran se met à clignoter.
+-->
+<resources>
+    <color name="preuve_creme">#FFF6E8</color>
+    <color name="preuve_encre">#2B1D12</color>
+</resources>

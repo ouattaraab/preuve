@@ -55,7 +55,7 @@ décide de l'installation ou de son abandon.
 | `app-x86_64-release.apk` | 45 Mo | **émulateurs seulement** — ne pas distribuer |
 | `app-release.apk` | 106 Mo | universel — à éviter |
 
-Poids inchangés en 1.3.0+6, relevés sur le disque. **Flutter annonce autre
+Poids inchangés en 1.3.1+7, relevés sur le disque. **Flutter annonce autre
 chose** — « 44.1MB » pour l'arm64 : il compte en méga**octets décimaux**, le
 Finder et ce tableau en mébioctets. Recopier le chiffre de la console ferait
 croire à une inflation à chaque version.
@@ -98,13 +98,27 @@ détour, mais on cherche d'abord ailleurs : vérifier
 
 ## Le compteur de version
 
-`pubspec.yaml` porte `version: 1.3.0+6`. Le nombre après le `+` est le
+`pubspec.yaml` porte `version: 1.3.1+7`. Le nombre après le `+` est le
 `versionCode` Android : **Google Play refuse deux fois le même**. L'incrémenter
 à chaque dépôt, sans exception.
 
-Avec `--split-per-abi`, Flutter y ajoute un préfixe par architecture — `2001`
-pour `arm64-v8a`, `1001` pour `armeabi-v7a`. C'est voulu : les deux APK d'une
-même version doivent porter des `versionCode` distincts et ordonnés.
+Avec `--split-per-abi`, Flutter y ajoute un préfixe par architecture. En 1.3.1+7
+cela donne `1007` pour `armeabi-v7a`, `2007` pour `arm64-v8a` et `4007` pour
+`x86_64`. C'est voulu : les APK d'une même version doivent porter des
+`versionCode` distincts et ordonnés.
+
+**LA VERSION ANNONCÉE AU SERVEUR EST UNE AUTRE CHOSE**, et elle a divergé.
+`main.dart` porte `versionInstallee`, envoyée en `X-App-Version` à chaque
+écriture ; elle est restée à `0.1.0` de la 0.1 à la 1.3.0. Tout le parc
+annonçait donc le même numéro périmé : poser une version minimale au-dessus de
+`0.1.0` depuis la console n'aurait pas arrêté les vieilles applications, il les
+aurait **toutes** arrêtées, la plus récente comprise. Depuis 1.3.1, un test
+(`test/version_test.dart`) refuse tout écart avec le `pubspec`.
+
+Conséquence pratique : les binaires **1.3.0 et antérieurs annoncent `0.1.0`**.
+Une version minimale de `1.3.1` les bloquera bien en écriture — c'est le
+comportement attendu — mais aucune valeur intermédiaire ne les distingue entre
+eux.
 
 ## Le push n'existe pas côté client, et c'est une décision à prendre
 
