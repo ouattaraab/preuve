@@ -55,7 +55,7 @@ décide de l'installation ou de son abandon.
 | `app-x86_64-release.apk` | 45 Mo | **émulateurs seulement** — ne pas distribuer |
 | `app-release.apk` | 106 Mo | universel — à éviter |
 
-Poids inchangés en 1.3.1+7, relevés sur le disque. **Flutter annonce autre
+Poids inchangés en 1.4.1+9, relevés sur le disque. **Flutter annonce autre
 chose** — « 44.1MB » pour l'arm64 : il compte en méga**octets décimaux**, le
 Finder et ce tableau en mébioctets. Recopier le chiffre de la console ferait
 croire à une inflation à chaque version.
@@ -98,12 +98,12 @@ détour, mais on cherche d'abord ailleurs : vérifier
 
 ## Le compteur de version
 
-`pubspec.yaml` porte `version: 1.3.1+7`. Le nombre après le `+` est le
+`pubspec.yaml` porte `version: 1.4.1+9`. Le nombre après le `+` est le
 `versionCode` Android : **Google Play refuse deux fois le même**. L'incrémenter
 à chaque dépôt, sans exception.
 
-Avec `--split-per-abi`, Flutter y ajoute un préfixe par architecture. En 1.3.1+7
-cela donne `1007` pour `armeabi-v7a`, `2007` pour `arm64-v8a` et `4007` pour
+Avec `--split-per-abi`, Flutter y ajoute un préfixe par architecture. En 1.4.1+9
+cela donne `1009` pour `armeabi-v7a`, `2009` pour `arm64-v8a` et `4009` pour
 `x86_64`. C'est voulu : les APK d'une même version doivent porter des
 `versionCode` distincts et ordonnés.
 

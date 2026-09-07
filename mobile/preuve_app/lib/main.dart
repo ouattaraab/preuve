@@ -21,7 +21,7 @@ import 'ui/theme.dart';
 /// C'est elle que le serveur compare à la version minimale exigée
 /// (`EnsureAppIsSupported`), et seules les ÉCRITURES sont concernées : la
 /// consultation reste ouverte quoi qu'il arrive (règle métier absolue n° 1).
-const String versionInstallee = '1.4.0';
+const String versionInstallee = '1.4.1';
 
 /// Racine de l'API.
 ///
