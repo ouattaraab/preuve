@@ -309,6 +309,36 @@ class _AssetScreenState extends State<AssetScreen> {
       setState(() => _confirmation =
           'Le transfert est engagé. L\'acheteur a reçu un code ; il a sept jours pour '
           'confirmer, sinon le bien te revient.');
+
+      // LA FICHE DOIT REFLÉTER QUE LE BIEN EST DÉSORMAIS GELÉ. Le serveur l'a
+      // basculé en « Transfert en cours » à l'initiation ; sans ce
+      // rafraîchissement, l'écran continuerait d'afficher « Céder ce bien » et
+      // laisserait engager une seconde cession que le serveur refuserait —
+      // exactement le genre de bouton qui échoue que CT-06 proscrit.
+      await _rechargerBien();
+    }
+  }
+
+  /// Relit l'état du bien tel que le serveur le rend.
+  ///
+  /// LE STATUT VIENT DU SERVEUR, PAS D'UNE SUPPOSITION LOCALE (CT-04) : il n'y
+  /// a pas d'endpoint pour un bien seul, on relit donc l'inventaire et on y
+  /// retrouve celui-ci. Un échec de relecture ne défait rien — le transfert est
+  /// engagé, la confirmation reste affichée, et l'inventaire se remettra à jour
+  /// au retour sur « Mes biens », qui recharge de lui-même.
+  Future<void> _rechargerBien() async {
+    try {
+      final inventaire = await widget.session.assets.mine();
+
+      for (final OwnedAsset frais in inventaire.assets) {
+        if (frais.id == _bien.id && mounted) {
+          setState(() => _bien = frais);
+
+          return;
+        }
+      }
+    } on PreuveException {
+      // Silencieux à dessein : voir la note ci-dessus.
     }
   }
 
