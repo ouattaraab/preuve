@@ -137,6 +137,21 @@ class TransferService {
     });
   }
 
+  /// Émet le code de CE transfert, du côté de celui qui le demande.
+  ///
+  /// C'EST LA SEULE FAÇON D'EN OBTENIR UN QUI SOIT RECONNU. `/auth/otp/request`
+  /// indexe le défi sur la coordonnée DU COMPTE qui se présente ; le serveur, à
+  /// la confirmation, le cherche sur celle DU TRANSFERT. Dès qu'une adresse
+  /// était donnée — le cas recommandé, et le seul par lequel l'acheteur est
+  /// réellement prévenu — les deux différaient : aucun code saisi n'était jamais
+  /// reconnu, et la cession expirait au bout de sept jours.
+  ///
+  /// LE CAMP N'EST PAS ENVOYÉ : le serveur le calcule. Le laisser au client
+  /// permettrait à un vendeur de faire partir des codes chez son acheteur.
+  Future<TransferCode> sendCode(int transferId) async {
+    return TransferCode.fromJson(await _api.post('/transfers/$transferId/code'));
+  }
+
   /// Annule un transfert proposé.
   Future<void> cancel(int transferId) async {
     await _api.delete('/transfers/$transferId');

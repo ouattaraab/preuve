@@ -41,6 +41,29 @@
         </div>
     @endif
 
+    {{-- OÙ LE CODE VIENT DE PARTIR, dit sous forme masquée. Le savoir évite de
+         chercher un SMS quand le message est allé dans une boîte, et
+         l'adresse complète n'a pas à s'afficher sur un écran qu'on lit à
+         plusieurs. --}}
+    @if (($envoye ?? null) !== null)
+        <div style="margin-top:20px;border:3px solid #1E8A4C;border-radius:14px;padding:16px 18px;background:#FFF">
+            <p style="font-size:16px;color:#1E8A4C;font-weight:700;line-height:1.5">
+                Un nouveau code vient de partir à {{ $envoye }}.
+            </p>
+        </div>
+    @endif
+
+    {{-- LE CODE PRÉCÉDENT TIENT ENCORE. Promettre un second message ferait
+         attendre un courriel qui n'arrivera pas, pendant que celui qu'il faut
+         saisir est déjà là. --}}
+    @if (($rappel ?? null) !== null)
+        <div style="margin-top:20px;border:3px solid #C77700;border-radius:14px;padding:16px 18px;background:#FFF">
+            <p style="font-size:16px;color:#8A5A00;font-weight:700;line-height:1.5">
+                Le code envoyé à {{ $rappel }} est encore valable : saisissez celui-là.
+            </p>
+        </div>
+    @endif
+
     <h2 style="margin-top:26px;font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:23px">
         Confirmer avec votre code
     </h2>
@@ -58,6 +81,23 @@
                maxlength="6" autocapitalize="off" spellcheck="false" placeholder="000000">
         <button type="submit" class="bouton">CONFIRMER LA CESSION</button>
     </form>
+
+    {{-- LE RENVOI EST ICI, ET IL EST INDISPENSABLE. Ce lien vit sept jours, le
+         code cinq minutes : l'acheteur qui ouvre son courriel un quart d'heure
+         plus tard n'avait aucun recours, et la page lui conseillait d'utiliser
+         l'application — celle-là même qu'elle existe pour ne pas exiger. --}}
+    <form method="POST" action="/cession/{{ $jeton }}/code" style="margin-top:14px">
+        @csrf
+        <button type="submit"
+                style="width:100%;padding:14px;border:3px solid #2B1D12;border-radius:12px;background:#FFF;
+                       font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:16px;
+                       color:#2B1D12;cursor:pointer">
+            RECEVOIR UN NOUVEAU CODE
+        </button>
+    </form>
+    <p style="margin-top:8px;font-size:15px;color:#7A6A55;line-height:1.5">
+        Il partira à la même adresse que le premier — celle que le vendeur a indiquée.
+    </p>
 
     <div class="bandeau" style="margin-top:26px">
         <span style="font-size:26px;line-height:1">📱</span>

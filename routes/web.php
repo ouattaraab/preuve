@@ -197,6 +197,21 @@ Route::get('cession/{token}', [TransferInvitationController::class, 'show'])
     ->where('token', '[a-f0-9]{64}')
     ->middleware('throttle:60,1')
     ->name('public.transfer.invite');
+/*
+ * REDEMANDER LE CODE, DEPUIS LA PAGE ELLE-MÊME.
+ *
+ * Le lien d'invitation vit sept jours, le code cinq minutes. L'acheteur qui
+ * ouvrait son courriel un quart d'heure plus tard lisait « Ce code a expiré,
+ * demandez-en un nouveau » sans qu'aucun bouton ne le permette : le seul
+ * chemin proposé était l'application, que cette page existe précisément pour
+ * ne pas exiger.
+ */
+Route::post('cession/{token}/code', [TransferInvitationController::class, 'requestCode'])
+    ->where('token', '[a-f0-9]{64}')
+    // Chaque appel coûte un message ; le rythme de l'OTP ne borne qu'une
+    // destination à la fois, pas le nombre de jetons essayés en parallèle.
+    ->middleware('throttle:10,1')
+    ->name('public.transfer.code');
 Route::post('cession/{token}', [TransferInvitationController::class, 'confirm'])
     ->where('token', '[a-f0-9]{64}')
     // Plus serré que la lecture : c'est ici qu'on présente un code à six

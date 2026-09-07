@@ -23,6 +23,15 @@ import 'theme.dart';
 /// recevait alors « trop de demandes » au lieu du champ de saisie — un refus
 /// juste après un paiement, ce qui se lit comme une escroquerie.
 ///
+/// [envoi] REMPLACE LA DEMANDE ORDINAIRE, et il le faut pour la cession.
+///
+/// `/auth/otp/request` indexe le défi sur la coordonnée DU COMPTE qui se
+/// présente. Un transfert, lui, se confirme sur la coordonnée DU TRANSFERT —
+/// celle vers laquelle le vendeur l'a ouvert. Dès qu'une adresse était donnée,
+/// les deux différaient : l'acheteur recevait un code que la vérification ne
+/// reconnaissait jamais, et la cession expirait au bout de sept jours. Le
+/// rappel rendu par [envoi] dit où le code est réellement parti.
+///
 /// Rend `null` si la personne renonce — un abandon n'est pas une erreur, et ne
 /// doit rien afficher.
 Future<String?> demanderCodeAction(
@@ -32,6 +41,7 @@ Future<String?> demanderCodeAction(
   required String titre,
   required String consequence,
   bool dejaEnvoye = false,
+  Future<EnvoiDeCode> Function()? envoi,
 }) async {
   final compte = session.compte;
 
@@ -42,11 +52,12 @@ Future<String?> demanderCodeAction(
   // `identifiant` ET NON `phone` : un compte ouvert par adresse n'a pas de
   // numéro, et demander un code pour une chaîne vide fermait tous les gestes
   // engageants à son titulaire — jusqu'à la déclaration de vol de son bien.
-  final String destination = compte.identifiant;
+  String destination = compte.identifiant;
+  bool dejaLa = dejaEnvoye;
 
   final messager = ScaffoldMessenger.of(context);
 
-  if (destination.isEmpty) {
+  if (envoi == null && destination.isEmpty) {
     messager.showSnackBar(const SnackBar(
       content: Text('Ce compte n\'a ni numéro ni adresse : aucun code ne peut lui être '
           'envoyé. Ajoute une coordonnée depuis ton profil.'),
@@ -57,7 +68,15 @@ Future<String?> demanderCodeAction(
 
   if (!dejaEnvoye) {
     try {
-      await session.auth.requestCode(destination, motif);
+      if (envoi == null) {
+        await session.auth.requestCode(destination, motif);
+      } else {
+        final resultat = await envoi();
+        // LA DESTINATION VIENT DU SERVEUR, masquée : lui seul sait où le code
+        // est parti, et ce n'est pas toujours la coordonnée du compte.
+        destination = resultat.sentTo.isEmpty ? destination : resultat.sentTo;
+        dejaLa = !resultat.fresh;
+      }
     } on PreuveException catch (e) {
       messager.showSnackBar(SnackBar(content: Text(e.message)));
 
@@ -77,9 +96,25 @@ Future<String?> demanderCodeAction(
       titre: titre,
       consequence: consequence,
       destination: destination,
-      dejaEnvoye: dejaEnvoye,
+      dejaEnvoye: dejaLa,
     ),
   );
+}
+
+/// Ce qu'un envoi de code apprend à l'écran : où il est parti, et s'il est
+/// neuf.
+///
+/// DEUX SERVICES RENDENT CETTE FORME sans partager de type commun — le cœur
+/// n'impose pas une interface à des routes qui n'ont rien d'autre en partage.
+/// Cette petite classe les réunit ici, là où l'écran en a besoin.
+class EnvoiDeCode {
+  const EnvoiDeCode({required this.sentTo, required this.fresh});
+
+  final String sentTo;
+
+  /// Faux quand le code précédent tient encore. Annoncer un nouveau message
+  /// ferait attendre un courriel qui n'arrivera pas.
+  final bool fresh;
 }
 
 class _FeuilleCode extends StatefulWidget {
@@ -139,10 +174,14 @@ class _FeuilleCodeState extends State<_FeuilleCode> {
             style: const TextStyle(color: Djassa.sourdine, height: 1.5),
           ),
           const SizedBox(height: 16),
+          // ON NE PROMET PAS UN MESSAGE QUI N'EST PAS PARTI. Après un
+          // règlement, comme après l'ouverture d'une cession, le serveur a
+          // déjà émis le code : annoncer un nouvel envoi ferait attendre un
+          // second message pendant que celui à saisir est déjà là.
           Text(
             widget.dejaEnvoye
-                ? 'Ton code a été envoyé à ${widget.destination} dès la confirmation '
-                    'du paiement.'
+                ? 'Le code déjà envoyé à ${widget.destination} est encore valable : '
+                    'saisis celui-là.'
                 : 'Un code vient d\'être envoyé à ${widget.destination}.',
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),

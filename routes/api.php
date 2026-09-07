@@ -238,6 +238,16 @@ Route::prefix('v1')->group(function (): void {
         // inatteignable et le parcours s'arrêtait là.
         Route::get('transfers', [TransferController::class, 'index']);
         Route::post('assets/{asset}/transfer', [TransferController::class, 'store']);
+        // LE CODE DE CE TRANSFERT, ÉMIS LÀ OÙ SA VÉRIFICATION L'ATTEND.
+        // `/auth/otp/request` indexe le défi sur la coordonnée du COMPTE qui
+        // se présente ; la confirmation le cherche sur celle du TRANSFERT.
+        // Dès qu'une adresse était donnée, les deux différaient et aucun code
+        // saisi n'était jamais reconnu — la cession expirait à sept jours.
+        //
+        // Plafond serré : chaque appel peut coûter un message, et le rythme de
+        // l'OTP ne borne qu'une destination à la fois.
+        Route::post('transfers/{transfer}/code', [TransferController::class, 'code'])
+            ->middleware('throttle:10,1');
         Route::post('transfers/{transfer}/confirm', [TransferController::class, 'confirm']);
         Route::delete('transfers/{transfer}', [TransferController::class, 'destroy']);
 

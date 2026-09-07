@@ -120,3 +120,29 @@ class Claim {
 
   static String _string(Object? value) => value is String ? value : '';
 }
+
+/// Où le code de ce transfert vient de partir.
+///
+/// LA DESTINATION EST MASQUÉE PAR LE SERVEUR, et c'est toujours la SIENNE :
+/// jamais celle d'en face (règle métier absolue n° 4). Elle sert à savoir OÙ
+/// chercher le message — un écran ne devine pas qu'un code est parti par
+/// courriel quand on attendait un SMS.
+class TransferCode {
+  const TransferCode({required this.sentTo, required this.fresh});
+
+  factory TransferCode.fromJson(Map<String, Object?> json) {
+    return TransferCode(
+      sentTo: json['sent_to'] is String ? json['sent_to']! as String : '',
+      // ABSENT VAUT « NOUVEAU » : une réponse ancienne ne doit pas faire
+      // afficher « le code déjà reçu » alors qu'un message vient de partir.
+      fresh: json['fresh'] != false,
+    );
+  }
+
+  final String sentTo;
+
+  /// Faux quand le code précédent est encore valable. Promettre un second
+  /// message ferait attendre un courriel qui n'arrivera pas, pendant que celui
+  /// qu'il faut saisir est déjà là.
+  final bool fresh;
+}

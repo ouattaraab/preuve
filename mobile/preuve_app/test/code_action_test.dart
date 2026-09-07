@@ -84,7 +84,9 @@ void main() {
     final transport = await ouvrir(tester, compte: compte, dejaEnvoye: true);
 
     expect(transport.appels, isEmpty);
-    expect(find.textContaining('dès la confirmation du paiement'), findsOneWidget);
+    // ON NE PROMET PAS UN MESSAGE QUI N'EST PAS PARTI : la feuille dit que le
+    // code déjà reçu tient encore, plutôt que d'annoncer un nouvel envoi.
+    expect(find.textContaining('est encore valable'), findsOneWidget);
   });
 
   testWidgets('OUVRE QUAND MÊME LA SAISIE APRÈS UN PAIEMENT', (WidgetTester tester) async {

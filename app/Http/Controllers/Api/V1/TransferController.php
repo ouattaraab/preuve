@@ -10,6 +10,7 @@ use App\Http\Resources\PublicAssetResource;
 use App\Models\Asset;
 use App\Models\Transfer;
 use App\Models\User;
+use App\Services\OtpService;
 use App\Services\TransferService;
 use DomainException;
 use Illuminate\Http\JsonResponse;
@@ -24,7 +25,10 @@ use Illuminate\Validation\ValidationException;
  */
 final class TransferController extends Controller
 {
-    public function __construct(private readonly TransferService $transfers) {}
+    public function __construct(
+        private readonly TransferService $transfers,
+        private readonly OtpService $otp,
+    ) {}
 
     /**
      * Les transferts qui me concernent, dans les deux sens.
@@ -143,6 +147,76 @@ final class TransferController extends Controller
                 : 'L\'acheteur vient d\'être prévenu par e-mail. Le transfert expire dans 7 jours.',
             'transfer' => $this->present($transfert),
         ], 201);
+    }
+
+    /**
+     * Émet le code de CE transfert, du côté de celui qui le demande.
+     *
+     * SANS CETTE ROUTE, LE CODE ET SA VÉRIFICATION SE CHERCHAIENT AILLEURS L'UN
+     * DE L'AUTRE. L'application n'avait que `/auth/otp/request`, qui indexe le
+     * défi sur la coordonnée DU COMPTE qui se présente ; `confirmByBuyer()` le
+     * cherche sur celle DU TRANSFERT. Dès qu'une adresse était donnée — le cas
+     * recommandé, et le seul par lequel l'acheteur est réellement prévenu — les
+     * deux différaient et aucun code saisi n'était jamais reconnu.
+     *
+     * LE CAMP EST CALCULÉ ICI, jamais reçu du client : c'est lui qui décide où
+     * part le code, et l'accepter en paramètre laisserait un vendeur en faire
+     * partir un chez son acheteur — puis, en rafale, s'en servir pour le
+     * harceler.
+     */
+    public function code(Request $request, int $transfer): JsonResponse
+    {
+        $transfert = Transfer::query()->whereKey($transfer)->first();
+
+        if (! $transfert instanceof Transfer) {
+            abort(404);
+        }
+
+        $utilisateur = $this->utilisateur($request);
+        $vendeur = $transfert->from_user_id === $utilisateur->id;
+
+        // 404 ET NON 403 pour un tiers : distinguer les deux confirmerait qu'un
+        // transfert porte cet identifiant, donc qu'un bien change de mains.
+        if (! $vendeur && ! $this->estLeDestinataire($transfert, $utilisateur)) {
+            abort(404);
+        }
+
+        try {
+            $envoi = $vendeur
+                ? $this->transfers->sendCodeToSeller($transfert, $utilisateur)
+                : $this->transfers->sendCodeToBuyer($transfert);
+        } catch (DomainException $e) {
+            throw ValidationException::withMessages(['code' => $e->getMessage()]);
+        }
+
+        return response()->json([
+            // MASQUÉE, ET C'EST LA SIENNE : jamais celle d'en face. Elle dit où
+            // chercher le message, ce qu'un écran ne sait pas deviner quand le
+            // code part par courriel alors qu'on attendait un SMS.
+            'sent_to' => $envoi['sent_to'],
+            // FAUX QUAND LE CODE PRÉCÉDENT EST ENCORE BON. L'écran doit alors
+            // dire « le code déjà reçu » plutôt que « un code vient de partir »,
+            // sans quoi on attend un second message qui n'arrivera pas.
+            'fresh' => $envoi['fresh'],
+            'expires_in' => $this->otp->ttlSeconds(),
+        ]);
+    }
+
+    /**
+     * Vrai si ce compte est celui à qui la cession s'adresse.
+     *
+     * LES NULS NE SE RECONNAISSENT PAS ENTRE EUX : un compte ouvert par adresse
+     * n'a pas de numéro, et comparer deux valeurs nulles ferait se reconnaître
+     * n'importe qui dans la cession d'un autre.
+     */
+    private function estLeDestinataire(Transfer $transfert, User $compte): bool
+    {
+        if ($transfert->to_user_id !== null && $transfert->to_user_id === $compte->id) {
+            return true;
+        }
+
+        return ($compte->phone !== null && $compte->phone === $transfert->to_phone)
+            || ($compte->email !== null && $compte->email === $transfert->to_email);
     }
 
     public function confirm(Request $request, int $transfer): JsonResponse

@@ -162,6 +162,30 @@ final class OtpService
     }
 
     /**
+     * Vrai si un code encore valable attend déjà d'être saisi pour ce motif.
+     *
+     * POURQUOI CETTE QUESTION SE POSE. Deux envois rapprochés se heurtent au
+     * délai de soixante secondes entre deux demandes, et l'appelant reçoit
+     * « Trop de demandes » — un refus, là où il aurait suffi de dire qu'un code
+     * est déjà parti. C'est exactement ce qui arrivait après l'ouverture d'une
+     * cession, ou juste après un règlement : le serveur venait d'émettre un
+     * code, l'écran en redemandait un aussitôt, et l'utilisateur voyait un refus
+     * au lieu du champ de saisie.
+     *
+     * Ne dit rien de l'existence d'un compte : un défi peut exister pour une
+     * destination qui n'en a pas.
+     */
+    public function hasPendingCode(string $destination, OtpPurpose $purpose): bool
+    {
+        return OtpCode::query()
+            ->where('destination', $this->normalizeDestination($destination))
+            ->where('purpose', $purpose)
+            ->whereNull('consumed_at')
+            ->where('expires_at', '>', now())
+            ->exists();
+    }
+
+    /**
      * Vrai si cette destination est une adresse électronique.
      *
      * L'ARBRITRE EST L'ARROBASE, et rien d'autre : aucun numéro de téléphone

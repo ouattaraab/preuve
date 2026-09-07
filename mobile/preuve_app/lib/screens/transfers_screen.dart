@@ -8,10 +8,14 @@ import '../ui/widgets.dart';
 
 /// Les transferts qui attendent un geste, dans les deux sens.
 ///
-/// CET ÉCRAN EST LA SEULE PORTE DE L'ACHETEUR. Son invitation est un code reçu
-/// par SMS — délibérément, pour ne pas payer deux messages — et ce code ne
-/// porte aucun numéro de transfert. Sans cette liste, il n'a rien à confirmer
-/// et le transfert expire tout seul au bout de sept jours.
+/// CET ÉCRAN EST LA PORTE DE L'ACHETEUR QUI A L'APPLICATION. Son invitation ne
+/// porte aucun numéro de transfert : sans cette liste, il n'a rien à confirmer
+/// et la cession expire toute seule au bout de sept jours. Celui qui n'a pas
+/// l'application passe, lui, par le lien reçu par courriel.
+///
+/// LE CODE EST DEMANDÉ AU MOMENT D'ACCEPTER, et sur la route du transfert : ce
+/// n'est pas la coordonnée du compte qui compte ici, mais celle vers laquelle
+/// le vendeur a ouvert la cession.
 ///
 /// LE CAMP VIENT DU SERVEUR, JAMAIS D'UNE DÉDUCTION LOCALE : confondre les deux
 /// ferait confirmer une vente à quelqu'un qui croyait accepter un bien.
@@ -66,6 +70,16 @@ class _TransfersScreenState extends State<TransfersScreen> {
       context,
       session: widget.session,
       motif: OtpPurpose.transfer,
+      // LE CODE VIENT DE LA ROUTE DU TRANSFERT, jamais de celle du compte.
+      // `/auth/otp/request` indexe le défi sur la coordonnée du COMPTE ; la
+      // confirmation le cherche sur celle du TRANSFERT. Dès qu'une adresse
+      // était donnée — le cas recommandé — les deux différaient, et aucun code
+      // saisi ici n'était jamais reconnu.
+      envoi: () async {
+        final envoi = await widget.session.transfers.sendCode(transfert.id);
+
+        return EnvoiDeCode(sentTo: envoi.sentTo, fresh: envoi.fresh);
+      },
       titre: vendeur ? 'Confirmer la cession' : 'Accepter ce bien',
       consequence: vendeur
           ? 'Une fois vos deux confirmations réunies, le bien change de mains et ne '
@@ -164,8 +178,8 @@ class _TransfersScreenState extends State<TransfersScreen> {
               const RienEncore(
                 titre: 'Aucun transfert en cours',
                 explication:
-                    'Quand quelqu\'un te cède un bien, il apparaît ici. Tu reçois aussi un '
-                    'code par SMS : c\'est lui qu\'il faudra saisir pour accepter.',
+                    'Quand quelqu\'un te cède un bien, il apparaît ici. Un code te sera '
+                    'envoyé au moment où tu accepteras.',
               )
             else
               ..._transferts.map(

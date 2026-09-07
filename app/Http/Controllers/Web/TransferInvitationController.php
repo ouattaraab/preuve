@@ -8,8 +8,6 @@ use App\Enums\TransferStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\Transfer;
-use App\Models\User;
-use App\Services\OtpService;
 use App\Services\TransferService;
 use DomainException;
 use Illuminate\Http\Request;
@@ -41,16 +39,55 @@ use Throwable;
  */
 final class TransferInvitationController extends Controller
 {
-    public function __construct(
-        private readonly TransferService $transferts,
-        private readonly OtpService $otp,
-    ) {}
+    public function __construct(private readonly TransferService $transferts) {}
 
     public function show(string $token): Response
     {
         $transfert = $this->transfertOuvert($token);
 
         return $this->page($transfert);
+    }
+
+    /**
+     * Renvoie un code à l'adresse de la cession.
+     *
+     * LE LIEN VIT SEPT JOURS, LE CODE CINQ MINUTES. Sans ce renvoi, l'acheteur
+     * qui ouvrait son courriel un quart d'heure plus tard n'avait aucun
+     * recours : la page lui disait d'en demander un depuis l'application, que
+     * cette page existe justement pour ne pas exiger.
+     *
+     * IL PART TOUJOURS À L'ADRESSE DE LA CESSION, jamais à une adresse
+     * soumise : le formulaire ne demande rien, et il n'y a donc rien à
+     * détourner. Qui a le lien fait partir un code chez le destinataire
+     * légitime, et nulle part ailleurs.
+     */
+    public function requestCode(string $token): Response
+    {
+        $transfert = $this->transfertOuvert($token);
+
+        if ($transfert->to_email === null) {
+            return $this->page($transfert, erreur: 'Cette cession se confirme depuis l\'application.');
+        }
+
+        try {
+            $envoi = $this->transferts->sendCodeToBuyer($transfert);
+        } catch (DomainException $e) {
+            return $this->page($transfert, erreur: $e->getMessage());
+        } catch (Throwable) {
+            // Le refus de rythme de l'OTP passe par ici : son message dit
+            // « patientez », ce qui est exactement la conduite à tenir.
+            return $this->page($transfert, erreur: 'Un code vient déjà de partir. Patientez une '
+                .'minute avant d\'en redemander un.');
+        }
+
+        // ON NE PROMET PAS UN SECOND MESSAGE QUAND LE PREMIER TIENT ENCORE :
+        // il n'arriverait pas, et l'acheteur l'attendrait au lieu de saisir le
+        // code qu'il a déjà sous les yeux.
+        return $this->page(
+            $transfert,
+            envoye: $envoi['fresh'] ? $envoi['sent_to'] : null,
+            rappel: $envoi['fresh'] ? null : $envoi['sent_to'],
+        );
     }
 
     public function confirm(Request $request, string $token): Response
@@ -64,24 +101,24 @@ final class TransferInvitationController extends Controller
             return $this->page($transfert, erreur: 'Saisissez le code reçu par courriel.');
         }
 
-        $adresse = $transfert->to_email;
-
-        if ($adresse === null) {
+        if ($transfert->to_email === null) {
             // Une cession ouverte sans adresse ne s'accepte pas ici : le code
             // est parti vers un numéro, et rien ne relie ce visiteur à lui.
             return $this->page($transfert, erreur: 'Cette cession se confirme depuis l\'application.');
         }
 
         try {
-            $acheteur = $this->compteDe($adresse);
-            $transfert = $this->transferts->confirmByBuyer($transfert, $acheteur, $code);
+            // LE CODE D'ABORD, LE COMPTE ENSUITE : le service n'ouvre le compte
+            // de l'acheteur qu'une fois le code reconnu. La page le créait
+            // avant, et une saisie fautive en laissait un derrière elle.
+            $transfert = $this->transferts->confirmByBuyerAddress($transfert, $transfert->to_email, $code);
         } catch (DomainException $e) {
             return $this->page($transfert, erreur: $e->getMessage());
         } catch (Throwable) {
-            // Un code refusé lève une exception de la couche OTP : on n'en
-            // recopie pas le détail, qui dirait combien d'essais restent.
-            return $this->page($transfert, erreur: 'Ce code est incorrect ou périmé. '
-                .'Demandez-en un nouveau depuis l\'application, ou réessayez.');
+            // Un refus qui ne vient pas du métier : on n'en recopie pas le
+            // détail, qui dirait combien d'essais restent.
+            return $this->page($transfert, erreur: 'Ce code n\'a pas été accepté. Demandez-en un '
+                .'nouveau, puis réessayez.');
         }
 
         // DEUX ISSUES, ET IL FAUT DIRE LAQUELLE. Le transfert exige les DEUX
@@ -104,22 +141,15 @@ final class TransferInvitationController extends Controller
     }
 
     /**
-     * Le compte du destinataire, créé au besoin.
-     *
-     * SANS NUMÉRO : celui qui accepte par courriel n'en a pas forcément donné,
-     * et en inventer un rendrait le compte irrécupérable.
+     * @param  string|null  $envoye  destination masquée où un code vient de partir
+     * @param  string|null  $rappel  destination masquée où un code encore valable attend
      */
-    private function compteDe(string $adresse): User
-    {
-        $compte = User::query()->where('email', $adresse)->first();
-
-        return $compte instanceof User
-            ? $compte
-            : User::create(['email' => $this->otp->normalizeDestination($adresse)]);
-    }
-
-    private function page(Transfer $transfert, ?string $erreur = null): Response
-    {
+    private function page(
+        Transfer $transfert,
+        ?string $erreur = null,
+        ?string $envoye = null,
+        ?string $rappel = null,
+    ): Response {
         return response()->view('public.cession', [
             'indexable' => false,
             'titre' => 'Un bien vous est cédé · Preuve',
@@ -128,6 +158,8 @@ final class TransferInvitationController extends Controller
             'bien' => $this->apercu($transfert),
             'expire' => $transfert->expires_at,
             'erreur' => $erreur,
+            'envoye' => $envoye,
+            'rappel' => $rappel,
         ])->header('X-Robots-Tag', 'noindex, nofollow');
     }
 
