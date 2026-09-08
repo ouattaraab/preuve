@@ -103,6 +103,33 @@ final class ReportController extends Controller
         // une transaction de zéro franc ferait échouer l'opérateur, et exiger
         // une carte pour ne rien encaisser serait une friction sans objet.
         if ($this->tarifs->isFree('report')) {
+            // GRATUIT NE VEUT PAS DIRE ANONYME (règle métier absolue n° 7). Un
+            // invité doit toujours prouver une coordonnée par OTP avant d'ouvrir
+            // le rapport, même quand il ne paie rien : sans cela, le rapport
+            // détaillé — l'historique de propriété d'un bien — se tire par la
+            // seule référence publique, sans la moindre trace de qui l'a
+            // demandé. C'est exactement l'outil de repérage que la règle 7
+            // existe pour empêcher. Le chemin web l'exige déjà en gratuit ;
+            // l'API s'aligne. Un compte authentifié, lui, est déjà tracé.
+            if (! $acheteur instanceof User) {
+                if (trim($request->string('buyer_name')->toString()) === ''
+                    || trim($request->string('buyer_email')->toString()) === '') {
+                    throw ValidationException::withMessages([
+                        'buyer_name' => 'Nom et adresse e-mail sont obligatoires pour ouvrir un rapport sans compte.',
+                    ]);
+                }
+
+                try {
+                    $this->otp->verify(
+                        $request->string('buyer_phone')->toString(),
+                        $request->string('code')->toString(),
+                        OtpPurpose::GuestPayment,
+                    );
+                } catch (DomainException $e) {
+                    throw ValidationException::withMessages(['code' => $e->getMessage()]);
+                }
+            }
+
             $acces = $this->rapports->grantFree($bien, $acheteur instanceof User ? $acheteur : null);
 
             return response()->json([

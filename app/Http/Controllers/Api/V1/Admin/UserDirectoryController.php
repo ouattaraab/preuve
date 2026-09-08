@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\ActorType;
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\Asset;
 use App\Models\User;
@@ -34,6 +35,34 @@ final class UserDirectoryController extends Controller
     private const PAR_PAGE = 25;
 
     public function __construct(private readonly AuditChain $auditChain) {}
+
+    /**
+     * Un agent gère les comptes des UTILISATEURS, jamais ceux du back-office.
+     *
+     * SANS CETTE BORNE, LE RÔLE LE MOINS PRIVILÉGIÉ PREND TOUT LE RESTE. Cette
+     * porte (`EnsureUserHasBackOfficeAccess`) s'ouvre aux agents comme aux
+     * administrateurs ; or réécrire la coordonnée d'un compte, c'est pouvoir
+     * s'y connecter à sa place — la connexion OTP envoie le code à la NOUVELLE
+     * adresse, et n'exige jamais qu'elle ait été vérifiée. Un agent qui vise le
+     * compte d'un administrateur récupère donc son rôle entier ; qui vise un
+     * autre agent l'enferme dehors. La même logique vaut pour la suspension.
+     *
+     * C'est la règle que `TeamController::setRole` et la levée d'anonymat
+     * appliquent déjà : une action qui fabrique un pouvoir se réserve aux
+     * administrateurs, quel que soit le routage.
+     */
+    private function assertPeutAgirSur(User $cible, ?User $acteur): void
+    {
+        if ($cible->role === UserRole::User) {
+            return;
+        }
+
+        if ($acteur instanceof User && $acteur->isAdmin()) {
+            return;
+        }
+
+        abort(403, 'Seul un administrateur peut agir sur le compte d\'un membre du back-office.');
+    }
 
     public function index(Request $request): JsonResponse
     {
@@ -123,6 +152,8 @@ final class UserDirectoryController extends Controller
             abort(404);
         }
 
+        $this->assertPeutAgirSur($compte, $request->user());
+
         $telephone = $request->has('phone')
             ? ($request->string('phone')->trim()->toString() ?: null)
             : $compte->phone;
@@ -168,12 +199,24 @@ final class UserDirectoryController extends Controller
             ],
         );
 
+        $coordonneeChangee = $telephone !== $compte->phone || $adresse !== $compte->email;
+
         $compte->forceFill([
             'phone' => $telephone,
             'email' => $adresse,
             'phone_verified_at' => $telephone === $compte->phone ? $compte->phone_verified_at : null,
             'email_verified_at' => $adresse === $compte->email ? $compte->email_verified_at : null,
         ])->save();
+
+        // LES SESSIONS EXISTANTES TOMBENT si une coordonnée change. Une
+        // correction de coordonnée sert souvent à reprendre la main sur un
+        // compte dont l'accès a dérapé ; laisser vivre les jetons émis avant
+        // la correction laisserait l'ancien titulaire — ou celui qui avait
+        // détourné l'adresse — connecté malgré tout. Cohérent avec la
+        // suspension, qui révoque déjà sur-le-champ.
+        if ($coordonneeChangee) {
+            $compte->tokens()->delete();
+        }
 
         return response()->json([
             'message' => 'Coordonnées mises à jour. Le titulaire devra prouver la nouvelle '
@@ -198,6 +241,8 @@ final class UserDirectoryController extends Controller
 
         $administrateur = $request->user();
         $suspendre = $request->boolean('suspended');
+
+        $this->assertPeutAgirSur($compte, $administrateur);
 
         // Un administrateur ne se suspend pas lui-même : il se fermerait la
         // porte, et personne d'autre ne pourrait la rouvrir sur une

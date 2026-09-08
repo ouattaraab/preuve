@@ -249,3 +249,85 @@ it('refuse ces écrans à qui n\'a pas accès au back-office', function (): void
     test()->getJson('/api/v1/admin/assets')->assertStatus(403);
     test()->getJson('/api/v1/admin/users')->assertStatus(403);
 });
+
+/*
+ * SÉPARATION DES POUVOIRS DANS LE BACK-OFFICE (faille d'élévation corrigée).
+ *
+ * La console s'ouvre aux agents ET aux administrateurs. Réécrire la coordonnée
+ * d'un compte, ou le suspendre, sont des pouvoirs qui, appliqués à un compte du
+ * back-office, permettent de prendre la place d'un administrateur (le code OTP
+ * part vers la nouvelle adresse) ou d'enfermer la direction dehors. Ces gestes
+ * sur un compte agent/admin se réservent donc aux administrateurs.
+ */
+function agentSimpleRegistre(): User
+{
+    $agent = User::create(['phone' => '+2250700000901']);
+    $agent->forceFill(['role' => UserRole::Agent, 'full_name' => 'Agent Simple'])->save();
+    Sanctum::actingAs($agent);
+
+    return $agent;
+}
+
+it('INTERDIT à un agent de réécrire la coordonnée d\'un administrateur', function (): void {
+    $admin = User::create(['phone' => '+2250700000010', 'email' => 'admin@preuve.ci']);
+    $admin->forceFill(['role' => UserRole::Admin])->save();
+
+    agentSimpleRegistre();
+
+    test()->postJson("/api/v1/admin/users/{$admin->id}/contact", [
+        'email' => 'pirate@attaquant.example',
+        'reason' => 'tentative',
+    ])->assertStatus(403);
+
+    // L'adresse de l'administrateur n'a pas bougé : la prise de contrôle est fermée.
+    expect($admin->fresh()?->email)->toBe('admin@preuve.ci');
+});
+
+it('INTERDIT à un agent de suspendre un autre membre du back-office', function (): void {
+    $autreAgent = User::create(['phone' => '+2250700000902']);
+    $autreAgent->forceFill(['role' => UserRole::Agent])->save();
+
+    agentSimpleRegistre();
+
+    test()->postJson("/api/v1/admin/users/{$autreAgent->id}/status", [
+        'suspended' => true,
+        'reason' => 'abus de pouvoir',
+    ])->assertStatus(403);
+
+    expect($autreAgent->fresh()?->getAttribute('status'))->not->toBe('suspended');
+});
+
+it('LAISSE un agent corriger la coordonnée d\'un utilisateur ordinaire', function (): void {
+    // La borne ne ferme QUE les comptes du back-office : le travail de guichet
+    // sur les comptes utilisateurs reste ouvert aux agents.
+    $utilisateur = User::create(['phone' => '+2250701234567', 'email' => 'faute@exemple.ci']);
+
+    agentSimpleRegistre();
+
+    test()->postJson("/api/v1/admin/users/{$utilisateur->id}/contact", [
+        'email' => 'corrige@exemple.ci',
+        'reason' => 'adresse mal saisie',
+    ])->assertOk();
+
+    expect($utilisateur->fresh()?->email)->toBe('corrige@exemple.ci');
+});
+
+it('RÉVOQUE les sessions de la cible quand sa coordonnée change', function (): void {
+    // Une correction de coordonnée sert souvent à reprendre la main : les
+    // jetons émis avant ne doivent pas survivre au changement.
+    $utilisateur = User::create(['phone' => '+2250701234599', 'email' => 'avant@exemple.ci']);
+    $jeton = $utilisateur->createToken('mobile')->plainTextToken;
+
+    agentRegistre(); // administrateur
+
+    test()->postJson("/api/v1/admin/users/{$utilisateur->id}/contact", [
+        'email' => 'apres@exemple.ci',
+        'reason' => 'reprise en main',
+    ])->assertOk();
+
+    // Le jeton d'avant a été révoqué : plus aucune session active pour ce
+    // compte. (On vérifie en base : `Sanctum::actingAs` court-circuiterait une
+    // vérification par requête HTTP.)
+    expect($utilisateur->tokens()->count())->toBe(0);
+    unset($jeton);
+});

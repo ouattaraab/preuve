@@ -101,6 +101,40 @@ it('refuse l\'achat sans compte si le code est faux', function (): void {
     expect(Payment::count())->toBe(0);
 });
 
+it('REFUSE le rapport GRATUIT à un invité sans OTP (règle 7)', function (): void {
+    // Gratuit ne veut pas dire anonyme : même à zéro franc, un invité doit
+    // prouver une coordonnée. Sans cette borne, le rapport détaillé d'un bien
+    // se tire par la seule référence, sans trace de qui l'a demandé — l'outil
+    // de repérage que la règle 7 existe pour empêcher.
+    app(SettingsRepository::class)->set('pricing.report_fcfa', 0);
+    $bien = bienPourRapport();
+
+    test()->postJson("/api/v1/assets/{$bien->id}/reports", [
+        'provider' => 'paystack',
+        'buyer_name' => 'Sans Preuve',
+        'buyer_email' => 'sans@exemple.ci',
+        'buyer_phone' => '0788888888',
+        'code' => '000000',
+    ])->assertStatus(422);
+
+    expect(ReportPurchase::count())->toBe(0);
+});
+
+it('OUVRE le rapport gratuit à un invité qui a prouvé son numéro', function (): void {
+    app(SettingsRepository::class)->set('pricing.report_fcfa', 0);
+    $bien = bienPourRapport();
+
+    test()->postJson('/api/v1/reports/guest-code', ['phone' => '0788888888'])->assertOk();
+
+    test()->postJson("/api/v1/assets/{$bien->id}/reports", [
+        'provider' => 'paystack',
+        'buyer_name' => 'Yao N.',
+        'buyer_email' => 'yao@exemple.ci',
+        'buyer_phone' => '0788888888',
+        'code' => test()->sender->pour('+2250788888888'),
+    ])->assertStatus(201)->assertJsonPath('free', true);
+});
+
 it('achète sans code quand l\'acheteur est connecté, et rend où payer', function (): void {
     // LE PARCOURS COMPLET : ouvrir le paiement ne suffit pas, il faut rendre
     // l'ADRESSE de règlement. Sans elle, l'acheteur était prié de « régler
