@@ -43,7 +43,32 @@ Artisan::command('inspire', function () {
  * d'être est de rendre VISIBLE un planificateur arrêté — panne constatée le
  * 03/08/2026 sur l'hébergement, sans une erreur ni un journal.
  */
-Schedule::command('preuve:heartbeat')->everyFiveMinutes()->onOneServer();
+/*
+ * EXÉCUTÉ EN PROCESSUS, ET NON DANS UN SOUS-PROCESSUS.
+ *
+ * `Schedule::command()` lance chaque tâche via `proc_open` — un fork. Sur cet
+ * hébergement mutualisé, le plafond de processus (`nproc`) est parfois atteint,
+ * et le fork échoue : « proc_open(): Fork failed: Resource temporarily
+ * unavailable » (constaté ~2 à 4 fois par jour). C'est le HEARTBEAT lui-même
+ * qui en était victime — la sonde censée rendre visible un planificateur arrêté
+ * ratait son passage à cause de la panne qu'elle existe pour détecter, et
+ * inscrivait au passage un stacktrace en ERROR.
+ *
+ * `Artisan::call()` exécute la commande DANS le processus `schedule:run`
+ * déjà en vie : aucun fork, donc plus rien à échouer de ce côté. La tâche est
+ * légère et son seul appel sortant — le ping — est borné à cinq secondes ; la
+ * passer en ligne n'expose pas `schedule:run` à un blocage. Cela ne supprime
+ * pas la cause de fond (le `nproc` du mutualisé, hors de notre main), mais
+ * retire la tâche la plus fréquente de la file des forks et, surtout, cesse de
+ * faire dépendre la sonde de santé du fork qui peut la faire tomber.
+ *
+ * `name()` est requis : `onOneServer()` a besoin d'un identifiant de verrou,
+ * que `command()` tirait du nom de la commande et qu'une closure n'a pas.
+ */
+Schedule::call(static fn () => Artisan::call('preuve:heartbeat'))
+    ->name('preuve:heartbeat')
+    ->everyFiveMinutes()
+    ->onOneServer();
 
 /*
  * Travailleur de la file `notifications` (ST-1003, ST-1004).
