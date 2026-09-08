@@ -36,6 +36,12 @@ jobs:
       - name: Installer les dépendances
         run: composer install --prefer-dist --no-interaction --no-progress
 
+      # Attrape une dépendance vulnérable dès qu'un avis est publié, sans
+      # attendre un audit manuel. Découvert utile : commonmark 2.8.3 traînait
+      # dix avis (DoS, contournement de filtre) — corrigé en 2.10.1.
+      - name: Vulnérabilités des dépendances
+        run: composer audit --no-dev
+
       - name: Préparer l'environnement
         run: |
           cp .env.example .env
