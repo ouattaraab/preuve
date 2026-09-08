@@ -29,7 +29,20 @@ use Illuminate\Support\Carbon;
  */
 class UploadSession extends Model
 {
-    protected $guarded = [];
+    /**
+     * Liste explicite plutôt que `$guarded = []` : l'unique création (dans
+     * UploadSessionService) passe déjà un tableau maîtrisé, mais un
+     * `$guarded = []` laisserait un futur `create($request->...)` forcer
+     * `user_id`, `asset_id` ou `status` — rattacher une pièce au bien d'un
+     * tiers, ou marquer un envoi terminé sans les octets. On borne à ce qui est
+     * réellement peuplé depuis un tableau. Aligné sur le reste des modèles.
+     *
+     * @var list<string>
+     */
+    protected $fillable = [
+        'uuid', 'user_id', 'asset_id', 'doc_type', 'filename', 'byte_size',
+        'received_bytes', 'checksum', 'status', 'expires_at',
+    ];
 
     /** @return array<string, string> */
     protected function casts(): array

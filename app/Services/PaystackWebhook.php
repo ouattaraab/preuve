@@ -67,11 +67,17 @@ final class PaystackWebhook
     }
 
     /**
-     * La référence et l'état, tirés de la charge utile de Paystack.
+     * La référence, l'état ET le montant réglé, tirés de la charge utile.
      *
-     * @return array{reference: string, status: PaymentStatus}|null null quand
-     *                                                              l'événement ne nous concerne pas — ce qui est le cas ordinaire :
-     *                                                              Paystack poste aussi les transferts, les abonnements, les litiges.
+     * LE MONTANT ET LA DEVISE SONT REMONTÉS pour être confrontés à l'attendu
+     * (voir PaymentService::reconcile). Paystack les rend dans `data.amount`
+     * (plus petite unité, ×100) et `data.currency`. Ils peuvent manquer sur un
+     * événement partiel : dans ce cas on rend `null`, et la réconciliation
+     * traite l'absence comme « non vérifiable » plutôt que comme « conforme ».
+     *
+     * @return array{reference: string, status: PaymentStatus, amount: int|null, currency: string|null}|null
+     *                                                                                                       null quand l'événement ne nous concerne pas — le cas
+     *                                                                                                       ordinaire : Paystack poste aussi transferts, abonnements, litiges.
      */
     public function extract(Request $request): ?array
     {
@@ -89,7 +95,16 @@ final class PaystackWebhook
 
         $etat = $this->etat(is_string($donnees['status'] ?? null) ? $donnees['status'] : '');
 
-        return $etat === null ? null : ['reference' => $reference, 'status' => $etat];
+        if ($etat === null) {
+            return null;
+        }
+
+        return [
+            'reference' => $reference,
+            'status' => $etat,
+            'amount' => is_numeric($donnees['amount'] ?? null) ? (int) $donnees['amount'] : null,
+            'currency' => is_string($donnees['currency'] ?? null) ? $donnees['currency'] : null,
+        ];
     }
 
     /**

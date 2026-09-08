@@ -209,6 +209,13 @@ final class KycReviewController extends Controller
             'Content-Type' => $this->vault->mimeOf($clair),
             'Content-Disposition' => 'inline',
             'Cache-Control' => 'no-store, private',
+            // ON NE LAISSE PAS LE NAVIGATEUR DEVINER LE TYPE : il est déjà
+            // détecté sur le contenu réel (jamais l'extension déclarée).
+            // `nosniff` empêche qu'un fichier polyglotte soit reclassé en HTML
+            // et s'exécute dans le contexte de session de l'agent ; la CSP
+            // `sandbox` le confine en dernier ressort.
+            'X-Content-Type-Options' => 'nosniff',
+            'Content-Security-Policy' => "default-src 'none'; sandbox",
         ]);
     }
 

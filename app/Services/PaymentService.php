@@ -16,6 +16,7 @@ use App\Models\User;
 use DomainException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Paiements et réconciliation des webhooks (ST-0801, ST-0802, ST-0806).
@@ -139,12 +140,14 @@ final class PaymentService
         string $reference,
         PaymentStatus $etat,
         ?int $paymentId = null,
+        ?int $montantRecu = null,
+        ?string $deviseRecue = null,
     ): ?Payment {
         if ($reference === '') {
             throw new DomainException('Un événement de paiement sans référence est inexploitable.');
         }
 
-        return DB::transaction(function () use ($operateur, $reference, $etat, $paymentId): ?Payment {
+        return DB::transaction(function () use ($operateur, $reference, $etat, $paymentId, $montantRecu, $deviseRecue): ?Payment {
             // Verrou de ligne : deux webhooks simultanés pour la même
             // transaction ne doivent pas la créditer deux fois.
             $paiement = Payment::query()
@@ -163,8 +166,38 @@ final class PaymentService
 
             if ($paiement->status->isFinal()) {
                 // Déjà tranché : un webhook rejoué ou tardif ne réécrit pas
-                // l'histoire d'une transaction.
-                return $paiement;
+                // l'histoire d'une transaction — et NE REJOUE PAS non plus la
+                // contrepartie. On retourne `null` (et non le paiement) pour que
+                // l'appelant ne rappelle pas `fulfill()` : le crédit du rapport
+                // et la publication sont idempotents, mais l'envoi du code de
+                // déclaration, lui, repartirait à chaque rejeu.
+                return null;
+            }
+
+            // LE MONTANT RÉGLÉ EST CONFRONTÉ À L'ATTENDU AVANT DE CRÉDITER.
+            //
+            // La signature authentifie l'émetteur, pas le contenu : un montant
+            // partiel, une devise inattendue, ou un tarif modifié entre
+            // l'intention et le règlement ne doivent pas ouvrir le service à un
+            // prix qui n'est pas le nôtre. On ne vérifie que si l'opérateur
+            // fournit ces champs (Paystack le fait ; le format maison, non —
+            // absence = non vérifiable, comportement inchangé). En cas d'écart
+            // sur un paiement présenté comme réussi : on ne crédite pas, et on
+            // journalise pour investigation, plutôt que de trancher à tort.
+            if ($etat === PaymentStatus::Succeeded && $montantRecu !== null) {
+                $attendu = $paiement->amount_fcfa * 100;
+                $deviseConforme = $deviseRecue === null || mb_strtoupper($deviseRecue) === 'XOF';
+
+                if ($montantRecu !== $attendu || ! $deviseConforme) {
+                    Log::warning('payment.amount_mismatch', [
+                        'payment' => $paiement->id,
+                        'expected_minor' => $attendu,
+                        'received_minor' => $montantRecu,
+                        'currency' => $deviseRecue,
+                    ]);
+
+                    return null;
+                }
             }
 
             try {

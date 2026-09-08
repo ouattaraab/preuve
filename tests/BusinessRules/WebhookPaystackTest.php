@@ -134,6 +134,35 @@ it('CRÉDITE LE SERVICE SUR UN RAPPEL SIGNÉ', function (): void {
         ->and($bien->fresh()?->stolen_listed_at)->not->toBeNull();
 });
 
+it('NE CRÉDITE PAS UN MONTANT QUI NE CORRESPOND PAS À L\'ATTENDU', function (): void {
+    // La signature authentifie l'émetteur, pas la somme. Un montant partiel ou
+    // un tarif modifié entre l'intention et le règlement ne doit pas ouvrir le
+    // service : on ne crédite que si le réglé égale l'attendu (1000 FCFA → 100000).
+    $bien = bienVolePaystack();
+    $paiement = paiementOuvert($bien);
+
+    rappelPaystack([
+        'event' => 'charge.success',
+        'data' => ['reference' => $paiement->provider_ref, 'status' => 'success', 'amount' => 100],
+    ])->assertOk();
+
+    expect($paiement->fresh()?->status)->toBe(PaymentStatus::Pending)
+        ->and($bien->fresh()?->stolen_listed_at)->toBeNull();
+});
+
+it('NE CRÉDITE PAS UNE DEVISE INATTENDUE', function (): void {
+    $bien = bienVolePaystack();
+    $paiement = paiementOuvert($bien);
+
+    rappelPaystack([
+        'event' => 'charge.success',
+        'data' => ['reference' => $paiement->provider_ref, 'status' => 'success', 'amount' => 100000, 'currency' => 'NGN'],
+    ])->assertOk();
+
+    expect($paiement->fresh()?->status)->toBe(PaymentStatus::Pending)
+        ->and($bien->fresh()?->stolen_listed_at)->toBeNull();
+});
+
 it('REFUSE UNE SIGNATURE FAUSSE, ET NE CRÉDITE RIEN', function (): void {
     $bien = bienVolePaystack();
     $paiement = paiementOuvert($bien);

@@ -137,7 +137,11 @@ final class TransferInvitationController extends Controller
             'acheve' => $acheve,
             'bien' => $this->apercu($transfert),
             'publicRef' => $nouveau instanceof Asset ? (string) $nouveau->public_ref : null,
-        ])->header('X-Robots-Tag', 'noindex, nofollow');
+        ])->header('X-Robots-Tag', 'noindex, nofollow')
+            // NO-REFERRER : le jeton de cession vit dans l'URL. Sans cet
+            // en-tête, un clic sortant de la page en fuirait le chemin complet
+            // dans l'en-tête Referer.
+            ->header('Referrer-Policy', 'no-referrer');
     }
 
     /**
@@ -160,7 +164,11 @@ final class TransferInvitationController extends Controller
             'erreur' => $erreur,
             'envoye' => $envoye,
             'rappel' => $rappel,
-        ])->header('X-Robots-Tag', 'noindex, nofollow');
+        ])->header('X-Robots-Tag', 'noindex, nofollow')
+            // NO-REFERRER : le jeton de cession vit dans l'URL. Sans cet
+            // en-tête, un clic sortant de la page en fuirait le chemin complet
+            // dans l'en-tête Referer.
+            ->header('Referrer-Policy', 'no-referrer');
     }
 
     /**

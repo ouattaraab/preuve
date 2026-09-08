@@ -80,18 +80,30 @@ Route::prefix('v1')->group(function (): void {
     // registre.
     Route::post('reports', [ReportController::class, 'purchaseByReference'])
         ->middleware('throttle:20,1');
-    Route::get('reports/access/{token}', [ReportController::class, 'show']);
+    Route::get('reports/access/{token}', [ReportController::class, 'show'])
+        ->middleware('throttle:60,1');
 
     // Webhooks d'opérateurs : signés, idempotents (ST-0806).
-    Route::post('webhooks/payments/{provider}', [PaymentWebhookController::class, 'handle']);
+    // Signé et idempotent ; le throttle borne en plus le martèlement de corps
+    // forgés qui, sur un mutualisé, consommerait un worker par requête avant
+    // même le rejet de signature.
+    Route::post('webhooks/payments/{provider}', [PaymentWebhookController::class, 'handle'])
+        ->middleware('throttle:60,1');
 
     // Consultation de statut : gratuite, anonyme, SANS compte (règle métier
     // absolue n° 1). N'ajouter JAMAIS de middleware d'authentification ici —
     // le contrôleur interroge le garde Sanctum directement, ce qui reconnaît
     // un porteur de jeton (et le dispense du plafond anonyme) sans jamais
     // rendre le jeton nécessaire.
+    // LE THROTTLE ET LE PLAFOND MÉTIER SONT ORTHOGONAUX. `LookupService` borne
+    // les identifiants DISTINCTS par heure et par IP (anti-cartographie) ; il
+    // ne borne pas le martèlement d'un MÊME identifiant, qui écrit une ligne
+    // `lookups` et lance un `count(distinct)` à chaque appel. Ce throttle-ci
+    // borne le débit brut, généreusement pour absorber une page de statut
+    // partagée. La consultation reste gratuite, anonyme et sans compte.
     Route::get('lookup/{identifier}', [LookupController::class, 'show'])
-        ->where('identifier', '.*');
+        ->where('identifier', '.*')
+        ->middleware('throttle:120,1');
 
     // Lire le numéro sur une carte grise SANS COMPTE, pour le vérifier ensuite.
     // Celui à qui l'on propose une moto sur un parking n'a pas de compte, et

@@ -83,7 +83,10 @@ final class PaystackGateway
                     'metadata' => ['payment_id' => $paiement->id],
                 ]);
         } catch (\Throwable $e) {
-            Log::warning('paystack.unreachable', ['payment' => $paiement->id, 'error' => $e->getMessage()]);
+            // LA CLASSE, PAS LE MESSAGE. Un message d'exception Guzzle peut contenir
+            // l'URL appelée ; on s'aligne sur la discipline du reste du dépôt, qui
+            // ne journalise jamais le texte brut d'une exception réseau.
+            Log::warning('paystack.unreachable', ['payment' => $paiement->id, 'error' => $e::class]);
 
             throw new DomainException(
                 'L\'opérateur de paiement ne répond pas. Réessayez dans un moment.'

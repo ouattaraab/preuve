@@ -91,6 +91,13 @@ final class AssetDocumentController extends Controller
             // Jamais en cache — ni navigateur, ni relais : c'est une pièce
             // d'identité ou un titre de propriété.
             'Cache-Control' => 'no-store, private',
+            // ON NE LAISSE PAS LE NAVIGATEUR DEVINER LE TYPE : il est déjà
+            // détecté sur le contenu réel (jamais l'extension déclarée).
+            // `nosniff` empêche qu'un fichier polyglotte soit reclassé en HTML
+            // et s'exécute dans le contexte de session de l'agent ; la CSP
+            // `sandbox` le confine en dernier ressort.
+            'X-Content-Type-Options' => 'nosniff',
+            'Content-Security-Policy' => "default-src 'none'; sandbox",
         ]);
     }
 

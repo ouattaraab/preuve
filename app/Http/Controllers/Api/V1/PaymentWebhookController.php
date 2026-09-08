@@ -118,6 +118,9 @@ final class PaymentWebhookController extends Controller
                 PaymentProvider::Paystack,
                 $evenement['reference'],
                 $evenement['status'],
+                null,
+                $evenement['amount'],
+                $evenement['currency'],
             );
         } catch (DomainException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
