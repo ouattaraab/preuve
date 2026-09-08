@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Enums\CompanyRole;
 use App\Enums\OtpPurpose;
+use App\Enums\OtpRefus;
+use App\Exceptions\OtpRefuseException;
 use App\Models\AuditLog;
 use App\Models\Company;
 use App\Models\CompanyMember;
@@ -11,6 +13,7 @@ use App\Models\User;
 use App\Services\Otp\ConfigurableOtpSender;
 use App\Services\Otp\OtpSender;
 use App\Services\Settings\SettingsRepository;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -90,6 +93,19 @@ it('ne renvoie jamais le code dans la réponse', function (): void {
 it('rejette un numéro inexploitable', function (): void {
     $this->postJson('/api/v1/auth/otp/request', ['phone' => 'pas-un-numero', 'purpose' => 'login'])
         ->assertStatus(422);
+});
+
+it('NE JOURNALISE PAS un refus d\'OTP comme une erreur serveur', function (): void {
+    // Un numéro mal saisi, un code périmé, un plafond atteint : ce sont des
+    // réponses métier, rendues au client. Les laisser remonter au niveau ERROR
+    // faisait qu'une faute de frappe d'un utilisateur inscrivait une ligne
+    // d'erreur en production — le bruit qui finit par noyer les vraies pannes.
+    $handler = app(ExceptionHandler::class);
+
+    expect($handler->shouldReport(new OtpRefuseException(OtpRefus::DestinationInvalide)))
+        ->toBeFalse()
+        ->and($handler->shouldReport(new OtpRefuseException(OtpRefus::TropDeDemandes)))
+        ->toBeFalse();
 });
 
 it('crée le compte et ouvre une session au premier code vérifié', function (): void {

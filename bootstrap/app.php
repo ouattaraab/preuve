@@ -81,6 +81,19 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->shouldRenderJsonWhen($rendJson);
 
+        // UN REFUS D'OTP N'EST PAS UNE ERREUR SERVEUR : ON NE LE JOURNALISE PAS.
+        //
+        // Un numéro mal saisi, un code périmé, un plafond de demandes atteint —
+        // ce sont des réponses métier attendues, rendues proprement au client
+        // (voir le `render` plus bas). Les laisser remonter au niveau ERROR
+        // faisait qu'une simple faute de frappe d'un utilisateur inscrivait une
+        // ligne d'erreur en production : sur une plateforme grand public, ce
+        // bruit finit par noyer les vraies pannes, celles qu'un journal
+        // d'erreurs existe pour rendre visibles. `normalizeDestination()` lève
+        // cette exception AVANT le try des contrôleurs (dès la validation de la
+        // destination), d'où sa remontée jusqu'ici.
+        $exceptions->dontReport(OtpRefuseException::class);
+
         // Le refus d'authentification est traité EXPLICITEMENT, et non laissé
         // au comportement par défaut : celui-ci redirige vers une route
         // `login` que cette application n'a pas, et transforme un 401 en 500.
