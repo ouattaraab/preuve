@@ -1,0 +1,81 @@
+# BORNE LA TAILLE DES REQUÊTES, AVANT PHP.
+#
+# L'hébergement accepte 1536 Mo par requête, alors que l'application valide
+# chaque pièce à 8 Mo — et la validation de Laravel s'exécute APRÈS que PHP a
+# bufferisé l'envoi sur disque. Un visiteur SANS COMPTE pouvait donc faire
+# écrire un giga-octet et demi au serveur avant d'être refusé, dix fois par dix
+# minutes, sur `/api/v1/lookup/scan`. Sur un mutualisé dont le quota disque
+# coupe aussi l'écriture du registre, c'est un déni de service à coût nul.
+#
+# ⚠️ NON APPLIQUÉE PAR L'HÉBERGEMENT ACTUEL — éprouvé, pas supposé : un envoi
+# de 60 Mo passe malgré cette ligne, et `.user.ini` ne marche pas davantage
+# (`user_ini.filename` est vide sur cet hôte, donc PHP l'ignore).
+#
+# La directive est CONSERVÉE parce qu'elle est correcte et portable : elle
+# prendra effet sur tout hébergement qui l'honore. Le remède ici est la
+# configuration PHP de hPanel (`post_max_size`, `upload_max_filesize`), qui est
+# une action d'exploitation, pas de code.
+#
+# Risque résiduel, mesuré : les fichiers temporaires de PHP sont effacés en fin
+# de requête, l'occupation est donc transitoire et non cumulative, et la route
+# est bornée à dix appels par dix minutes et par adresse. C'est une gêne, pas
+# une prise de contrôle.
+#
+# 56 Mo tient compte du dossier d'identité, qui part d'un seul tenant : recto,
+# verso, selfie et deux prises de vivacité, soit cinq fichiers de 8 Mo.
+LimitRequestBody 58720256
+
+# PHP 8.4 explicitement, sur l'hébergement mutualisé CloudLinux d'Hostinger.
+#
+# Le sélecteur du compte annonce 8.4 et le CLI l'applique, mais le serveur web
+# sert une version plus ancienne au domaine : les dépendances exigent >= 8.4.1
+# et l'application rendait un 500 au premier appel, sans que rien ne le laisse
+# prévoir depuis SSH. La ligne doit vivre DANS LE DÉPÔT : posée à la main sur
+# le serveur, le prochain déploiement l'effacerait et casserait le site en
+# silence.
+<IfModule mod_mime.c>
+    AddHandler application/x-httpd-php84 .php
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    <IfModule mod_negotiation.c>
+        Options -MultiViews -Indexes
+    </IfModule>
+
+    RewriteEngine On
+
+    # Handle Authorization Header
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Handle X-XSRF-Token Header
+    RewriteCond %{HTTP:x-xsrf-token} .
+    RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
+
+    # Redirect Trailing Slashes If Not A Folder...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+    RewriteRule ^ %1 [L,R=301]
+
+    # Send Requests To Front Controller...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# En-têtes réécrits par le serveur après le passage de PHP.
+#
+# L'hébergeur mutualisé REMPLACE `Content-Security-Policy` par le sien et
+# réinjecte `X-Powered-By` avec la version exacte de PHP. Constaté le
+# 04/08/2026 : tous les autres en-têtes posés par l'application arrivaient
+# intacts, ces deux-là seuls étaient réécrits. `mod_headers` s'exécute après,
+# et a le dernier mot.
+#
+# La politique est RECOPIÉE depuis `X-Preuve-CSP`, posé par l'application, et
+# non écrite en dur ici : elle varie d'une réponse à l'autre — l'origine du
+# défi anti-automate n'est ouverte que sur la page qui l'affiche réellement.
+<IfModule mod_headers.c>
+    Header always unset X-Powered-By
+    Header always set Content-Security-Policy "expr=%{resp:X-Preuve-CSP}"
+    Header always unset X-Preuve-CSP
+</IfModule>

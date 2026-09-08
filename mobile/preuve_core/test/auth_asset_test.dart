@@ -1,0 +1,312 @@
+import 'package:preuve_core/preuve_core.dart';
+import 'package:test/test.dart';
+
+import 'fake_transport.dart';
+
+/// Coffre factice, qui peut aussi refuser d'écrire — c'est le cas qui compte.
+class MemoryStore implements TokenStore {
+  String? _token;
+  bool refuseEcriture = false;
+
+  @override
+  Future<String?> read() async => _token;
+
+  @override
+  Future<void> write(String token) async {
+    if (refuseEcriture) {
+      throw StateError('coffre indisponible');
+    }
+
+    _token = token;
+  }
+
+  @override
+  Future<void> clear() async => _token = null;
+}
+
+void main() {
+  _identiteParNumeroOuAdresse();
+
+  group('connexion', () {
+    test('ouvre la session et range le jeton', () async {
+      final transport = FakeTransport()
+        ..enfile(<String, Object?>{
+          'token': 'jeton-123',
+          'user': <String, Object?>{'id': 7, 'phone': '+2250101181686', 'full_name': 'Awa'},
+        });
+      final coffre = MemoryStore();
+
+      final compte = await AuthService(transport, coffre).verify(
+        '+2250101181686',
+        '123456',
+        OtpPurpose.login,
+      );
+
+      expect(compte.id, equals(7));
+      expect(transport.token, equals('jeton-123'));
+      expect(await coffre.read(), equals('jeton-123'));
+    });
+
+    test('n\'ouvre pas la session si le coffre refuse d\'écrire', () async {
+      // L'utilisateur croirait être connecté et se retrouverait dehors au
+      // prochain lancement, sans comprendre pourquoi.
+      final transport = FakeTransport()
+        ..enfile(<String, Object?>{'token': 'jeton-123', 'user': <String, Object?>{}});
+      final coffre = MemoryStore()..refuseEcriture = true;
+
+      await expectLater(
+        AuthService(transport, coffre).verify('+225', '123456', OtpPurpose.login),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(transport.token, isNull);
+    });
+
+    test('efface le jeton local même si la déconnexion échoue', () async {
+      // Une déconnexion qui échouerait faute de réseau laisserait le jeton sur
+      // l'appareil — l'inverse exact de ce que l'utilisateur vient de demander,
+      // et souvent parce qu'il prête son téléphone.
+      final transport = FakeTransport()
+        ..enfile(const NetworkFailure('Pas de connexion.'));
+      final coffre = MemoryStore().._token = 'jeton-123';
+      transport.setToken('jeton-123');
+
+      await AuthService(transport, coffre).logout();
+
+      expect(await coffre.read(), isNull);
+      expect(transport.token, isNull);
+    });
+
+    test('restaure une session au lancement', () async {
+      final transport = FakeTransport();
+      final coffre = MemoryStore().._token = 'jeton-persistant';
+
+      expect(await AuthService(transport, coffre).restore(), isTrue);
+      expect(transport.isAuthenticated, isTrue);
+    });
+
+    test('retrouve le compte derrière un jeton restauré', () async {
+      // Le jeton seul ne dit pas à quel numéro demander un code : sans cet
+      // appel, une session restaurée pourrait tout lire et n'agir sur rien.
+      final transport = FakeTransport()
+        ..enfile(<String, Object?>{'id': 7, 'phone': '+2250101181686'});
+      final coffre = MemoryStore().._token = 'jeton-persistant';
+
+      final compte = await AuthService(transport, coffre).me();
+
+      expect(compte.phone, equals('+2250101181686'));
+      expect(transport.appels.single, equals('GET /auth/me'));
+    });
+
+    test('vide le coffre quand le jeton a été révoqué', () async {
+      // Une suspension de compte révoque les jetons : le garder ferait échouer
+      // chaque écran l'un après l'autre, sans jamais proposer de se reconnecter.
+      final transport = FakeTransport()
+        ..enfile(const NotAuthenticated('Session expirée.'));
+      final coffre = MemoryStore().._token = 'jeton-revoque';
+      transport.setToken('jeton-revoque');
+
+      await expectLater(
+        AuthService(transport, coffre).me(),
+        throwsA(isA<NotAuthenticated>()),
+      );
+
+      expect(await coffre.read(), isNull);
+      expect(transport.token, isNull);
+    });
+
+    test('transporte le motif du code, qui n\'est pas décoratif', () async {
+      // Un code demandé pour se connecter ne doit pas pouvoir autoriser un
+      // transfert de propriété : le serveur le vérifie, encore faut-il le lui
+      // dire.
+      expect(OtpPurpose.transfer.wire, equals('transfer'));
+      expect(OtpPurpose.sensitiveAction.wire, equals('sensitive_action'));
+    });
+  });
+
+  group('enregistrement', () {
+    test('rend le bien et ce qu\'il reste au quota', () async {
+      final transport = FakeTransport()
+        ..enfile(<String, Object?>{
+          'asset': <String, Object?>{
+            'public_ref': 'PRV-2H4K9MNP',
+            'category': 'moto',
+            'life_status': <String, Object?>{'code': 'V-PRV', 'label': 'Enregistrement récent'},
+            'trust_level': <String, Object?>{'code': 'F1', 'label': 'Déclaré'},
+          },
+          'quota': <String, Object?>{'used': 1, 'free': 3},
+        });
+
+      final resultat = await AssetService(transport).register(
+        category: 'moto',
+        attributes: <String, Object?>{'vin': '1M8GDM9AXKP042788'},
+        elapsed: const Duration(seconds: 61),
+      );
+
+      expect(resultat.asset.publicRef, equals('PRV-2H4K9MNP'));
+      // L'utilisateur voit ce qu'il lui reste AVANT d'être arrêté, plutôt que
+      // de le découvrir au refus.
+      expect(resultat.quota, isNotNull);
+    });
+
+    test('remonte le doublon actif sans jamais réessayer', () async {
+      final transport = FakeTransport()
+        ..enfile(const AlreadyRegistered(
+          'Ce bien est déjà enregistré.',
+          claimUrl: '/api/v1/claims?public_ref=PRV-2H4K9MNP',
+        ));
+
+      await expectLater(
+        AssetService(transport).register(
+          category: 'moto',
+          attributes: <String, Object?>{'vin': '1M8GDM9AXKP042788'},
+        ),
+        throwsA(isA<AlreadyRegistered>()),
+      );
+
+      // Un seul appel : réessayer ne créerait jamais un second enregistrement
+      // actif, et masquerait à l'utilisateur la seule issue — la réclamation.
+      expect(transport.appels.length, equals(1));
+    });
+
+    test('n\'envoie pas de chronomètre quand il ne veut rien dire', () async {
+      final transport = FakeTransport()..enfile(<String, Object?>{'asset': <String, Object?>{}});
+
+      await AssetService(transport).register(
+        category: 'moto',
+        attributes: <String, Object?>{},
+      );
+
+      // Rejouer une file différée mesurerait une durée sans rapport avec le
+      // parcours : mieux vaut ne rien dire que fausser CT-02.
+      expect(transport.appels.single, equals('POST /assets'));
+    });
+  });
+
+  group('catalogue', () {
+    test('lit les champs déclarés et repère l\'identifiant canonique', () async {
+      final transport = FakeTransport()
+        ..enfile(<String, Object?>{
+          'version': 'v1754301234567',
+          'categories': <Object?>[
+            <String, Object?>{
+              'key': 'voiture',
+              'name': 'Voiture',
+              'icon': '🚗',
+              'fields': <Object?>[
+                <String, Object?>{
+                  'key': 'vin',
+                  'label': 'Numéro de châssis',
+                  'type': 'identifier',
+                  'required': true,
+                  'canonical': true,
+                },
+                <String, Object?>{
+                  'key': 'marque',
+                  'label': 'Marque',
+                  'type': 'text',
+                  'required': false,
+                  'canonical': false,
+                },
+              ],
+            },
+          ],
+        });
+
+      final catalogue = await AssetService(transport).catalog();
+
+      expect(catalogue!.version, equals('v1754301234567'));
+      // C'est le champ que le formulaire doit mettre en avant : le seul dont
+      // une faute de frappe change l'identité du bien.
+      expect(catalogue.byKey('voiture')!.canonical!.key, equals('vin'));
+    });
+
+    test('rend null quand le serveur dit « rien de neuf »', () async {
+      // Réponse 304, corps vide : ne pas remplacer le catalogue local par du
+      // vide, ce qui viderait l'application de tous ses types de biens.
+      final transport = FakeTransport()..enfile(<String, Object?>{});
+
+      expect(
+        await AssetService(transport).catalog(knownVersion: 'v1754301234567'),
+        isNull,
+      );
+    });
+  });
+}
+
+/*
+|--------------------------------------------------------------------------
+| Ouvrir un compte par NUMÉRO OU PAR ADRESSE (06/08/2026)
+|--------------------------------------------------------------------------
+|
+| Aucune passerelle SMS n'est branchée : n'accepter qu'un numéro fermait le
+| produit à quiconque n'avait pas déjà un compte.
+*/
+
+void _identiteParNumeroOuAdresse() {
+  group('identifiant', () {
+    test('ENVOIE LES DEUX NOMS DE CHAMP, le temps que le parc se renouvelle', () async {
+      // `identifier` pour les serveurs à jour, `phone` pour les autres :
+      // n'envoyer que le nouveau casserait cette application face à un serveur
+      // qui n'a pas encore été déployé.
+      final transport = FakeTransport()..enfile(<String, Object?>{'expires_in': 300});
+
+      await AuthService(transport, FauxCoffre()).requestCode('awa@example.ci', OtpPurpose.login);
+
+      expect(transport.dernierCorps['identifier'], equals('awa@example.ci'));
+      expect(transport.dernierCorps['phone'], equals('awa@example.ci'));
+    });
+
+    test('LIT UN COMPTE SANS NUMÉRO sans rien inventer', () async {
+      final transport = FakeTransport()
+        ..enfile(<String, Object?>{
+          'token': 'jeton',
+          'user': <String, Object?>{
+            'id': 7,
+            'phone': null,
+            'email': 'awa@example.ci',
+            'full_name': 'Awa',
+            'kyc_status': 'none',
+          },
+        });
+
+      final Account compte =
+          await AuthService(transport, FauxCoffre()).verify('awa@example.ci', '123456', OtpPurpose.login);
+
+      expect(compte.phone, isEmpty);
+      expect(compte.email, equals('awa@example.ci'));
+      // L'écran doit montrer ce qui existe, jamais un champ vide.
+      expect(compte.identifiant, equals('awa@example.ci'));
+    });
+
+    test('préfère le numéro quand les deux existent', () async {
+      final transport = FakeTransport()
+        ..enfile(<String, Object?>{
+          'token': 'jeton',
+          'user': <String, Object?>{
+            'id': 8,
+            'phone': '+2250700111222',
+            'email': 'awa@example.ci',
+          },
+        });
+
+      final Account compte =
+          await AuthService(transport, FauxCoffre()).verify('0700111222', '123456', OtpPurpose.login);
+
+      expect(compte.identifiant, equals('+2250700111222'));
+    });
+  });
+}
+
+class FauxCoffre implements TokenStore {
+  String? _jeton;
+
+  @override
+  Future<String?> read() async => _jeton;
+
+  @override
+  Future<void> write(String token) async => _jeton = token;
+
+  @override
+  Future<void> clear() async => _jeton = null;
+}

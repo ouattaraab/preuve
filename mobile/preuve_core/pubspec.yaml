@@ -1,0 +1,13 @@
+name: preuve_core
+description: >-
+  Cœur métier du client PREUVE : contrats d'API, modèles, validation locale des
+  identifiants et file d'envoi différée. Aucune dépendance à Flutter, afin que
+  cette logique soit vérifiable sans appareil ni émulateur.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dev_dependencies:
+  test: ^1.25.0

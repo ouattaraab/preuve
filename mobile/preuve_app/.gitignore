@@ -1,0 +1,58 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# TROUSSEAU DE SIGNATURE ANDROID — jamais dans le dépôt.
+#
+# Le .jks et son mot de passe sont la seule preuve que les mises à jour de
+# Preuve viennent de BookMi. Versionnés, ils permettraient à quiconque lit ce
+# dépôt de publier une application se faisant passer pour la nôtre. Perdus,
+# ils interdiraient toute mise à jour future : Google Play refuse un binaire
+# signé par une autre clé, et il faudrait abandonner tous les utilisateurs
+# installés sous un nouvel identifiant.
+android/key.properties
+android/keystore/
+*.jks
+*.keystore

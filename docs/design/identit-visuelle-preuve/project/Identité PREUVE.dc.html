@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face { font-family: 'Bricolage'; src: url('fonts/BricolageGrotesque-ExtraBold.ttf'); font-weight: 800; }
+@font-face { font-family: 'Bricolage'; src: url('fonts/BricolageGrotesque-SemiBold.ttf'); font-weight: 600; }
+@font-face { font-family: 'Atkinson'; src: url('fonts/AtkinsonHyperlegible-Regular.ttf'); font-weight: 400; }
+@font-face { font-family: 'Atkinson'; src: url('fonts/AtkinsonHyperlegible-Bold.ttf'); font-weight: 700; }
+body { margin: 0; background: #FFF6E8; }
+a { color: #D97706; } a:hover { color: #2B1D12; }
+</style>
+</helmet>
+<div style="font-family:'Atkinson',sans-serif;color:#2B1D12;max-width:1060px;margin:0 auto;padding:48px 28px 80px">
+
+  <div data-screen-label="Marque" style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap">
+    <div style="font-family:'Bricolage';font-weight:800;font-size:34px;letter-spacing:-0.68px">Preuve<span style="color:#D97706">.</span></div>
+    <div style="font-size:12px;font-weight:700;color:#8A7358;letter-spacing:0.5px">IDENTITÉ MOBILE — ICÔNE · DÉMARRAGE · SPLASH · v1.4.0+8</div>
+  </div>
+  <h1 style="font-family:'Bricolage';font-weight:800;font-size:44px;letter-spacing:-0.88px;line-height:1.05;margin:26px 0 14px;max-width:720px;text-wrap:pretty">La coche part. Le point orange devient le symbole, porté par le P.</h1>
+  <p style="font-size:17px;line-height:1.5;color:#5A4632;max-width:680px;margin:0">La coche annonce « vérifié » avant que la question soit posée — et le registre est déclaratif, il n'authentifie pas. Le monogramme « P. » n'affirme aucun verdict, reprend exactement le mot-marque (Bricolage ExtraBold, point orange qui « ne s'omet pas »), et reste un tracé vectoriel : budget des 300 Kio intact.</p>
+
+  <div data-screen-label="Le symbole" style="margin-top:44px">
+    <div style="font-size:12px;font-weight:700;color:#8A7358;letter-spacing:0.5px">LE SYMBOLE — REMPLACE public/favicon.svg DANS LE MÊME LOT</div>
+    <div style="display:flex;gap:32px;margin-top:16px;flex-wrap:wrap;align-items:flex-start">
+      <sc-if value="{{ monogramme }}" hint-placeholder-val="{{ true }}">
+        <div style="width:192px;height:192px;background:#2B1D12;border-radius:36px;display:flex;align-items:center;justify-content:center;flex:none">
+          <div style="font-family:'Bricolage';font-weight:800;font-size:116px;line-height:1;letter-spacing:-2.3px;color:#FFF6E8;transform:translateY(-5px)">P<span style="color:#D97706">.</span></div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ pointSeul }}" hint-placeholder-val="{{ false }}">
+        <div style="width:192px;height:192px;background:#2B1D12;border-radius:36px;display:flex;align-items:center;justify-content:center;flex:none">
+          <div style="width:84px;height:84px;background:#D97706;border-radius:50%"></div>
+        </div>
+      </sc-if>
+      <div style="flex:1;min-width:280px;display:grid;gap:12px;font-size:15px;line-height:1.5">
+        <div style="background:#FFFFFF;border:3px solid #2B1D12;border-radius:16px;padding:14px 16px;box-shadow:0 4px 0 #2B1D12"><strong>Il ne promet rien.</strong> Une lettre n'affirme aucun verdict : l'application peut dire « Volé déclaré » sans que l'icône se contredise. La coche affichait « tout va bien » précisément dans le cas où le produit sert le plus.</div>
+        <div style="background:#FFFFFF;border:3px solid #2B1D12;border-radius:16px;padding:14px 16px;box-shadow:0 4px 0 #2B1D12"><strong>C'est déjà la marque.</strong> Icône et mot-marque deviennent le même objet — un seul signe partagé entre le site et l'application, au lieu de deux sans rapport. Crème sur encre&nbsp;: 12,9:1. Orange sur encre&nbsp;: 5,1:1.</div>
+        <div style="background:#FFFFFF;border:3px solid #2B1D12;border-radius:16px;padding:14px 16px;box-shadow:0 4px 0 #2B1D12"><strong>Le tampon et le sceau restent écartés</strong> — l'air officiel que productContext.md interdit pour raison juridique. Variante de repli si le P paraît trop plat&nbsp;: le point seul, surdimensionné (tweak ci-contre).</div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="Tailles réelles" style="margin-top:52px">
+    <div style="font-size:12px;font-weight:700;color:#8A7358;letter-spacing:0.5px">L'ICÔNE SE JUGE À LA TAILLE OÙ ON LA CHERCHE</div>
+    <div style="display:flex;gap:24px;margin-top:16px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px;background:#E8DFCE;border:3px solid #2B1D12;border-radius:20px;padding:22px;box-shadow:0 4px 0 #2B1D12">
+        <div style="font-size:13px;font-weight:700;margin-bottom:16px">48 px — dans le tiroir, parmi les autres</div>
+        <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+          <div style="width:48px;height:48px;border-radius:50%;background:#9AA3AB;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:20px">a</div>
+          <div style="width:48px;height:48px;border-radius:11px;background:#7C8A99;display:flex;align-items:center;justify-content:center"><div style="width:20px;height:20px;background:#fff;border-radius:4px"></div></div>
+          <div style="width:48px;height:48px;background:#2B1D12;border-radius:11px;display:flex;align-items:center;justify-content:center">
+            <sc-if value="{{ monogramme }}" hint-placeholder-val="{{ true }}"><div style="font-family:'Bricolage';font-weight:800;font-size:29px;line-height:1;letter-spacing:-0.6px;color:#FFF6E8;transform:translateY(-1px)">P<span style="color:#D97706">.</span></div></sc-if>
+            <sc-if value="{{ pointSeul }}" hint-placeholder-val="{{ false }}"><div style="width:21px;height:21px;background:#D97706;border-radius:50%"></div></sc-if>
+          </div>
+          <div style="width:48px;height:48px;border-radius:50%;background:#B3A98F;display:flex;align-items:center;justify-content:center"><div style="width:18px;height:18px;background:#fff;border-radius:50%"></div></div>
+          <div style="width:48px;height:48px;border-radius:11px;background:#8E9A84;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:20px">m</div>
+        </div>
+        <div style="font-size:13px;color:#5A4632;margin-top:14px;line-height:1.45">La masse fermée du Bricolage ExtraBold tient à 48 px&nbsp;; le carré encre est la seule tache sombre du tiroir.</div>
+      </div>
+      <div style="flex:1;min-width:300px;background:#FFFFFF;border:3px solid #2B1D12;border-radius:20px;padding:22px;box-shadow:0 4px 0 #2B1D12">
+        <div style="font-size:13px;font-weight:700;margin-bottom:16px">Adaptative Android — zone sûre 66/108 dp</div>
+        <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+          <div style="position:relative;width:96px;height:96px;flex:none">
+            <div style="width:96px;height:96px;border-radius:50%;background:#2B1D12;display:flex;align-items:center;justify-content:center;overflow:hidden">
+              <div style="font-family:'Bricolage';font-weight:800;font-size:36px;line-height:1;letter-spacing:-0.7px;color:#FFF6E8;transform:translateY(-1px)">P<span style="color:#D97706">.</span></div>
+            </div>
+            <div style="position:absolute;inset:15%;border:2px dashed #D97706;border-radius:50%;pointer-events:none"></div>
+          </div>
+          <div style="width:96px;height:96px;border-radius:30px;background:#2B1D12;display:flex;align-items:center;justify-content:center;flex:none">
+            <div style="font-family:'Bricolage';font-weight:800;font-size:36px;line-height:1;letter-spacing:-0.7px;color:#FFF6E8;transform:translateY(-1px)">P<span style="color:#D97706">.</span></div>
+          </div>
+          <div style="width:96px;height:96px;border-radius:16px;background:#2B1D12;display:flex;align-items:center;justify-content:center;flex:none">
+            <div style="font-family:'Bricolage';font-weight:800;font-size:36px;line-height:1;letter-spacing:-0.7px;color:#FFF6E8;transform:translateY(-1px)">P<span style="color:#D97706">.</span></div>
+          </div>
+        </div>
+        <div style="font-size:13px;color:#5A4632;margin-top:14px;line-height:1.45">Le monogramme occupe ~53 % du canevas&nbsp;: aucun masque constructeur (rond, écusson, goutte) ne l'ampute. Fond <span style="font-family:monospace">ic_launcher_background</span> encre plein, avant-plan vectoriel.</div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="Démarrage" style="margin-top:52px">
+    <div style="font-size:12px;font-weight:700;color:#8A7358;letter-spacing:0.5px">DÉMARRAGE — STATIQUE, ZÉRO ATTENTE (le splash Flutter animé serait une régression contre main.dart)</div>
+    <div style="display:flex;gap:24px;margin-top:16px;flex-wrap:wrap">
+      <div style="flex:none">
+        <div style="width:250px;height:520px;background:#FFF6E8;border:3px solid #2B1D12;border-radius:32px;box-shadow:0 4px 0 #2B1D12;display:flex;align-items:center;justify-content:center">
+          <div style="width:88px;height:88px;background:#2B1D12;border-radius:17px;display:flex;align-items:center;justify-content:center">
+            <div style="font-family:'Bricolage';font-weight:800;font-size:53px;line-height:1;letter-spacing:-1px;color:#FFF6E8;transform:translateY(-2px)">P<span style="color:#D97706">.</span></div>
+          </div>
+        </div>
+        <div style="font-size:13px;font-weight:700;margin-top:10px">Android ≤ 11 — clair</div>
+        <div style="font-size:12px;color:#5A4632;line-height:1.4;max-width:250px"><span style="font-family:monospace">launch_background.xml</span>&nbsp;: crème + bitmap centré. Fini le blanc pur.</div>
+      </div>
+      <div style="flex:none">
+        <sc-if value="{{ sombreCreme }}" hint-placeholder-val="{{ true }}">
+          <div style="width:250px;height:520px;background:#FFF6E8;border:3px solid #2B1D12;border-radius:32px;box-shadow:0 4px 0 #2B1D12;display:flex;align-items:center;justify-content:center">
+            <div style="width:88px;height:88px;background:#2B1D12;border-radius:17px;display:flex;align-items:center;justify-content:center">
+              <div style="font-family:'Bricolage';font-weight:800;font-size:53px;line-height:1;letter-spacing:-1px;color:#FFF6E8;transform:translateY(-2px)">P<span style="color:#D97706">.</span></div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ sombreEncre }}" hint-placeholder-val="{{ false }}">
+          <div style="width:250px;height:520px;background:#2B1D12;border:3px solid #2B1D12;border-radius:32px;box-shadow:0 4px 0 #2B1D12;display:flex;align-items:center;justify-content:center">
+            <div style="font-family:'Bricolage';font-weight:800;font-size:64px;line-height:1;letter-spacing:-1.3px;color:#FFF6E8">P<span style="color:#D97706">.</span></div>
+          </div>
+        </sc-if>
+        <div style="font-size:13px;font-weight:700;margin-top:10px">Android — mode sombre</div>
+        <div style="font-size:12px;color:#5A4632;line-height:1.4;max-width:250px">Décision&nbsp;: <strong>crème</strong>, comme le reste — l'application n'a pas de thème sombre, le raccord reste invisible. Le noir d'usine de <span style="font-family:monospace">values-night</span> part. (Tweak&nbsp;: raccord franc en encre.)</div>
+      </div>
+      <div style="flex:none">
+        <div style="width:250px;height:520px;background:#FFF6E8;border:3px solid #2B1D12;border-radius:32px;box-shadow:0 4px 0 #2B1D12;display:flex;align-items:center;justify-content:center">
+          <div style="width:100px;height:100px;border-radius:50%;background:#2B1D12;display:flex;align-items:center;justify-content:center;overflow:hidden">
+            <div style="font-family:'Bricolage';font-weight:800;font-size:38px;line-height:1;letter-spacing:-0.75px;color:#FFF6E8;transform:translateY(-1px)">P<span style="color:#D97706">.</span></div>
+          </div>
+        </div>
+        <div style="font-size:13px;font-weight:700;margin-top:10px">Android 12+ — imposé par le système</div>
+        <div style="font-size:12px;color:#5A4632;line-height:1.4;max-width:250px"><span style="font-family:monospace">values-v31/styles.xml</span>&nbsp;: <span style="font-family:monospace">windowSplashScreenBackground</span> crème, icône rognée en cercle par l'OS — le P tient dans les deux tiers centraux.</div>
+      </div>
+      <div style="flex:none">
+        <div style="width:250px;height:520px;background:#FFF6E8;border:3px solid #2B1D12;border-radius:32px;box-shadow:0 4px 0 #2B1D12;display:flex;align-items:center;justify-content:center">
+          <div style="width:88px;height:88px;background:#2B1D12;border-radius:19.5px;display:flex;align-items:center;justify-content:center">
+            <div style="font-family:'Bricolage';font-weight:800;font-size:53px;line-height:1;letter-spacing:-1px;color:#FFF6E8;transform:translateY(-2px)">P<span style="color:#D97706">.</span></div>
+          </div>
+        </div>
+        <div style="font-size:13px;font-weight:700;margin-top:10px">iOS — LaunchScreen.storyboard</div>
+        <div style="font-size:12px;color:#5A4632;line-height:1.4;max-width:250px">Fond crème codé dans le storyboard (fini le <span style="font-family:monospace">red=1 green=1 blue=1</span>), image vectorielle PDF centrée.</div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen-label="Raccord" style="margin-top:52px">
+    <div style="font-size:12px;font-weight:700;color:#8A7358;letter-spacing:0.5px">LE RACCORD — LE PASSAGE NATIF → FLUTTER NE SE VOIT PAS</div>
+    <div style="display:flex;gap:24px;margin-top:16px;flex-wrap:wrap;align-items:flex-start">
+      <div style="width:250px;height:520px;background:#FFF6E8;border:3px solid #2B1D12;border-radius:32px;box-shadow:0 4px 0 #2B1D12;display:flex;align-items:center;justify-content:center;flex:none">
+        <div style="width:88px;height:88px;background:#2B1D12;border-radius:17px;display:flex;align-items:center;justify-content:center">
+          <div style="font-family:'Bricolage';font-weight:800;font-size:53px;line-height:1;letter-spacing:-1px;color:#FFF6E8;transform:translateY(-2px)">P<span style="color:#D97706">.</span></div>
+        </div>
+      </div>
+      <div style="align-self:center;font-family:'Bricolage';font-weight:800;font-size:26px;color:#D97706">→</div>
+      <div style="width:250px;height:520px;background:#FFF6E8;border:3px solid #2B1D12;border-radius:32px;box-shadow:0 4px 0 #2B1D12;overflow:hidden;flex:none">
+        <div style="padding:20px 15px 0;display:grid;gap:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+            <div style="font-family:'Bricolage';font-weight:800;font-size:17px;letter-spacing:-0.34px">Preuve<span style="color:#D97706">.</span></div>
+            <div style="display:flex;align-items:center;gap:5px">
+              <div style="background:#2B1D12;color:#FFF6E8;border-radius:999px;padding:3px 8px;font-size:8.5px;font-weight:700;white-space:nowrap">Gratuit · Sans compte</div>
+              <div style="width:30px;height:30px;border-radius:50%;background:#fff;border:2px solid #2B1D12;display:flex;align-items:center;justify-content:center;font-size:12px">🔔</div>
+            </div>
+          </div>
+          <div style="font-family:'Bricolage';font-weight:800;font-size:32px;line-height:1.02;letter-spacing:-0.64px;margin-top:24px">Avant<br>d'acheter,<br><span style="color:#D97706">vérifie&nbsp;!</span></div>
+          <div style="font-size:11.5px;line-height:1.45;color:#5A4632;margin-top:8px">Moto, voiture, téléphone… tape le numéro, tu sais tout de suite.</div>
+          <div style="background:#fff;border:2px solid #2B1D12;border-radius:12px;padding:12px;box-shadow:0 3px 0 #2B1D12;color:#8A7358;font-weight:700;font-size:12.5px;margin-top:16px">Plaque, châssis ou IMEI</div>
+          <div style="background:#D97706;border:2px solid #2B1D12;border-radius:12px;height:44px;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 0 #2B1D12;color:#FFF6E8;font-family:'Bricolage';font-weight:800;font-size:15px;margin-top:10px">JE VÉRIFIE</div>
+          <div style="background:#fff;border:2px solid #2B1D12;border-radius:12px;height:38px;display:flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 3px 0 #2B1D12;font-family:'Bricolage';font-weight:800;font-size:12px;margin-top:8px"><span style="font-size:12px">▣</span> Je scanne</div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:260px;font-size:15px;line-height:1.55;color:#5A4632;align-self:center">Même crème <span style="font-family:monospace;color:#2B1D12">#FFF6E8</span> des deux côtés, même encre. Aucune animation, aucune durée minimale&nbsp;: <span style="font-family:monospace;color:#2B1D12">main.dart</span> lance la reprise de session sans l'attendre, et le premier écran n'a besoin de rien — le splash ne dure que le temps que Flutter mette pour peindre.</div>
+    </div>
+  </div>
+
+  <div data-screen-label="Livrables" style="margin-top:52px;background:#2B1D12;border-radius:20px;padding:26px 28px;color:#FFF6E8">
+    <div style="font-size:12px;font-weight:700;color:#FFB84D;letter-spacing:0.5px">FICHIERS DU LOT — TOUT VECTORIEL, ≈ 4 Kio SUR LES 300 AUTORISÉS</div>
+    <div style="font-family:monospace;font-size:13.5px;line-height:2;margin-top:12px">
+      public/favicon.svg — le nouveau symbole (site = application)<br>
+      android/…/drawable{,-v21}/launch_background.xml — crème + marque centrée<br>
+      android/…/drawable/ic_launcher_foreground.xml — P. vectoriel, marge 66/108<br>
+      android/…/mipmap-anydpi-v26/ic_launcher.xml — icône adaptative (absente aujourd'hui)<br>
+      android/…/values/colors.xml · values-v31/styles.xml · values-night/styles.xml<br>
+      ios/…/LaunchScreen.storyboard + LaunchImage (PDF vectoriel, fini le 1×1 px)<br>
+      ios/…/AppIcon.appiconset — jeu complet depuis le rendu 1024<br>
+      pubspec.yaml → 1.4.0+8 · main.dart → <span>version&#8203;Installee</span> = '1.4.0' · section assets:
+    </div>
+    <div style="font-size:13.5px;line-height:1.5;color:#E8DFCE;margin-top:14px;max-width:720px">Reste une étape hors code&nbsp;: vectoriser le glyphe « P. » depuis BricolageGrotesque-ExtraBold.ttf (texte → contours, une commande) pour le favicon et le VectorDrawable — un <span style="font-family:monospace">&lt;text&gt;</span> SVG dépendrait d'une police que l'appareil n'a pas.</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;pointSeul&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Symbole&quot;, &quot;description&quot;: &quot;Variante de repli : le point orange seul, surdimensionné&quot;}, &quot;sombreEncre&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Démarrage&quot;, &quot;description&quot;: &quot;Mode sombre : raccord franc sur fond encre au lieu du crème&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const pointSeul = this.props.pointSeul ?? false;
+    const sombreEncre = this.props.sombreEncre ?? false;
+    return { pointSeul, monogramme: !pointSeul, sombreEncre, sombreCreme: !sombreEncre };
+  }
+}
+</script>
+</body>
+</html>

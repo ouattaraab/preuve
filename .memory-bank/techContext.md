@@ -3,7 +3,7 @@
 ## Stack verrouillée
 | Couche | Choix | Notes |
 |---|---|---|
-| Backend | Laravel 11 · PHP 8.3 | API REST versionnée `/api/v1` |
+| Backend | Laravel 12 · PHP 8.3+ | API REST versionnée `/api/v1`. Monté de 11 à 12 le 02/08/2026 : la branche 11 n'avait plus de correctif pour 3 avis de sécurité (dont une injection CRLF « high » dans la règle `email`). `composer audit` doit rester vide |
 | BDD | MySQL 8.0+ (InnoDB, utf8mb4_0900_ai_ci) | Schéma de référence : `database/preuve_schema_mysql8.sql` (14 tables) |
 | Cache/queues | Redis + Horizon | Files : `default`, `ocr`, `uploads`, `notifications`, `payments` |
 | Auth | Sanctum + OTP SMS | Pas de mot de passe au MVP |

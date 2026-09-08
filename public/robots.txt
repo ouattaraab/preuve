@@ -1,0 +1,16 @@
+# Registre PREUVE — https://preuve.click
+#
+# Les pages de statut sont indexables une par une : un vendeur partage un lien,
+# un acheteur le retrouve. IL N'Y A DÉLIBÉRÉMENT PAS DE PLAN DE SITE : énumérer
+# les références publierait le registre sous forme de liste. Chaque page prise
+# isolément est anodine, leur collection ne l'est pas.
+#
+# La page de résultat porte l'identifiant réel saisi (châssis, plaque, IMEI) :
+# l'indexer constituerait, moteur après moteur, l'annuaire des numéros
+# enregistrés — précisément ce que la référence publique opaque évite.
+
+User-agent: *
+Disallow: /verifier
+Disallow: /admin
+Disallow: /api/
+Allow: /

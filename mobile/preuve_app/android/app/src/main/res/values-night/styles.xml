@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Mode sombre — ET IL RESTE CRÈME, délibérément.
+
+    L'application n'a pas de thème sombre : elle est crème quel que soit le
+    réglage du téléphone. Un démarrage noir, comme celui d'usine, aurait donc
+    fait passer du noir au crème en pleine ouverture. On préfère un raccord
+    invisible à une cohérence avec un thème qui n'existe pas.
+
+    Le jour où un thème sombre arrivera, c'est ce fichier qu'il faudra
+    reprendre en même temps que `Djassa` — pas après.
+-->
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@color/preuve_creme</item>
+    </style>
+</resources>

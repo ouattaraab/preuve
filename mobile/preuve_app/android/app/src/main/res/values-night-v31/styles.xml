@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Écran de démarrage d'Android 12 et suivants.
+
+    À PARTIR DE L'API 31, LE SYSTÈME IGNORE `windowBackground` au démarrage :
+    il impose son propre écran. Ne corriger que `values/styles.xml` donnerait
+    un démarrage juste sur un vieux téléphone et faux sur un neuf — le cas le
+    plus difficile à voir, puisqu'on développe sur le neuf.
+
+    LA COULEUR DE FOND D'ICÔNE EST DÉCLARÉE, ET CE N'EST PAS UN ORNEMENT. Sans
+    elle, le système n'affiche que l'AVANT-PLAN de l'icône adaptative et laisse
+    tomber son fond encre : notre P crème se retrouverait crème sur crème,
+    c'est-à-dire invisible.
+-->
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowSplashScreenBackground">@color/preuve_creme</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/preuve_encre</item>
+    </style>
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@color/preuve_creme</item>
+    </style>
+</resources>

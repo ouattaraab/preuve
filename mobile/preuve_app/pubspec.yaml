@@ -1,0 +1,131 @@
+name: preuve_app
+description: >-
+  PREUVE — vérifier un bien avant d'acheter. Registre déclaratif de propriété
+  et de statut des biens, Côte d'Ivoire.
+publish_to: none
+
+# La version est lue par le serveur (`X-App-Version`) pour appliquer, le cas
+# échéant, une version minimale exigée. Elle doit donc suivre la réalité des
+# livraisons, pas rester à 1.0.0.
+# PREMIÈRE VERSION PUBLIABLE. Le `+1` est le `versionCode` Android : il doit
+# croître à CHAQUE dépôt sur Google Play, qui refuse deux fois le même.
+# 1.1.0 : l'inscription et la connexion acceptent désormais une ADRESSE autant
+# qu'un numéro. C'est une fonction nouvelle, pas un correctif — d'où le second
+# nombre. Le `+2` est le `versionCode` Android, que Google Play refuse de voir
+# deux fois : il croît à chaque dépôt, sans exception.
+version: 1.4.1+9
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Le cœur métier, en Dart pur : il s'analyse et se teste sans appareil.
+  preuve_core:
+    path: ../preuve_core
+  # Trousseau iOS et Keystore Android. LA SEULE DÉPENDANCE TIERCE DE
+  # L'APPLICATION, et elle se justifie : écrire soi-même le pont vers ces
+  # coffres serait plus risqué que de dépendre d'un paquet éprouvé. Le jeton de
+  # session ouvre l'accès aux biens d'une personne — il n'a rien à faire dans un
+  # fichier de préférences en clair.
+  flutter_secure_storage: ^9.2.2
+  # Appareil photo et galerie. SECONDE ET DERNIÈRE EXCEPTION au principe « aucune
+  # dépendance externe » (décision d'Aboubakar, 04/08/2026), justifiée comme la
+  # première : écrire soi-même le pont vers la caméra et la photothèque de deux
+  # plateformes serait plus risqué que d'en dépendre. Sans elle, aucun bien ne
+  # peut dépasser « Déclaré » — ni justificatif, ni KYC, ni pièce de réclamation,
+  # donc aucune réclamation jamais gagnée sur la grille d'arbitrage.
+  # Greffon maintenu par l'équipe Flutter elle-même (flutter/packages).
+  image_picker: ^1.1.2
+  # Ouvre la page de règlement de l'opérateur dans le navigateur du système.
+  # TROISIÈME DÉPENDANCE, et la dernière : un paiement doit se dérouler dans le
+  # navigateur du téléphone, jamais dans une vue web embarquée. Une page de carte
+  # bancaire affichée dans l'application prive l'utilisateur de la barre
+  # d'adresse — le seul endroit où il peut vérifier qu'il est bien chez
+  # l'opérateur et non sur une imitation. Greffon maintenu par l'équipe Flutter.
+  url_launcher: ^6.3.0
+  # Lecture de texte SUR L'APPAREIL, pour le scan de carte grise (ST-0202).
+  #
+  # QUATRIÈME DÉPENDANCE, et elle en REMPLACE une dépense. Le scan passait par
+  # un fournisseur facturé à l'appel, sur un produit « notes de frais » qui ne
+  # nomme aucun champ « châssis » : tout le travail réel était déjà fait par la
+  # sélection côté serveur, à partir des mots bruts de l'OCR. On paie donc pour
+  # du texte — que le téléphone sait produire lui-même.
+  #
+  # CE QU'ELLE CHANGE, ET QU'AUCUN RÉGLAGE NE POUVAIT CHANGER :
+  # — L'IMAGE NE PART PLUS. Une carte grise porte le nom et l'adresse de son
+  #   propriétaire. L'envoyer à un tiers pour en extraire dix-sept caractères
+  #   contredisait la minimisation appliquée partout ailleurs (Loi 2013-450).
+  # — CELA MARCHE HORS LIGNE, et l'envoi d'une photo de plusieurs mégaoctets en
+  #   3G quitte le chemin (CT-05, et les 90 secondes de CT-02).
+  # — CELA NE COÛTE RIEN, donc le raccourci n'a plus à être rationné.
+  #
+  # La SÉLECTION reste sur le serveur : chiffre de contrôle du VIN, Luhn de
+  # l'IMEI, format de plaque. Embarquées ici, ces règles se périmeraient sur des
+  # téléphones qui ne se mettent pas à jour.
+  #
+  # Modèle EMBARQUÉ et non téléchargé via Play Services : environ 4 Mo, contre
+  # une dépendance à un service absent de certains appareils. Greffon officiel
+  # de Google, maintenu avec ML Kit.
+  google_mlkit_text_recognition: ^0.15.0
+  # Détection de visage SUR L'APPAREIL, pour guider la prise de vivacité.
+  #
+  # CINQUIÈME DÉPENDANCE, et son coût marginal est faible : elle partage
+  # `google_mlkit_commons` avec la lecture de texte, déjà présente, et la cible
+  # iOS a déjà été relevée pour elle.
+  #
+  # ELLE NE CERTIFIE RIEN, ET NE DOIT PAS PRÉTENDRE LE CONTRAIRE. Ce qu'elle
+  # apporte : guider la personne pendant les trois prises — un visage présent,
+  # un seul, réellement tourné — et refuser d'envoyer une séquence où rien n'a
+  # bougé. Le score qu'elle permettrait de calculer n'est PAS envoyé : une
+  # application modifiée enverrait ce qu'elle veut, et un chiffre invérifiable
+  # affiché à l'agent lui ferait cesser de regarder. Ce sont les IMAGES qui
+  # partent, et c'est un humain qui tranche.
+  google_mlkit_face_detection: ^0.13.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  # Pilote l'application RÉELLE sur un appareil : c'est le seul harnais qui
+  # exerce les greffons natifs — trousseau, appareil photo. Livré avec le SDK,
+  # ce n'est donc pas une dépendance tierce de plus.
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  # DÉJÀ EMBARQUÉS PAR `url_launcher` : déclarés ici uniquement pour pouvoir
+  # les importer dans un test. Ils permettent de remplacer le lanceur par un
+  # faux, et donc d'éprouver le retour de la page de paiement — le seul moment
+  # du parcours qui sort de l'application, et celui où un défaut fait payer
+  # deux fois. Aucun octet de plus dans le binaire livré.
+  url_launcher_platform_interface: ^2.3.2
+  plugin_platform_interface: ^2.1.8
+
+flutter:
+  uses-material-design: true
+
+  # Les deux polices de la maquette DJASSA.
+  #
+  # BRICOLAGE GROTESQUE EST INSTANCIÉE EN GRAISSES FIXES, à partir de la police
+  # variable officielle : Flutter n'applique les axes d'une variable que si on
+  # les lui nomme un à un (`fontVariations`), ce qui obligerait chaque style du
+  # thème à les répéter. Deux fichiers statiques rendent exactement la même
+  # chose, et un titre mal graissé ne peut plus passer inaperçu.
+  #
+  # ATKINSON HYPERLEGIBLE n'est pas un choix d'esthétique : elle est dessinée
+  # par le Braille Institute pour distinguer les caractères qui se confondent —
+  # le 0 et le O, le 1 et le I. C'est exactement ce qu'on lit ici : des numéros
+  # de châssis de dix-sept caractères, debout, en plein soleil.
+  fonts:
+    - family: Bricolage
+      fonts:
+        - asset: assets/fonts/BricolageGrotesque-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/BricolageGrotesque-ExtraBold.ttf
+          weight: 800
+    - family: Atkinson
+      fonts:
+        - asset: assets/fonts/AtkinsonHyperlegible-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/AtkinsonHyperlegible-Bold.ttf
+          weight: 700

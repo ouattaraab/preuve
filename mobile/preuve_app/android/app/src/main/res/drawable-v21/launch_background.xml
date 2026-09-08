@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Écran de démarrage, Android 11 et antérieurs.
+
+    LE BLANC PUR D'USINE EST PARTI. L'application s'ouvre en crème `#FFF6E8` :
+    un démarrage blanc faisait clignoter l'écran au moment exact où quelqu'un,
+    debout au marché, attend son verdict. Le raccord ne doit pas se voir.
+
+    STATIQUE, ET SANS AUCUNE ATTENTE. `main.dart` lance la reprise de session
+    sans l'attendre, délibérément (CT-05, réseau 3G). Cet écran ne dure donc
+    que le temps que Flutter mette à peindre sa première image — lui ajouter
+    une animation ou une durée minimale reviendrait à faire patienter pour
+    décorer.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/preuve_creme"/>
+    <item>
+        <bitmap android:gravity="center" android:src="@drawable/marque_demarrage"/>
+    </item>
+</layer-list>
