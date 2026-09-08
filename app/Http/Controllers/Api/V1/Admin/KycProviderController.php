@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Enums\ActorType;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Rules\SafeExternalUrl;
 use App\Services\AuditChain;
 use App\Services\Kyc\MindeeIdentityReader;
 use App\Services\Scan\MindeeDocumentReader;
@@ -61,8 +62,8 @@ final class KycProviderController extends Controller
     {
         $request->validate([
             'api_key' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'endpoint' => ['sometimes', 'nullable', 'string', 'max:255', 'url'],
-            'scan_endpoint' => ['sometimes', 'nullable', 'string', 'max:255', 'url'],
+            'endpoint' => ['sometimes', 'nullable', 'string', 'max:255', 'url', new SafeExternalUrl],
+            'scan_endpoint' => ['sometimes', 'nullable', 'string', 'max:255', 'url', new SafeExternalUrl],
         ]);
 
         $administrateur = $request->user();

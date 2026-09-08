@@ -155,6 +155,20 @@ it("diffuse l'export CSV avec le BOM qui le rend lisible", function (): void {
         ->and($corps)->toContain('Volé déclaré');
 });
 
+it("neutralise l'injection de formule dans l'export CSV", function (): void {
+    // Un tableur exécute une cellule commençant par « = ». Une valeur texte
+    // exportée qui commencerait ainsi doit être préfixée d'une apostrophe pour
+    // rester une donnée, jamais une commande.
+    $admin = administrateurGouvernance();
+
+    app(AuditChain::class)->append(ActorType::Agent, $admin->id, 'asset.registered', '=DANGER()', 4, []);
+
+    $corps = $this->get('/api/v1/admin/audit-trail/export')->assertOk()->streamedContent();
+
+    expect($corps)->toContain("'=DANGER()")
+        ->and($corps)->not->toContain(',=DANGER()');
+});
+
 /* -------------------------------------------------------------------- */
 /* Catalogue des catégories */
 /* -------------------------------------------------------------------- */

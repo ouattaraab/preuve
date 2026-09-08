@@ -215,3 +215,35 @@ migrate:fresh` sur la base locale, sans effet sur un environnement réel).
   face à `audit_log`.
 - La purge réglementaire (ARTCI, 12 mois) et l'ancrage externe du hash de tête sont des sujets
   d'architecture distincts, hors périmètre de ce document.
+
+## État constaté en production (audit du 08/09/2026) et couverture de TRUNCATE/DROP
+
+L'utilisateur applicatif réel en production (`SHOW GRANTS`) porte aujourd'hui
+`GRANT ALL PRIVILEGES ON <base>.*`, sans `GRANT OPTION`. La procédure de
+privilèges restreints ci-dessus **n'y est donc pas appliquée** : sur ce
+mutualisé Hostinger, hPanel attribue `ALL` au compte créé et n'offre pas de
+`REVOKE` granulaire ni la création d'un second compte à privilèges fins depuis
+l'application (pas de `GRANT OPTION`).
+
+Conséquence de sécurité, relevée par l'audit : les déclencheurs d'inaltérabilité
+d'`audit_log` couvrent `UPDATE` et `DELETE`, mais **`TRUNCATE TABLE` et
+`DROP TABLE` les contournent** (MariaDB ne déclenche pas les triggers de ligne
+sur ces ordres DDL). Avec `GRANT ALL`, le compte applicatif pourrait donc
+effacer la chaîne d'un bloc.
+
+**Ce qui rend ce risque couvert aujourd'hui : l'ancrage externe.** Le hash de
+tête est publié hors de la plateforme, et `AuditAnchorService::verifyAgainstAnchors()`
+détecte précisément une reconstruction complète comme une baisse du compteur
+d'entrées. Vérifié en production le 08/09/2026 : **deux canaux d'ancrage
+configurés, dernier ancrage réussi il y a moins de 24 h**. La garantie
+d'inaltérabilité tient donc, à la condition — non négociable — que l'ancrage
+reste actif et surveillé (le heartbeat le contrôle déjà : « ancrage récent »).
+
+Actions recommandées, par ordre de faisabilité :
+1. **Garder l'ancrage externe actif et alerté** (déjà le cas). C'est la défense
+   effective tant que le compte applicatif conserve les droits DDL.
+2. Le jour d'un passage sur un hébergement à privilèges maîtrisables (VPS, base
+   dédiée), retirer `DROP`, `ALTER` et `TRUNCATE` au compte applicatif selon la
+   procédure ci-dessus. **`TRUNCATE` reste nécessaire au compte de CI/local**
+   (les tests réinitialisent les tables ainsi) : la restriction ne vaut que
+   pour le compte de production.

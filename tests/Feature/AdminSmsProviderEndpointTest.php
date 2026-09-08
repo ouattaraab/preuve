@@ -241,3 +241,18 @@ it('refuse un essai vers un numéro inexploitable', function (): void {
     $this->postJson('/api/v1/admin/sms-provider/test', ['phone' => 'pas-un-numero'])
         ->assertStatus(422);
 });
+
+it('REFUSE une passerelle qui vise le réseau interne (anti-SSRF)', function (): void {
+    // La passerelle reçoit le secret d'authentification à chaque envoi : la
+    // pointer vers une IP interne l'exfiltrerait. Refusé à la saisie.
+    administrateur();
+
+    $this->putJson('/api/v1/admin/sms-provider', [
+        'provider' => 'http',
+        'config' => [
+            'endpoint_url' => 'https://169.254.169.254/latest/meta-data/',
+            'payload_template' => '{"to":"{{destination}}","text":"{{message}}"}',
+            'auth_header' => 'Bearer cle-secrete-123',
+        ],
+    ])->assertStatus(422)->assertJsonValidationErrors('config.endpoint_url');
+});

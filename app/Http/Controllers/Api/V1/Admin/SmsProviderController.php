@@ -8,6 +8,7 @@ use App\Enums\ActorType;
 use App\Enums\OtpPurpose;
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Rules\SafeExternalUrl;
 use App\Services\AuditChain;
 use App\Services\Otp\ConfigurableOtpSender;
 use App\Services\Otp\SmsProviderRegistry;
@@ -15,6 +16,7 @@ use App\Services\OtpService;
 use App\Services\Settings\SettingsRepository;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -216,6 +218,21 @@ final class SmsProviderController extends Controller
                 'config.endpoint_url' => "L'adresse de la passerelle doit être en HTTPS : le code transiterait ".
                     'sinon en clair sur le réseau.',
             ]);
+        }
+
+        // ANTI-SSRF : la passerelle reçoit un secret d'authentification à chaque
+        // envoi (voir HttpSmsGateway). La viser vers le réseau interne
+        // — métadonnées cloud, service back-end — exfiltrerait ce secret et
+        // ouvrirait un pivot. On refuse à la saisie une URL qui pointe vers une
+        // IP interne ou réservée.
+        if (is_string($url) && $url !== '') {
+            $verif = Validator::make(['url' => $url], ['url' => [new SafeExternalUrl]]);
+
+            if ($verif->fails()) {
+                throw ValidationException::withMessages([
+                    'config.endpoint_url' => $verif->errors()->get('url'),
+                ]);
+            }
         }
     }
 

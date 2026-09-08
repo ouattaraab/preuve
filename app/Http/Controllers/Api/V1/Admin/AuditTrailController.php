@@ -65,6 +65,29 @@ final class AuditTrailController extends Controller
     }
 
     /** Export CSV, diffusé en flux. */
+    /**
+     * Neutralise une cellule susceptible d'être lue comme une formule.
+     *
+     * Un tableur (Excel, LibreOffice, Sheets) exécute le contenu d'une cellule
+     * qui commence par `=`, `+`, `-`, `@`, une tabulation ou un retour chariot.
+     * Aujourd'hui les colonnes exportées sont des valeurs système ou du JSON
+     * (préfixé par `{`), donc hors d'atteinte ; mais un motif saisi par un
+     * agent transite par le payload, et toute colonne texte ajoutée demain
+     * rouvrirait le vecteur. On préfixe d'une apostrophe : le tableur affiche
+     * la valeur telle quelle au lieu de l'évaluer. Neutralisé à l'export, pas
+     * en base : la donnée reste fidèle là où elle est lue par la plateforme.
+     */
+    private function neutraliserFormule(int|string|null $valeur): string
+    {
+        $texte = (string) $valeur;
+
+        if ($texte !== '' && in_array($texte[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+            return "'".$texte;
+        }
+
+        return $texte;
+    }
+
     public function export(Request $request): StreamedResponse
     {
         $requete = $this->filtrer($request);
@@ -87,7 +110,7 @@ final class AuditTrailController extends Controller
             /** @param Collection<int, AuditLog> $entrees */
             $requete->orderBy('id')->chunk(self::LOT_EXPORT, function (Collection $entrees) use ($sortie): void {
                 foreach ($entrees as $entree) {
-                    fputcsv($sortie, [
+                    fputcsv($sortie, array_map($this->neutraliserFormule(...), [
                         $entree->id,
                         $entree->created_at->toIso8601String(),
                         $entree->actor_type->value,
@@ -95,13 +118,13 @@ final class AuditTrailController extends Controller
                         $entree->action,
                         $entree->entity_type,
                         $entree->entity_id,
-                        json_encode($entree->payload, JSON_UNESCAPED_UNICODE),
+                        json_encode($entree->payload, JSON_UNESCAPED_UNICODE) ?: 'null',
                         // L'empreinte de chaînage accompagne chaque ligne :
                         // sans elle, l'export ne serait qu'un tableau, et
                         // personne ne pourrait vérifier qu'il correspond au
                         // journal dont il est tiré.
                         $entree->chain_hash,
-                    ], ',', '"', '\\');
+                    ]), ',', '"', '\\');
                 }
             });
 
